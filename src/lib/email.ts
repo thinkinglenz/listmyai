@@ -1,6 +1,8 @@
 // Thin wrapper around Resend. Falls back to console.log in dev when RESEND_API_KEY is absent.
 
-const FROM = 'ListmyAI <noreply@listmyai.com>'
+// Use onboarding@resend.dev until listmyai.com is verified on Resend.
+// To use noreply@listmyai.com: go to resend.com → Domains → Add Domain → verify DNS.
+const FROM = 'ListmyAI <onboarding@resend.dev>'
 
 interface SendOptions {
   to: string
@@ -89,5 +91,44 @@ export function trialExpiredEmail(toolName: string, upgradeUrl: string) {
     ${H1(`Your free listing period has ended`)}
     ${P(`The free period for <strong style="color:#fff">${toolName}</strong> has expired. Your listing is still visible but deprioritized.`)}
     ${BTN(upgradeUrl, 'Reactivate Listing')}
+  `)
+}
+
+export function submissionConfirmationEmail(
+  contactName: string,
+  toolName: string,
+  contactEmail: string,
+  appUrl: string,
+) {
+  return BASE(`
+    ${H1(`🎉 "${toolName}" has been submitted!`)}
+    ${P(`Hi ${contactName || 'there'},`)}
+    ${P(`Thanks for submitting <strong style="color:#fff">${toolName}</strong> to ListmyAI. We've received your listing and our team will review it within <strong style="color:#fff">1–2 business days</strong>.`)}
+    ${P(`Once approved, your tool will be live in the directory and visible to thousands of AI enthusiasts. Your <strong style="color:#fff">6-month free listing period</strong> starts from approval.`)}
+    <div style="margin:20px 0;padding:16px;background:rgba(233,69,96,0.08);border:1px solid rgba(233,69,96,0.2);border-radius:12px">
+      <p style="margin:0 0 4px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">Submitted as</p>
+      <p style="margin:0;font-size:14px;color:#fff;font-weight:600">${contactEmail}</p>
+    </div>
+    ${P(`Want to track your listing, update details, or add a promo code? Create a free account with this email address:`)}
+    ${BTN(`${appUrl}/register`, 'Create Your Account')}
+    ${P(`Questions? Just reply to this email — we're happy to help.`)}
+  `)
+}
+
+export function welcomeEmail(name: string, appUrl: string) {
+  return BASE(`
+    ${H1(`Welcome to ListmyAI, ${name || 'there'}! 👋`)}
+    ${P(`Your account is all set. You can now manage your AI tool listings, track views, add promo codes, and upgrade your plan.`)}
+    ${BTN(`${appUrl}/dashboard`, 'Go to Dashboard')}
+    ${P(`If you've already submitted a tool, it will appear in your dashboard once approved.`)}
+  `)
+}
+
+export function passwordResetEmail(resetUrl: string) {
+  return BASE(`
+    ${H1(`Reset your password`)}
+    ${P(`We received a request to reset your ListmyAI password. Click the button below to choose a new one.`)}
+    ${BTN(resetUrl, 'Reset Password')}
+    ${P(`This link expires in 1 hour. If you didn't request a reset, you can safely ignore this email.`)}
   `)
 }

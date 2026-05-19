@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendEmail, submissionConfirmationEmail } from '@/lib/email'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
 
 function buildInsert(slug: string, body: Record<string, unknown>, catId: number) {
   const {
@@ -50,7 +53,6 @@ function stripUnknownColumns(
   row: Record<string, unknown>,
   errorMsg: string
 ): Record<string, unknown> {
-  // Error format: "Could not find the 'column_name' column of 'table' in the schema cache"
   const match = errorMsg.match(/Could not find the '(.+?)' column/)
   if (!match) return row
   const col = match[1]
@@ -63,7 +65,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    const { name, website, category, contact_email } = body
+    const { name, website, category, contact_email, contact_name } = body
 
     if (!name || !website || !category || !contact_email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -91,14 +93,30 @@ export async function POST(req: NextRequest) {
     for (let attempt = 0; attempt < 10; attempt++) {
       const { error } = await supabase.from('ai_tools').insert(row)
 
-      if (!error) return NextResponse.json({ success: true })
+      if (!error) {
+        // ✅ Saved — send confirmation email (non-blocking)
+        sendEmail({
+          to: contact_email,
+          subject: `✅ "${name}" has been submitted to ListmyAI`,
+          html: submissionConfirmationEmail(contact_name ?? '', name, contact_email, APP_URL),
+        }).catch(err => console.error('[submit email]', err))
+
+        return NextResponse.json({ success: true })
+      }
 
       // Duplicate slug → retry with timestamp suffix
       if (error.code === '23505') {
         row = { ...row, slug: `${slug}-${Date.now()}` }
         const { error: e2 } = await supabase.from('ai_tools').insert(row)
-        if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
-        return NextResponse.json({ success: true })
+        if (!e2) {
+          sendEmail({
+            to: contact_email,
+            subject: `✅ "${name}" has been submitted to ListmyAI`,
+            html: submissionConfirmationEmail(contact_name ?? '', name, contact_email, APP_URL),
+          }).catch(err => console.error('[submit email]', err))
+          return NextResponse.json({ success: true })
+        }
+        return NextResponse.json({ error: e2.message }, { status: 500 })
       }
 
       // Unknown column → strip it and retry
@@ -111,7 +129,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ error: 'Schema mismatch — please run the migration SQL in Supabase.' }, { status: 500 })
+    return NextResponse.json(
+      { error: 'Schema mismatch — please run the migration SQL in Supabase.' },
+      { status: 500 }
+    )
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
