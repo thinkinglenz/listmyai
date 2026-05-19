@@ -1,8 +1,6 @@
 // Thin wrapper around Resend. Falls back to console.log in dev when RESEND_API_KEY is absent.
 
-// Use onboarding@resend.dev until listmyai.com is verified on Resend.
-// To use noreply@listmyai.com: go to resend.com → Domains → Add Domain → verify DNS.
-const FROM = 'ListmyAI <onboarding@resend.dev>'
+const FROM = 'ListmyAI <noreply@listmyai.com>'
 
 interface SendOptions {
   to: string
