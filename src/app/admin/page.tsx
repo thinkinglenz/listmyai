@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import {
   BarChart3, Users, List, Shield, TrendingUp,
   ArrowUpRight, Globe, Star, ThumbsUp, AlertCircle,
@@ -58,7 +61,23 @@ const STATUS_BG: Record<string, string> = {
   approved: 'rgba(16,185,129,0.1)', manual: 'rgba(99,102,241,0.1)',
 }
 
+interface Stats {
+  totalTools: number; totalUsers: number; claimedTools: number
+  pendingTools: number; totalUpvotes: number; totalReviews: number; dmcaOpen: number
+}
+
 export default function AdminOverviewPage() {
+  const [stats, setStats] = useState<Stats | null>(null)
+
+  useEffect(() => {
+    fetch('/api/admin/stats')
+      .then(r => r.json())
+      .then(d => { if (!d.error) setStats(d) })
+      .catch(() => {})
+  }, [])
+
+  const s = stats
+
   return (
     <div>
       <div className="mb-6">
@@ -68,10 +87,10 @@ export default function AdminOverviewPage() {
 
       {/* Stats grid */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Listings" value="1,247" sub="34 added this week" icon={List} color="#e94560" trend="+12% from last month" />
-        <StatCard label="Registered Users" value="4,891" sub="203 new this week" icon={Users} color="#6366f1" trend="+8% from last month" />
-        <StatCard label="Claimed Listings" value="318" sub="25.5% claim rate" icon={Shield} color="#10b981" trend="+5 pending review" />
-        <StatCard label="Total Upvotes" value="28,430" sub="Across all tools" icon={ThumbsUp} color="#f59e0b" />
+        <StatCard label="Total Listings" value={s ? s.totalTools.toLocaleString() : '—'} sub={s ? `${s.pendingTools} pending review` : 'Loading…'} icon={List} color="#e94560" />
+        <StatCard label="Registered Users" value={s ? s.totalUsers.toLocaleString() : '—'} sub="From Supabase Auth" icon={Users} color="#6366f1" />
+        <StatCard label="Claimed Listings" value={s ? s.claimedTools.toLocaleString() : '—'} sub={s && s.totalTools > 0 ? `${Math.round((s.claimedTools/s.totalTools)*100)}% claim rate` : '—'} icon={Shield} color="#10b981" />
+        <StatCard label="Total Upvotes" value={s ? s.totalUpvotes.toLocaleString() : '—'} sub="Across all tools" icon={ThumbsUp} color="#f59e0b" />
       </div>
 
       {/* Secondary stats */}

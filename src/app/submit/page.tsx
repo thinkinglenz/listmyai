@@ -24,6 +24,8 @@ const PERKS = [
 export default function SubmitPage() {
   const [step, setStep] = useState<1|2|3>(1)
   const [done, setDone] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [form, setForm] = useState({
     name:'', website:'', tagline:'', description:'', category:'', pricing_model:'',
     starting_price:'', has_free_trial:false, trial_duration:'', promo_code:'', promo_desc:'',
@@ -35,9 +37,26 @@ export default function SubmitPage() {
     setForm(f => ({ ...f, [k]: v }))
   }
 
-  function submit(e: React.FormEvent) {
+  async function submit(e: React.FormEvent) {
     e.preventDefault()
-    setDone(true)
+    setSubmitting(true)
+    setSubmitError('')
+    try {
+      const res = await fetch('/api/tools/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setSubmitError(data.error)
+      } else {
+        setDone(true)
+      }
+    } catch {
+      setSubmitError('Something went wrong. Please try again.')
+    }
+    setSubmitting(false)
   }
 
   if (done) return (
@@ -248,12 +267,15 @@ export default function SubmitPage() {
                   style={{borderColor:'#1e2a3a'}}>
                   ← Back
                 </button>
-                <button type="submit" disabled={!form.contact_name||!form.contact_email}
+                <button type="submit" disabled={!form.contact_name||!form.contact_email||submitting}
                   className="flex-1 rounded-xl py-3 text-sm font-bold text-white transition disabled:opacity-40 hover:opacity-90"
                   style={{background:'#e94560'}}>
-                  🚀 Submit Listing
+                  {submitting ? 'Submitting…' : '🚀 Submit Listing'}
                 </button>
               </div>
+              {submitError && (
+                <p className="mt-3 text-sm text-red-400 text-center">{submitError}</p>
+              )}
             </>}
           </form>
         </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Search, Filter, ExternalLink, Check, X, Trash2, Eye, ChevronDown } from 'lucide-react'
 
 interface Tool {
@@ -37,9 +37,37 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 
 export default function AdminListingsPage() {
   const [tools, setTools] = useState<Tool[]>(MOCK_TOOLS)
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  const loadTools = useCallback(async () => {
+    try {
+      const params = new URLSearchParams()
+      if (filterStatus !== 'all') params.set('status', filterStatus)
+      if (search) params.set('search', search)
+      const res = await fetch(`/api/admin/listings?${params}`)
+      const data = await res.json()
+      if (data.tools && data.tools.length > 0) {
+        setTools(data.tools.map((t: any) => ({
+          id: String(t.id),
+          name: t.name,
+          slug: t.slug,
+          category: t.categories?.name ?? '—',
+          website: t.website ?? '—',
+          status: t.status ?? 'pending',
+          claimed: t.claimed ?? false,
+          upvotes: t.upvotes ?? 0,
+          rating: t.rating_avg ?? 0,
+          added: new Date(t.created_at).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }),
+        })))
+      }
+    } catch {}
+    setLoading(false)
+  }, [filterStatus, search])
+
+  useEffect(() => { loadTools() }, [loadTools])
 
   const filtered = tools.filter(t => {
     const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -48,15 +76,18 @@ export default function AdminListingsPage() {
     return matchSearch && matchStatus
   })
 
-  function approve(id: string) {
+  async function approve(id: string) {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'active' } : t))
+    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'active' }) })
   }
-  function reject(id: string) {
+  async function reject(id: string) {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'rejected' } : t))
+    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'rejected' }) })
   }
-  function remove(id: string) {
+  async function remove(id: string) {
     setTools(prev => prev.filter(t => t.id !== id))
     setSelected(prev => { const s = new Set(prev); s.delete(id); return s })
+    await fetch('/api/admin/listings', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
   }
   function toggleSelect(id: string) {
     setSelected(prev => {
