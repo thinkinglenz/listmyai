@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, List, Shield, Users, FileWarning,
-  Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff,
+  Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard,
 } from 'lucide-react'
 
 // ─── Admin password gate ────────────────────────────────────────────────────
@@ -83,6 +83,7 @@ const NAV = [
   { href: '/admin/listings', label: 'Listings', icon: List },
   { href: '/admin/claims', label: 'Claim Requests', icon: Shield, badge: 3 },
   { href: '/admin/users', label: 'Users', icon: Users },
+  { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/admin/dmca', label: 'DMCA Queue', icon: FileWarning, badge: 1 },
   { href: '/admin/scraper', label: 'Scraper', icon: Bot },
 ]
@@ -160,13 +161,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold text-white"
               style={{ background: '#e94560' }}>A</div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-white">Admin</p>
-              <p className="truncate text-xs text-slate-500">admin@listmyai.com</p>
+              <p className="truncate text-sm font-semibold text-white">Super Admin</p>
+              <p className="truncate text-xs text-slate-500">lmai@admin2026</p>
             </div>
           </div>
           <Link href="/" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-500 transition hover:text-white">
             <LogOut className="h-4 w-4" /> Back to site
           </Link>
+          <button
+            onClick={() => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false) }}
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500 transition hover:bg-red-500/10">
+            <LogOut className="h-4 w-4" /> Log out of admin
+          </button>
         </div>
       </aside>
 

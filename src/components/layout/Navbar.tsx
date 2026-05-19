@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { Sparkles, Menu, X, Search, Plus } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Sparkles, Menu, X, Search, Plus, ShieldCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const NAV_LINKS = [
@@ -13,6 +13,11 @@ const NAV_LINKS = [
 
 export default function Navbar() {
   const [open, setOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+
+  useEffect(() => {
+    setIsAdmin(sessionStorage.getItem('lmai_admin_auth') === '1')
+  }, [])
 
   return (
     <header className="sticky top-0 z-50 border-b border-brand-border bg-brand-navy/80 backdrop-blur-md">
@@ -45,6 +50,13 @@ export default function Navbar() {
             <Search className="h-4 w-4" />
             Search
           </Link>
+          {isAdmin && (
+            <Link href="/admin"
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition"
+              style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
+              <ShieldCheck className="h-4 w-4" /> Admin
+            </Link>
+          )}
           <Link href="/login"
             className="rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white">
             Log in
