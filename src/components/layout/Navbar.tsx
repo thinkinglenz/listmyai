@@ -50,17 +50,18 @@ export default function Navbar() {
             <Search className="h-4 w-4" />
             Search
           </Link>
-          {isAdmin && (
+          {isAdmin ? (
             <Link href="/admin"
               className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition"
               style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
-              <ShieldCheck className="h-4 w-4" /> Admin
+              <ShieldCheck className="h-4 w-4" /> Admin Panel
+            </Link>
+          ) : (
+            <Link href="/login"
+              className="rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white">
+              Log in
             </Link>
           )}
-          <Link href="/login"
-            className="rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white">
-            Log in
-          </Link>
           <Link href="/submit"
             className="flex items-center gap-1.5 rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 shadow-glow-red">
             <Plus className="h-4 w-4" />
@@ -85,10 +86,18 @@ export default function Navbar() {
               </Link>
             ))}
             <hr className="my-2 border-brand-border" />
-            <Link href="/login" onClick={() => setOpen(false)}
-              className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white">
-              Log in
-            </Link>
+            {isAdmin ? (
+              <Link href="/admin" onClick={() => setOpen(false)}
+                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold"
+                style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
+                <ShieldCheck className="h-4 w-4" /> Admin Panel
+              </Link>
+            ) : (
+              <Link href="/login" onClick={() => setOpen(false)}
+                className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white">
+                Log in
+              </Link>
+            )}
             <Link href="/submit" onClick={() => setOpen(false)}
               className="mt-1 flex items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-2.5 text-sm font-semibold text-white">
               <Plus className="h-4 w-4" />
