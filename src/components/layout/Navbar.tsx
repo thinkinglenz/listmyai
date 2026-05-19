@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import { useState, useEffect } from 'react'
-import { Sparkles, Menu, X, Search, Plus, ShieldCheck } from 'lucide-react'
+import { Sparkles, Menu, X, Search, Plus, ShieldCheck, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+const SESSION_KEY = 'lmai_admin_auth'
 
 const NAV_LINKS = [
   { href: '/directory',   label: 'Browse AI Tools' },
@@ -16,8 +18,14 @@ export default function Navbar() {
   const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
-    setIsAdmin(sessionStorage.getItem('lmai_admin_auth') === '1')
+    setIsAdmin(sessionStorage.getItem(SESSION_KEY) === '1')
   }, [])
+
+  function adminLogout() {
+    sessionStorage.removeItem(SESSION_KEY)
+    setIsAdmin(false)
+    setOpen(false)
+  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-brand-border bg-brand-navy/80 backdrop-blur-md">
@@ -44,24 +52,33 @@ export default function Navbar() {
         </div>
 
         {/* Desktop actions */}
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-2 md:flex">
           <Link href="/directory"
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">
             <Search className="h-4 w-4" />
             Search
           </Link>
+
           {isAdmin ? (
-            <Link href="/admin"
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition"
-              style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
-              <ShieldCheck className="h-4 w-4" /> Admin Panel
-            </Link>
+            <>
+              <Link href="/admin"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition"
+                style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
+                <ShieldCheck className="h-4 w-4" /> Admin Panel
+              </Link>
+              <button onClick={adminLogout}
+                title="Exit admin session"
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-400 transition hover:bg-red-500/10 hover:text-red-400">
+                <LogOut className="h-4 w-4" /> Exit
+              </button>
+            </>
           ) : (
             <Link href="/login"
               className="rounded-lg px-4 py-2 text-sm text-slate-300 transition hover:text-white">
               Log in
             </Link>
           )}
+
           <Link href="/submit"
             className="flex items-center gap-1.5 rounded-lg bg-brand-red px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-500 shadow-glow-red">
             <Plus className="h-4 w-4" />
@@ -87,11 +104,17 @@ export default function Navbar() {
             ))}
             <hr className="my-2 border-brand-border" />
             {isAdmin ? (
-              <Link href="/admin" onClick={() => setOpen(false)}
-                className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold"
-                style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
-                <ShieldCheck className="h-4 w-4" /> Admin Panel
-              </Link>
+              <>
+                <Link href="/admin" onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold"
+                  style={{ color: '#e94560', background: 'rgba(233,69,96,0.08)' }}>
+                  <ShieldCheck className="h-4 w-4" /> Admin Panel
+                </Link>
+                <button onClick={adminLogout}
+                  className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-red-400 hover:bg-red-500/10">
+                  <LogOut className="h-4 w-4" /> Exit Admin Session
+                </button>
+              </>
             ) : (
               <Link href="/login" onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white">
