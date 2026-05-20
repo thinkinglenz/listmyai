@@ -1,33 +1,43 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Plus, Eye, Star, TrendingUp, Tag, Settings,
   ExternalLink, CheckCircle, Clock, AlertCircle, ChevronRight,
-  BarChart3, Users, Zap, Edit, Trash2, Globe, Shield, Bell,
+  BarChart3, Users, Zap, Edit, Globe, Shield, Bell,
 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 type Tab = 'overview' | 'listings' | 'analytics' | 'promos' | 'settings'
 
-const MOCK_LISTINGS = [
-  {
-    id: '1', name: 'MyAI Tool', slug: 'myai-tool', category: 'Productivity',
-    status: 'active' as const, views: 1284, upvotes: 47, rating: 4.6,
-    claimed: true, verified: false, plan: 'free', trialEnds: '2026-11-18',
-  },
-  {
-    id: '2', name: 'DataBot Pro', slug: 'databot-pro', category: 'Analytics',
-    status: 'pending' as const, views: 0, upvotes: 0, rating: 0,
-    claimed: true, verified: false, plan: 'free', trialEnds: '2026-11-18',
-  },
-]
+interface Listing {
+  id: string
+  name: string
+  slug: string
+  category_name?: string
+  status: 'active' | 'pending' | 'rejected'
+  view_count: number
+  upvotes: number
+  rating_avg: number
+  rating_count: number
+  click_count: number
+  is_featured: boolean
+  created_at: string
+}
 
-const STATUS_CONFIG = {
+interface UserProfile {
+  full_name: string
+  email: string
+  company?: string
+  created_at: string
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
   active:   { label: 'Active',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   Icon: CheckCircle },
   pending:  { label: 'Pending',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  Icon: Clock },
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: AlertCircle },
-  inactive: { label: 'Inactive', color: '#64748b', bg: 'rgba(100,116,139,0.1)', Icon: AlertCircle },
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: string }) {
@@ -44,7 +54,103 @@ function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.Elemen
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [tab, setTab] = useState<Tab>('overview')
+  const [loading, setLoading] = useState(true)
+  const [listings, setListings] = useState<Listing[]>([])
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [profileSaved, setProfileSaved] = useState(false)
+
+  // Form state for settings
+  const [editName, setEditName] = useState('')
+  const [editCompany, setEditCompany] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+
+      // Check auth
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/login')
+        return
+      }
+
+      // Load profile
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('display_name, company, created_at')
+        .eq('id', user.id)
+        .maybeSingle()
+
+      const userProfile: UserProfile = {
+        full_name: prof?.display_name || user.user_metadata?.full_name || 'User',
+        email: user.email ?? '',
+        company: prof?.company ?? '',
+        created_at: prof?.created_at ?? user.created_at,
+      }
+      setProfile(userProfile)
+      setEditName(userProfile.full_name)
+      setEditCompany(userProfile.company ?? '')
+
+      // Load user's claimed/submitted tools
+      // For now, show tools submitted by this user (via email match or claimed)
+      const { data: tools } = await supabase
+        .from('ai_tools')
+        .select('id, name, slug, status, view_count, upvotes, rating_avg, rating_count, click_count, is_featured, created_at, category_id, categories(name)')
+        .or(`submitted_by.eq.${user.id},claimed_by.eq.${user.id}`)
+        .order('created_at', { ascending: false })
+        .limit(50)
+
+      if (tools && tools.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setListings(tools.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          category_name: t.categories?.name ?? 'Other',
+          status: t.status ?? 'pending',
+          view_count: t.view_count ?? 0,
+          upvotes: t.upvotes ?? 0,
+          rating_avg: t.rating_avg ?? 0,
+          rating_count: t.rating_count ?? 0,
+          click_count: t.click_count ?? 0,
+          is_featured: t.is_featured ?? false,
+          created_at: t.created_at,
+        })))
+      }
+
+      setLoading(false)
+    }
+
+    load()
+  }, [router])
+
+  async function saveProfile() {
+    setSavingProfile(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase
+        .from('profiles')
+        .update({ display_name: editName, company: editCompany })
+        .eq('id', user.id)
+      setProfile(prev => prev ? { ...prev, full_name: editName, company: editCompany } : prev)
+      setProfileSaved(true)
+      setTimeout(() => setProfileSaved(false), 2000)
+    }
+    setSavingProfile(false)
+  }
+
+  // Compute stats from real data
+  const totalViews = listings.reduce((s, l) => s + l.view_count, 0)
+  const totalUpvotes = listings.reduce((s, l) => s + l.upvotes, 0)
+  const avgRating = listings.filter(l => l.rating_count > 0).length > 0
+    ? listings.reduce((s, l) => s + l.rating_avg * l.rating_count, 0) / listings.reduce((s, l) => s + l.rating_count, 0)
+    : 0
+  const totalReviews = listings.reduce((s, l) => s + l.rating_count, 0)
+  const activeCount = listings.filter(l => l.status === 'active').length
 
   const navItems: { id: Tab; label: string; Icon: React.ElementType }[] = [
     { id: 'overview',   label: 'Overview',   Icon: LayoutDashboard },
@@ -54,6 +160,14 @@ export default function DashboardPage() {
     { id: 'settings',   label: 'Settings',   Icon: Settings },
   ]
 
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-sm text-slate-500">Loading dashboard…</p>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen" style={{ background: '#0d1117' }}>
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -62,7 +176,9 @@ export default function DashboardPage() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-black text-white">Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">Manage your AI tool listings</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}
+            </p>
           </div>
           <Link href="/submit"
             className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
@@ -90,22 +206,6 @@ export default function DashboardPage() {
             </div>
           </nav>
 
-          {/* Mobile tab bar */}
-          <div className="mb-6 flex gap-1 overflow-x-auto lg:hidden">
-            {navItems.map(({ id, label, Icon }) => (
-              <button key={id} onClick={() => setTab(id)}
-                className="flex flex-shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition"
-                style={{
-                  background: tab === id ? 'rgba(233,69,96,0.1)' : '#161b27',
-                  color: tab === id ? '#e94560' : '#94a3b8',
-                  border: `1px solid ${tab === id ? 'rgba(233,69,96,0.2)' : '#1e2a3a'}`,
-                }}>
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-              </button>
-            ))}
-          </div>
-
           {/* Main content */}
           <div className="min-w-0 flex-1">
 
@@ -113,64 +213,65 @@ export default function DashboardPage() {
             {tab === 'overview' && (
               <div className="space-y-6">
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <StatCard icon={Eye}       label="Total Views"  value="1,284" sub="All listings"    color="#e94560" />
-                  <StatCard icon={TrendingUp} label="Upvotes"      value="47"    sub="This month"      color="#a855f7" />
-                  <StatCard icon={Star}       label="Avg Rating"   value="4.6"   sub="From 12 reviews" color="#f59e0b" />
-                  <StatCard icon={Users}      label="Listings"     value="2"     sub="1 active"        color="#22c55e" />
+                  <StatCard icon={Eye}        label="Total Views"  value={totalViews.toLocaleString()} sub="All listings" color="#e94560" />
+                  <StatCard icon={TrendingUp}  label="Upvotes"      value={totalUpvotes}                sub="All time"    color="#a855f7" />
+                  <StatCard icon={Star}        label="Avg Rating"   value={avgRating > 0 ? avgRating.toFixed(1) : '—'} sub={totalReviews > 0 ? `From ${totalReviews} reviews` : 'No reviews yet'} color="#f59e0b" />
+                  <StatCard icon={Users}       label="Listings"     value={listings.length}             sub={`${activeCount} active`} color="#22c55e" />
                 </div>
 
-                {/* Trial notice */}
-                <div className="rounded-2xl border p-5" style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.05)' }}>
-                  <div className="flex items-start gap-3">
-                    <Zap className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: '#e94560' }} />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-white">Free listing — 6 months included</p>
-                      <p className="mt-0.5 text-sm text-slate-400">Your listings are free until November 18, 2026. Upgrade anytime to unlock featured placement, priority support, and analytics.</p>
+                {listings.length === 0 && (
+                  <div className="rounded-2xl border p-10 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
+                    <Plus className="mx-auto mb-3 h-10 w-10 text-slate-700" />
+                    <p className="font-semibold text-slate-400">No listings yet</p>
+                    <p className="mt-1 text-sm text-slate-600">Submit your first AI tool — it&apos;s free for 6 months.</p>
+                    <Link href="/submit"
+                      className="mt-4 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                      style={{ background: '#e94560' }}>
+                      <Plus className="h-4 w-4" /> Submit Your Tool
+                    </Link>
+                  </div>
+                )}
+
+                {listings.length > 0 && (
+                  <div>
+                    <div className="mb-4 flex items-center justify-between">
+                      <h2 className="font-bold text-white">Your Listings</h2>
+                      <button onClick={() => setTab('listings')} className="flex items-center gap-1 text-xs hover:underline" style={{ color: '#e94560' }}>
+                        View all <ChevronRight className="h-3 w-3" />
+                      </button>
                     </div>
-                    <button className="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
-                      style={{ background: '#e94560' }}>Upgrade</button>
-                  </div>
-                </div>
-
-                {/* Recent listings */}
-                <div>
-                  <div className="mb-4 flex items-center justify-between">
-                    <h2 className="font-bold text-white">Recent Listings</h2>
-                    <button onClick={() => setTab('listings')} className="flex items-center gap-1 text-xs hover:underline" style={{ color: '#e94560' }}>
-                      View all <ChevronRight className="h-3 w-3" />
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {MOCK_LISTINGS.map(listing => {
-                      const s = STATUS_CONFIG[listing.status]
-                      return (
-                        <div key={listing.id} className="flex items-center gap-4 rounded-2xl border p-4 transition hover:border-slate-700"
-                          style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black text-white"
-                            style={{ background: '#e94560' }}>
-                            {listing.name[0]}
+                    <div className="space-y-3">
+                      {listings.slice(0, 5).map(listing => {
+                        const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.pending
+                        return (
+                          <div key={listing.id} className="flex items-center gap-4 rounded-2xl border p-4 transition hover:border-slate-700"
+                            style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl text-sm font-black text-white"
+                              style={{ background: '#e94560' }}>
+                              {listing.name[0]}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-white">{listing.name}</p>
+                              <p className="text-xs text-slate-500">{listing.category_name}</p>
+                            </div>
+                            <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                              style={{ background: s.bg, color: s.color }}>
+                              <s.Icon className="h-3 w-3" /> {s.label}
+                            </span>
+                            <div className="hidden items-center gap-4 text-xs text-slate-500 sm:flex">
+                              <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.view_count}</span>
+                              <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{listing.upvotes}</span>
+                            </div>
+                            <Link href={`/tools/${listing.slug}`}
+                              className="flex-shrink-0 text-slate-500 transition hover:text-white">
+                              <ExternalLink className="h-4 w-4" />
+                            </Link>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-semibold text-white">{listing.name}</p>
-                            <p className="text-xs text-slate-500">{listing.category}</p>
-                          </div>
-                          <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
-                            style={{ background: s.bg, color: s.color }}>
-                            <s.Icon className="h-3 w-3" /> {s.label}
-                          </span>
-                          <div className="hidden items-center gap-4 text-xs text-slate-500 sm:flex">
-                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views}</span>
-                            <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{listing.upvotes}</span>
-                          </div>
-                          <Link href={`/tools/${listing.slug}`}
-                            className="flex-shrink-0 text-slate-500 transition hover:text-white">
-                            <ExternalLink className="h-4 w-4" />
-                          </Link>
-                        </div>
-                      )
-                    })}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
 
@@ -178,15 +279,22 @@ export default function DashboardPage() {
             {tab === 'listings' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-bold text-white">My Listings ({MOCK_LISTINGS.length})</h2>
+                  <h2 className="font-bold text-white">My Listings ({listings.length})</h2>
                   <Link href="/submit"
                     className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition hover:opacity-90"
                     style={{ background: '#e94560' }}>
                     <Plus className="h-3.5 w-3.5" /> Add listing
                   </Link>
                 </div>
-                {MOCK_LISTINGS.map(listing => {
-                  const s = STATUS_CONFIG[listing.status]
+                {listings.length === 0 && (
+                  <div className="rounded-2xl border p-10 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
+                    <Globe className="mx-auto mb-3 h-10 w-10 text-slate-700" />
+                    <p className="font-semibold text-slate-400">No listings yet</p>
+                    <p className="mt-1 text-sm text-slate-600">Submit your AI tool to get started.</p>
+                  </div>
+                )}
+                {listings.map(listing => {
+                  const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.pending
                   return (
                     <div key={listing.id} className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                       <div className="flex items-start gap-4">
@@ -201,18 +309,18 @@ export default function DashboardPage() {
                               style={{ background: s.bg, color: s.color }}>
                               <s.Icon className="h-3 w-3" /> {s.label}
                             </span>
-                            {listing.verified && (
+                            {listing.is_featured && (
                               <span className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
-                                style={{ background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
-                                <Shield className="h-3 w-3" /> Verified
+                                style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b' }}>
+                                <Zap className="h-3 w-3" /> Featured
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-sm text-slate-500">{listing.category} · Free plan until {listing.trialEnds}</p>
+                          <p className="mt-0.5 text-sm text-slate-500">{listing.category_name}</p>
                           <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
-                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.views} views</span>
+                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.view_count} views</span>
                             <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{listing.upvotes} upvotes</span>
-                            {listing.rating > 0 && <span className="flex items-center gap-1"><Star className="h-3 w-3" />{listing.rating}</span>}
+                            {listing.rating_count > 0 && <span className="flex items-center gap-1"><Star className="h-3 w-3" />{listing.rating_avg.toFixed(1)}</span>}
                           </div>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
@@ -221,14 +329,6 @@ export default function DashboardPage() {
                             style={{ borderColor: '#1e2a3a' }}>
                             <ExternalLink className="h-3 w-3" /> View
                           </Link>
-                          <button className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/5"
-                            style={{ borderColor: '#1e2a3a' }}>
-                            <Edit className="h-3 w-3" /> Edit
-                          </button>
-                          <button className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs transition hover:bg-red-500/10"
-                            style={{ borderColor: '#1e2a3a', color: '#ef4444' }}>
-                            <Trash2 className="h-3 w-3" />
-                          </button>
                         </div>
                       </div>
                       {listing.status === 'pending' && (
@@ -247,17 +347,15 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <h2 className="font-bold text-white">Analytics</h2>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                  <StatCard icon={Eye}       label="Views (30d)"  value="842"  color="#e94560" />
-                  <StatCard icon={TrendingUp} label="Upvotes (30d)" value="31" color="#a855f7" />
-                  <StatCard icon={Star}       label="Reviews (30d)" value="4"  color="#f59e0b" />
-                  <StatCard icon={Users}      label="Click-thrus"  value="128" color="#22c55e" />
+                  <StatCard icon={Eye}        label="Total Views"    value={totalViews.toLocaleString()} color="#e94560" />
+                  <StatCard icon={TrendingUp}  label="Total Upvotes"  value={totalUpvotes}                color="#a855f7" />
+                  <StatCard icon={Star}        label="Total Reviews"  value={totalReviews}                color="#f59e0b" />
+                  <StatCard icon={Users}       label="Click-throughs" value={listings.reduce((s, l) => s + l.click_count, 0)} color="#22c55e" />
                 </div>
                 <div className="rounded-2xl border p-8 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                   <BarChart3 className="mx-auto mb-3 h-10 w-10 text-slate-600" />
                   <p className="font-semibold text-slate-400">Detailed charts coming soon</p>
-                  <p className="mt-1 text-sm text-slate-600">Upgrade to Pro to unlock full analytics including referrer data, geographic breakdown, and conversion tracking.</p>
-                  <button className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                    style={{ background: '#e94560' }}>Upgrade to Pro</button>
+                  <p className="mt-1 text-sm text-slate-600">Detailed analytics with referrer data, geographic breakdown, and conversion tracking will be available soon.</p>
                 </div>
               </div>
             )}
@@ -265,82 +363,55 @@ export default function DashboardPage() {
             {/* ── PROMOS ── */}
             {tab === 'promos' && (
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="font-bold text-white">Promotions</h2>
-                  <button className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition hover:opacity-90"
-                    style={{ background: '#e94560' }}>
-                    <Plus className="h-3.5 w-3.5" /> Add promo
-                  </button>
-                </div>
+                <h2 className="font-bold text-white">Promotions</h2>
                 <div className="rounded-2xl border p-8 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                   <Tag className="mx-auto mb-3 h-10 w-10 text-slate-600" />
                   <p className="font-semibold text-slate-400">No promotions yet</p>
                   <p className="mt-1 text-sm text-slate-600">Add coupon codes, free trial offers, or discounts to boost visibility on the Deals page.</p>
-                  <button className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                    style={{ background: '#e94560' }}>Add your first promo</button>
                 </div>
               </div>
             )}
 
             {/* ── SETTINGS ── */}
-            {tab === 'settings' && (
+            {tab === 'settings' && profile && (
               <div className="space-y-6">
                 <h2 className="font-bold text-white">Account Settings</h2>
 
                 <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                   <h3 className="mb-4 font-semibold text-white">Profile</h3>
                   <div className="space-y-4">
-                    {[
-                      { label: 'Full name', value: 'Jane Smith', type: 'text' },
-                      { label: 'Email', value: 'jane@example.com', type: 'email' },
-                      { label: 'Company', value: '', type: 'text', placeholder: 'Optional' },
-                    ].map(f => (
-                      <div key={f.label}>
-                        <label className="mb-1.5 block text-sm font-medium text-slate-300">{f.label}</label>
-                        <input type={f.type} defaultValue={f.value} placeholder={f.placeholder}
-                          className="w-full rounded-xl border bg-white/4 px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition"
-                          style={{ borderColor: '#1e2a3a' }} />
-                      </div>
-                    ))}
-                    <button className="rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-                      style={{ background: '#e94560' }}>Save changes</button>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-300">Full name</label>
+                      <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                        className="w-full rounded-xl border bg-white/4 px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition"
+                        style={{ borderColor: '#1e2a3a' }} />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-300">Email</label>
+                      <input type="email" value={profile.email} disabled
+                        className="w-full rounded-xl border bg-white/4 px-4 py-2.5 text-sm text-slate-500 cursor-not-allowed"
+                        style={{ borderColor: '#1e2a3a' }} />
+                      <p className="mt-1 text-xs text-slate-600">Email cannot be changed here</p>
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-300">Company</label>
+                      <input type="text" value={editCompany} onChange={e => setEditCompany(e.target.value)}
+                        placeholder="Optional"
+                        className="w-full rounded-xl border bg-white/4 px-4 py-2.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 transition"
+                        style={{ borderColor: '#1e2a3a' }} />
+                    </div>
+                    <button onClick={saveProfile} disabled={savingProfile}
+                      className="rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                      style={{ background: '#e94560' }}>
+                      {savingProfile ? 'Saving…' : profileSaved ? '✓ Saved' : 'Save changes'}
+                    </button>
                   </div>
                 </div>
 
                 <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                  <h3 className="mb-4 font-semibold text-white">Notifications</h3>
-                  <div className="space-y-3">
-                    {[
-                      'New reviews on my listings',
-                      'Listing status changes',
-                      'Trial expiry reminders',
-                      'ListmyAI news & updates',
-                    ].map(label => (
-                      <label key={label} className="flex cursor-pointer items-center justify-between gap-4">
-                        <span className="text-sm text-slate-300">{label}</span>
-                        <div className="relative flex-shrink-0">
-                          <input type="checkbox" defaultChecked className="sr-only peer" />
-                          <div className="h-5 w-9 rounded-full transition peer-checked:bg-red-500 peer-not-checked:bg-slate-700"
-                            style={{ background: '#334155' }} />
-                          <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white transition peer-checked:translate-x-4" />
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border p-5" style={{ borderColor: 'rgba(239,68,68,0.2)', background: 'rgba(239,68,68,0.04)' }}>
-                  <div className="flex items-start gap-3">
-                    <Bell className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-500" />
-                    <div>
-                      <h3 className="font-semibold text-white">Danger zone</h3>
-                      <p className="mt-1 text-sm text-slate-400">Permanently delete your account and all listings. This cannot be undone.</p>
-                      <button className="mt-3 rounded-xl border px-4 py-2 text-sm font-semibold text-red-400 transition hover:bg-red-500/10"
-                        style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
-                        Delete account
-                      </button>
-                    </div>
-                  </div>
+                  <p className="text-xs text-slate-500">
+                    Member since {new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </p>
                 </div>
               </div>
             )}
