@@ -160,9 +160,9 @@ export default function AdminScraperPage() {
         <p className="text-sm font-semibold text-white mb-1">🤖 How it works</p>
         <p className="text-xs text-slate-400 leading-relaxed">
           Each source is a competitor AI directory. The scraper fetches their sitemap, visits every tool page,
-          extracts the name, description, website, and category, then saves them to your database as{' '}
-          <span className="text-amber-400 font-medium">Pending</span>.
-          Go to <a href="/admin/listings" className="underline" style={{ color: '#e94560' }}>Listings → Pending</a> to bulk-approve imported tools.
+          extracts the name, description, website, and category, then publishes them{' '}
+          <span className="text-emerald-400 font-medium">live immediately</span> as{' '}
+          <span className="text-slate-300 font-medium">Unclaimed</span> — tool owners can claim their listing anytime.
           Tools already in your database are automatically skipped.
         </p>
       </div>
@@ -291,14 +291,14 @@ export default function AdminScraperPage() {
 
           {totalImported > 0 && (
             <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)' }}>
-              <p className="text-sm font-bold text-emerald-400 mb-1">✅ {totalImported} tools imported this session</p>
+              <p className="text-sm font-bold text-emerald-400 mb-1">✅ {totalImported} tools are now live</p>
               <p className="text-xs text-slate-400 mb-3">
-                They are saved as <strong className="text-amber-400">Pending</strong> in your database. Review and approve them now.
+                All imported tools are <strong className="text-emerald-400">Active</strong> and publicly visible as <strong className="text-slate-300">Unclaimed</strong>. Tool owners can claim them anytime.
               </p>
-              <a href="/admin/listings?status=pending"
+              <a href="/admin/listings"
                 className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                 style={{ background: '#10b981' }}>
-                <Database className="h-4 w-4" /> Review Pending Listings
+                <Database className="h-4 w-4" /> View All Listings
               </a>
             </div>
           )}
@@ -309,8 +309,8 @@ export default function AdminScraperPage() {
               <li>• Start with <strong className="text-slate-400">TAAFT</strong> — it has the most tools (5,000+)</li>
               <li>• Run one source at a time to avoid rate limiting</li>
               <li>• Each run imports up to {batchSize} new tools, skipping duplicates</li>
-              <li>• After scraping, go to <a href="/admin/listings" className="underline" style={{ color: '#e94560' }}>Listings → Pending</a> to bulk-approve</li>
-              <li>• Tools auto-enrolled this way show up for users immediately after approval</li>
+              <li>• Scraped tools go <strong className="text-emerald-400">live immediately</strong> — no approval needed</li>
+              <li>• They show as <strong className="text-slate-300">Unclaimed</strong> until the owner claims them</li>
             </ul>
           </div>
         </div>
