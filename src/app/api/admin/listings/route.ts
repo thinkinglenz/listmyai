@@ -13,9 +13,9 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from('ai_tools')
-    .select('id, name, slug, website, status, claimed, upvotes, rating_avg, rating_count, created_at, categories(name)')
+    .select('id, name, slug, website, status, claimed, upvotes, rating_avg, rating_count, created_at, category_id, categories(name)')
     .order('created_at', { ascending: false })
-    .limit(100)
+    .limit(200)
 
   if (status && status !== 'all') query = query.eq('status', status)
   if (search) query = query.ilike('name', `%${search}%`)
