@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Sparkles, Mail, Lock, User, ArrowRight, Eye, EyeOff, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 export default function RegisterPage() {
+  const router = useRouter()
   const [show, setShow] = useState(false)
-  const [step, setStep] = useState<'form' | 'verify'>('form')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,12 +29,11 @@ export default function RegisterPage() {
     setError('')
 
     const supabase = createClient()
-    const { error: authError } = await supabase.auth.signUp({
+    const { data, error: authError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: name },
-        emailRedirectTo: `${window.location.origin}/dashboard`,
       },
     })
 
@@ -43,41 +43,15 @@ export default function RegisterPage() {
       return
     }
 
-    setStep('verify')
+    // If session exists, user is auto-logged in (email confirm off)
+    if (data.session) {
+      router.push('/dashboard')
+      return
+    }
+
+    // Fallback: if email confirmation is on, redirect to login
+    router.push('/login?registered=1')
     setLoading(false)
-  }
-
-  async function handleResend() {
-    const supabase = createClient()
-    await supabase.auth.resend({ type: 'signup', email })
-  }
-
-  if (step === 'verify') {
-    return (
-      <div className="flex min-h-[80vh] items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full" style={{ background: 'rgba(34,197,94,0.15)', border: '1px solid rgba(34,197,94,0.3)' }}>
-            <Mail className="h-8 w-8" style={{ color: '#22c55e' }} />
-          </div>
-          <h1 className="text-2xl font-black text-white">Check your email</h1>
-          <p className="mt-2 text-sm text-slate-400">
-            We sent a verification link to <span className="font-semibold text-white">{email}</span>
-          </p>
-          <p className="mt-4 text-xs text-slate-500">
-            Click the link to activate your account, then you can log in.
-          </p>
-          <div className="mt-6 rounded-2xl border p-4 text-left" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <p className="text-xs text-slate-500">Didn&apos;t receive it? Check your spam folder, or:</p>
-            <button onClick={handleResend} className="mt-1 text-sm font-semibold hover:underline" style={{ color: '#e94560' }}>
-              Resend verification email
-            </button>
-          </div>
-          <p className="mt-5 text-sm text-slate-500">
-            <Link href="/login" className="font-semibold hover:underline" style={{ color: '#e94560' }}>Back to login</Link>
-          </p>
-        </div>
-      </div>
-    )
   }
 
   return (
