@@ -5,10 +5,12 @@ import Link from 'next/link'
 import { Search, X, Check, ArrowRight, Loader2, Zap, Trophy, RefreshCw } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface ToolOption {
@@ -99,7 +101,7 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
     if (!query.trim()) { setResults([]); return }
     const t = setTimeout(async () => {
       setSearching(true)
-      const { data } = await supabase
+      const { data } = await getSupabase()
         .from('ai_tools')
         .select('slug, name, tagline, pricing_model, starting_price, rating_avg, rating_count, website')
         .eq('status', 'active')
