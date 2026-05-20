@@ -80,12 +80,12 @@ export default function DashboardPage() {
       // Load profile
       const { data: prof } = await supabase
         .from('profiles')
-        .select('display_name, company, created_at')
+        .select('full_name, display_name, company, created_at')
         .eq('id', user.id)
         .maybeSingle()
 
       const userProfile: UserProfile = {
-        full_name: prof?.display_name || user.user_metadata?.full_name || 'User',
+        full_name: prof?.full_name || prof?.display_name || user.user_metadata?.full_name || 'User',
         email: user.email ?? '',
         company: prof?.company ?? '',
         created_at: prof?.created_at ?? user.created_at,
@@ -95,13 +95,24 @@ export default function DashboardPage() {
       setEditCompany(userProfile.company ?? '')
 
       // Load user's claimed/submitted tools
-      // For now, show tools submitted by this user (via email match or claimed)
-      const { data: tools } = await supabase
+      // Try combined query first; fall back to claimed_by only if submitted_by column doesn't exist
+      let { data: tools, error: toolsErr } = await supabase
         .from('ai_tools')
         .select('id, name, slug, status, view_count, upvotes, rating_avg, rating_count, click_count, is_featured, created_at, category_id, categories(name)')
         .or(`submitted_by.eq.${user.id},claimed_by.eq.${user.id}`)
         .order('created_at', { ascending: false })
         .limit(50)
+
+      // Fallback: if submitted_by column doesn't exist, query only claimed_by
+      if (toolsErr) {
+        const fallback = await supabase
+          .from('ai_tools')
+          .select('id, name, slug, status, view_count, upvotes, rating_avg, rating_count, click_count, is_featured, created_at, category_id, categories(name)')
+          .eq('claimed_by', user.id)
+          .order('created_at', { ascending: false })
+          .limit(50)
+        tools = fallback.data
+      }
 
       if (tools && tools.length > 0) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,7 +145,7 @@ export default function DashboardPage() {
     if (user) {
       await supabase
         .from('profiles')
-        .update({ display_name: editName, company: editCompany })
+        .update({ full_name: editName, company: editCompany })
         .eq('id', user.id)
       setProfile(prev => prev ? { ...prev, full_name: editName, company: editCompany } : prev)
       setProfileSaved(true)
