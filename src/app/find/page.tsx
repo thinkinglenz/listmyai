@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, ArrowLeft, Sparkles, ExternalLink, Star, RefreshCw } from 'lucide-react'
+import { ArrowRight, ArrowLeft, Sparkles, ExternalLink, RefreshCw, Loader2, Zap } from 'lucide-react'
 
 // ─── Questions ────────────────────────────────────────────────────────────────
 const QUESTIONS = [
@@ -60,84 +60,65 @@ const QUESTIONS = [
   },
 ]
 
-// ─── Mock recommendation engine ───────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface Recommendation {
-  name: string
   slug: string
-  tagline: string
-  category: string
-  pricing: string
-  rating: number
-  why: string
-  badge?: string
-}
-
-function getRecommendations(answers: Record<string, string>): Recommendation[] {
-  const { goal, budget, skill } = answers
-
-  const pool: Recommendation[] = [
-    { name: 'ChatGPT', slug: 'chatgpt', tagline: 'The world\'s most versatile AI assistant', category: 'General AI', pricing: 'Free / $20 mo', rating: 4.8, why: 'Best all-around assistant for writing, Q&A, and brainstorming.', badge: '🏆 Most Popular' },
-    { name: 'GitHub Copilot', slug: 'github-copilot', tagline: 'AI pair programmer for VS Code and JetBrains', category: 'Code Generation', pricing: '$10/mo', rating: 4.7, why: 'Industry-leading code completion and generation directly in your editor.' },
-    { name: 'Midjourney', slug: 'midjourney', tagline: 'Stunning AI image generation via Discord', category: 'Image Generation', pricing: '$10/mo', rating: 4.9, why: 'Produces the highest quality artistic images of any AI tool.', badge: '🎨 Best Quality' },
-    { name: 'Claude', slug: 'claude', tagline: 'Anthropic\'s thoughtful, safety-focused assistant', category: 'General AI', pricing: 'Free / $20 mo', rating: 4.8, why: 'Exceptional for long documents, analysis, and nuanced writing.' },
-    { name: 'Notion AI', slug: 'notion-ai', tagline: 'AI built into the notes and docs you already use', category: 'Productivity', pricing: '$10/mo add-on', rating: 4.5, why: 'Perfect if your team already uses Notion for docs and project management.' },
-    { name: 'Perplexity AI', slug: 'perplexity-ai', tagline: 'AI-powered search with cited sources', category: 'Research', pricing: 'Free / $20 mo', rating: 4.6, why: 'Best for research — gives answers with real-time web citations.', badge: '🔍 Best for Research' },
-    { name: 'Runway ML', slug: 'runway-ml', tagline: 'Professional AI video generation and editing', category: 'Video Generation', pricing: '$15/mo', rating: 4.6, why: 'Leading platform for AI video generation and creative editing.' },
-    { name: 'Zapier AI', slug: 'zapier-ai', tagline: 'Automate anything with AI-powered workflows', category: 'Automation', pricing: 'Free / $19 mo', rating: 4.5, why: 'Connect thousands of apps and automate repetitive tasks without code.' },
-    { name: 'Notion AI', slug: 'notion-ai', tagline: 'AI writing assistant built into Notion', category: 'Productivity', pricing: '$10 mo add-on', rating: 4.5, why: 'Perfect if your team already uses Notion — AI directly inside your docs.' },
-    { name: 'Cursor', slug: 'cursor', tagline: 'The AI-first code editor', category: 'Code Generation', pricing: 'Free / $20 mo', rating: 4.7, why: 'Purpose-built AI code editor with deep codebase understanding.', badge: '🚀 Rising Fast' },
-  ]
-
-  // Score each tool by how well it matches
-  function score(t: Recommendation): number {
-    let s = 0
-    if (goal === 'coding' && (t.category === 'Code Generation')) s += 3
-    if (goal === 'creative' && (t.category === 'Image Generation' || t.category === 'Video Generation')) s += 3
-    if (goal === 'writing' && (t.category === 'General AI' || t.name === 'Notion AI')) s += 3
-    if (goal === 'data' && (t.name === 'Perplexity AI' || t.name === 'ChatGPT')) s += 2
-    if (goal === 'automation' && t.category === 'Automation') s += 3
-    if (goal === 'chat' && t.category === 'General AI') s += 2
-
-    if (budget === 'free' && t.pricing.includes('Free')) s += 2
-    if (budget === 'low' && (t.pricing.includes('Free') || t.pricing.includes('$10') || t.pricing.includes('$16') || t.pricing.includes('$19') || t.pricing.includes('$20'))) s += 1
-    if (budget === 'high') s += 1
-
-    if (skill === 'beginner' && (t.name === 'ChatGPT' || t.name === 'Notion AI' || t.name === 'Otter.ai')) s += 1
-    if (skill === 'advanced' && (t.name === 'Cursor' || t.name === 'GitHub Copilot' || t.name === 'Zapier AI')) s += 1
-
-    s += t.rating / 5
-    return s
-  }
-
-  return pool.sort((a, b) => score(b) - score(a)).slice(0, 4)
+  name: string
+  reason: string
+  fit_percent: number
+  highlight: string
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function FindPage() {
   const [step, setStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
-  const [done, setDone] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [results, setResults] = useState<Recommendation[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const q = QUESTIONS[step]
-  const progress = ((step) / QUESTIONS.length) * 100
+  const progress = (step / QUESTIONS.length) * 100
 
-  function select(value: string) {
+  async function select(value: string) {
     const updated = { ...answers, [q.id]: value }
     setAnswers(updated)
+
     if (step < QUESTIONS.length - 1) {
       setStep(s => s + 1)
     } else {
-      setDone(true)
+      // Last answer — call Claude API
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch('/api/find', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ answers: updated }),
+        })
+        const json = await res.json()
+        if (!res.ok || json.error) {
+          setError(json.error ?? 'Something went wrong. Please try again.')
+        } else {
+          setResults(json.recommendations)
+        }
+      } catch {
+        setError('Network error. Please check your connection and try again.')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
   function reset() {
     setStep(0)
     setAnswers({})
-    setDone(false)
+    setResults(null)
+    setError(null)
+    setLoading(false)
   }
 
-  const results = done ? getRecommendations(answers) : []
+  const isDone = results !== null || loading || error !== null
 
   return (
     <div className="min-h-screen" style={{ background: '#0d1117' }}>
@@ -151,7 +132,7 @@ export default function FindPage() {
         <div className="relative mx-auto max-w-3xl px-4 pb-14 pt-6 text-center">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium"
             style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.08)', color: '#e94560' }}>
-            <Sparkles className="h-3.5 w-3.5" /> AI Tool Finder — Free
+            <Sparkles className="h-3.5 w-3.5" /> AI-Powered Tool Finder — Free
           </div>
           <h1 className="text-4xl font-black text-white sm:text-5xl">
             Find the right AI tool<br />
@@ -160,10 +141,10 @@ export default function FindPage() {
             </span>
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-slate-400">
-            Our intelligent recommendation engine asks {QUESTIONS.length} quick questions and returns personalised tool picks — with reasons why each one fits <em>you</em>.
+            Answer {QUESTIONS.length} quick questions and our AI matches you with the best tools — with personalised reasons why each one fits <em>you</em>.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-4 text-sm text-slate-500">
-            {['Takes 60 seconds', 'No sign-up required', '1,000+ tools evaluated'].map(t => (
+            {['Takes 60 seconds', 'No sign-up required', 'Powered by Claude AI'].map(t => (
               <span key={t} className="flex items-center gap-1.5">
                 <span style={{ color: '#e94560' }}>✓</span> {t}
               </span>
@@ -173,23 +154,17 @@ export default function FindPage() {
       </div>
 
       <div className="mx-auto max-w-2xl px-4 py-10">
-        {!done ? (
+        {!isDone ? (
           <>
-            {/* Header */}
-            <div className="mb-6 text-center">
-              <p className="text-slate-500 text-sm">Answer the questions below — we&apos;ll match you instantly</p>
-            </div>
-
             {/* Progress bar */}
+            <div className="mb-2 flex items-center justify-between text-xs text-slate-600">
+              <span>Question {step + 1} of {QUESTIONS.length}</span>
+              <span>{Math.round(progress)}% done</span>
+            </div>
             <div className="mb-8 h-1.5 w-full rounded-full overflow-hidden" style={{ background: '#1e2a3a' }}>
               <div className="h-full rounded-full transition-all duration-500"
                 style={{ width: `${progress}%`, background: '#e94560' }} />
             </div>
-
-            {/* Step counter */}
-            <p className="mb-4 text-xs text-slate-600 text-center">
-              Question {step + 1} of {QUESTIONS.length}
-            </p>
 
             {/* Question card */}
             <div className="rounded-2xl border p-8" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
@@ -214,7 +189,35 @@ export default function FindPage() {
               </button>
             )}
           </>
-        ) : (
+        ) : loading ? (
+          /* Loading state */
+          <div className="rounded-2xl border p-12 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+            <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl"
+              style={{ background: 'rgba(233,69,96,0.12)' }}>
+              <Loader2 className="h-7 w-7 animate-spin" style={{ color: '#e94560' }} />
+            </div>
+            <h2 className="text-xl font-bold text-white mb-2">Finding your perfect tools…</h2>
+            <p className="text-slate-500 text-sm">Our AI is analysing your answers and matching them against our database</p>
+            <div className="mt-6 flex justify-center gap-6 text-xs text-slate-600">
+              {['Analysing answers', 'Scanning tool database', 'Generating matches'].map((s, i) => (
+                <span key={s} className="flex items-center gap-1.5">
+                  <Zap className="h-3 w-3" style={{ color: i === 0 ? '#e94560' : '#334155' }} />
+                  {s}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : error ? (
+          /* Error state */
+          <div className="rounded-2xl border p-10 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+            <p className="text-red-400 mb-4">{error}</p>
+            <button onClick={reset}
+              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+              style={{ background: '#e94560' }}>
+              <RefreshCw className="h-4 w-4" /> Try again
+            </button>
+          </div>
+        ) : results && results.length > 0 ? (
           <>
             {/* Results */}
             <div className="mb-8 text-center">
@@ -223,12 +226,12 @@ export default function FindPage() {
                 <Sparkles className="h-6 w-6" style={{ color: '#e94560' }} />
               </div>
               <h1 className="text-3xl font-black text-white">Your top matches</h1>
-              <p className="mt-2 text-slate-500">Based on your answers, here are the best AI tools for you</p>
+              <p className="mt-2 text-slate-500">AI-curated picks based on your answers</p>
             </div>
 
             <div className="space-y-4 mb-8">
               {results.map((tool, i) => (
-                <div key={tool.slug}
+                <div key={`${tool.slug}-${i}`}
                   className="rounded-2xl border p-5 transition hover:border-red-500/30"
                   style={{ borderColor: i === 0 ? 'rgba(233,69,96,0.3)' : '#1e2a3a', background: '#161b27' }}>
                   <div className="flex items-start justify-between gap-3 mb-3">
@@ -240,24 +243,31 @@ export default function FindPage() {
                             #1 PICK
                           </span>
                         )}
-                        {tool.badge && (
-                          <span className="text-xs text-slate-400">{tool.badge}</span>
-                        )}
+                        <span className="text-xs text-slate-500">#{i + 1}</span>
                       </div>
                       <h3 className="text-lg font-bold text-white">{tool.name}</h3>
-                      <p className="text-sm text-slate-500">{tool.tagline}</p>
+                      <p className="text-sm text-slate-400 mt-0.5">{tool.highlight}</p>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-semibold text-white">{tool.pricing}</p>
-                      <div className="flex items-center gap-1 justify-end mt-0.5">
-                        <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                        <span className="text-xs text-slate-400">{tool.rating}</span>
-                      </div>
+                    {/* Fit meter */}
+                    <div className="flex-shrink-0 text-right">
+                      <div className="text-2xl font-black" style={{ color: '#e94560' }}>{tool.fit_percent}%</div>
+                      <div className="text-[10px] text-slate-600 uppercase tracking-wider">match</div>
                     </div>
                   </div>
+
+                  {/* Fit bar */}
+                  <div className="mb-3 h-1 w-full rounded-full overflow-hidden" style={{ background: '#1e2a3a' }}>
+                    <div className="h-full rounded-full"
+                      style={{ width: `${tool.fit_percent}%`, background: i === 0 ? '#e94560' : '#334155' }} />
+                  </div>
+
                   <div className="rounded-xl p-3 mb-4" style={{ background: 'rgba(255,255,255,0.03)' }}>
-                    <p className="text-xs text-slate-400"><span className="text-emerald-400 font-semibold">Why this fits you: </span>{tool.why}</p>
+                    <p className="text-xs text-slate-400">
+                      <span className="text-emerald-400 font-semibold">Why this fits you: </span>
+                      {tool.reason}
+                    </p>
                   </div>
+
                   <Link href={`/tools/${tool.slug}`}
                     className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                     style={{ background: i === 0 ? '#e94560' : '#1e2a3a' }}>
@@ -273,11 +283,11 @@ export default function FindPage() {
                 <RefreshCw className="h-4 w-4" /> Start over with different answers
               </button>
               <Link href="/directory" className="text-sm hover:underline" style={{ color: '#e94560' }}>
-                Browse all {'>'}1,000 AI tools →
+                Browse all AI tools in directory →
               </Link>
             </div>
           </>
-        )}
+        ) : null}
       </div>
     </div>
   )
