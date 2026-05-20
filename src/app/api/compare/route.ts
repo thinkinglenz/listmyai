@@ -229,7 +229,9 @@ export async function POST(req: NextRequest) {
 
     // ── Fetch tools from DB ───────────────────────────────────────────────
     const supabase = getSupabase()
-    const { data: tools } = await supabase
+
+    // Try full select first; fall back to minimal if columns don't exist
+    let { data: tools, error: fetchErr } = await supabase
       .from('ai_tools')
       .select(`
         name, slug, tagline, description, website,
@@ -240,6 +242,16 @@ export async function POST(req: NextRequest) {
       `)
       .in('slug', [tool_a, tool_b])
 
+    // Fallback: if some columns don't exist, use simpler select
+    if (fetchErr) {
+      const fallback = await supabase
+        .from('ai_tools')
+        .select('name, slug, tagline, description, website, pricing_model, starting_price, has_free_trial, has_api, is_featured, upvotes, rating_avg, rating_count, view_count, click_count')
+        .in('slug', [tool_a, tool_b])
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tools = fallback.data as any
+    }
+
     const toolData = tools ?? []
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const a = toolData.find((t: any) => t.slug === tool_a)
@@ -247,7 +259,7 @@ export async function POST(req: NextRequest) {
     const b = toolData.find((t: any) => t.slug === tool_b)
 
     if (!a || !b) {
-      return NextResponse.json({ error: 'One or both tools not found' }, { status: 404 })
+      return NextResponse.json({ error: 'One or both tools not found', debug: { slugs: [tool_a, tool_b], found: toolData.length, fetchErr: fetchErr?.message } }, { status: 404 })
     }
 
     // Add category name from join
