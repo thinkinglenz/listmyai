@@ -158,6 +158,18 @@ async function getToolUrls(sourceUrl: string): Promise<{ urls: string[]; error?:
   }
 }
 
+// ── Extract tool name from URL slug (fallback when page is JS-rendered) ──────
+function nameFromSlug(url: string): string {
+  try {
+    const pathname = new URL(url).pathname
+    const slug = pathname.split('/').filter(Boolean).pop() ?? ''
+    return slug
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase())
+      .trim()
+  } catch { return '' }
+}
+
 // ── Phase 2: scrape a batch of tool pages ────────────────────────────────────
 async function scrapeAndSave(urls: string[]): Promise<{ imported: number; skipped: number; errors: string[] }> {
   // Load existing websites for dedup
@@ -175,11 +187,21 @@ async function scrapeAndSave(urls: string[]): Promise<{ imported: number; skippe
   for (let i = 0; i < urls.length; i += 5) {
     const chunk = urls.slice(i, i + 5)
     const results = await Promise.allSettled(chunk.map(async (url) => {
-      const html = await safeFetch(url, 6000)
-      const name = getTitle(html)
-      if (!name || name.length < 2) throw new Error('No title found')
-      const description = getDesc(html)
-      const website = getExternalLink(html, new URL(url).hostname) || url
+      let name = '', description = '', website = ''
+      try {
+        const html = await safeFetch(url, 6000)
+        name = getTitle(html)
+        description = getDesc(html)
+        website = getExternalLink(html, new URL(url).hostname)
+      } catch {}
+
+      // Fallback: derive name from URL slug if page failed or returned no title
+      if (!name || name.length < 2) name = nameFromSlug(url)
+      if (!name || name.length < 2) throw new Error(`No title: ${url}`)
+
+      // If no external website found, use the listing URL itself
+      if (!website) website = url
+
       const category = guessCategory(name + ' ' + description)
       const tagline = description.split(/[.!?]/)[0].slice(0, 120) || name
       return { name, description, website, category, tagline }
