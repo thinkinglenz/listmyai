@@ -382,7 +382,7 @@ export default async function ToolPage({ params }: PageProps) {
                     <Globe className="h-4 w-4" /> Pricing
                   </a>
                 )}
-                <UpvoteButton toolName={tool.name} initialCount={tool.upvotes} />
+                <UpvoteButton toolId={tool.id} toolName={tool.name} initialCount={tool.upvotes} />
                 <button className="ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm text-slate-500 transition hover:text-slate-300"
                   style={{borderColor:'#1e2a3a',background:'transparent'}}>
                   <Share2 className="h-4 w-4" />
@@ -439,7 +439,7 @@ export default async function ToolPage({ params }: PageProps) {
             )}
 
             {/* Ratings & Reviews */}
-            <RatingWidget toolName={tool.name} ratingAvg={tool.rating_avg} ratingCount={tool.rating_count} />
+            <RatingWidget toolId={tool.id} toolName={tool.name} ratingAvg={tool.rating_avg} ratingCount={tool.rating_count} />
 
             {/* FAQ — SEO + AI optimised */}
             <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>

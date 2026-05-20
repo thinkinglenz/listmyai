@@ -1,14 +1,23 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Mail, Lock, User, ArrowRight, Eye, EyeOff, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/components/AuthProvider'
 
 export default function RegisterPage() {
   const router = useRouter()
+  const { user, loading: authLoading } = useAuth()
   const [show, setShow] = useState(false)
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard')
+    }
+  }, [authLoading, user, router])
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

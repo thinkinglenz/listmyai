@@ -1,18 +1,29 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Sparkles, Mail, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/components/AuthProvider'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirect') || '/dashboard'
+  const { user, loading: authLoading } = useAuth()
   const [show, setShow] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push(redirectTo)
+    }
+  }, [authLoading, user, router, redirectTo])
 
   const inputCls = 'w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-red-500/30 transition'
   const inputStyle = { borderColor: '#1e2a3a' }
@@ -33,7 +44,7 @@ export default function LoginPage() {
       return
     }
 
-    router.push('/dashboard')
+    router.push(redirectTo)
     router.refresh()
   }
 
@@ -101,5 +112,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   )
 }

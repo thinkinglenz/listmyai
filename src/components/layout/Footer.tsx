@@ -1,40 +1,42 @@
+'use client'
+
 import Link from 'next/link'
 import { Sparkles } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
 
-const COLS = [
-  {
-    title: 'Directory',
-    links: [
-      { href: '/directory',  label: 'Browse All AI Tools' },
-      { href: '/find',       label: 'Find My AI Tool' },
-      { href: '/compare',    label: 'Compare Tools' },
-      { href: '/deals',      label: 'Deals & Promotions' },
-      { href: '/categories', label: 'Categories' },
-      { href: '/submit',     label: 'Submit Your AI' },
-    ],
-  },
-  {
-    title: 'Account',
-    links: [
-      { href: '/register',   label: 'Sign Up Free' },
-      { href: '/login',      label: 'Log In' },
-      { href: '/dashboard',  label: 'Dashboard' },
-      { href: '/pricing',    label: 'Pricing Plans' },
-    ],
-  },
-  {
-    title: 'Legal',
-    links: [
-      { href: '/terms',          label: 'Terms of Use' },
-      { href: '/privacy-policy', label: 'Privacy Policy' },
-      { href: '/refund-policy',  label: 'Refund Policy' },
-      { href: '/disclaimer',     label: 'Disclaimer' },
-      { href: '/dmca',           label: 'DMCA / Takedown' },
-    ],
-  },
+const DIR_LINKS = [
+  { href: '/directory',  label: 'Browse All AI Tools' },
+  { href: '/find',       label: 'Find My AI Tool' },
+  { href: '/compare',    label: 'Compare Tools' },
+  { href: '/deals',      label: 'Deals & Promotions' },
+  { href: '/categories', label: 'Categories' },
+  { href: '/submit',     label: 'Submit Your AI' },
+]
+
+const LEGAL_LINKS = [
+  { href: '/terms',          label: 'Terms of Use' },
+  { href: '/privacy-policy', label: 'Privacy Policy' },
+  { href: '/refund-policy',  label: 'Refund Policy' },
+  { href: '/disclaimer',     label: 'Disclaimer' },
+  { href: '/dmca',           label: 'DMCA / Takedown' },
 ]
 
 export default function Footer() {
+  const { user } = useAuth()
+
+  const accountLinks = user
+    ? [
+        { href: '/dashboard',  label: 'Dashboard' },
+        { href: '/submit',     label: 'Submit a Tool' },
+        { href: '/pricing',    label: 'Pricing Plans' },
+      ]
+    : [
+        { href: '/register',   label: 'Sign Up Free' },
+        { href: '/login',      label: 'Log In' },
+        { href: '/dashboard',  label: 'Dashboard' },
+        { href: '/pricing',    label: 'Pricing Plans' },
+      ]
+
   return (
     <footer className="border-t border-brand-border bg-brand-dark mt-24">
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
@@ -57,24 +59,47 @@ export default function Footer() {
             </p>
           </div>
 
-          {/* Columns */}
-          {COLS.map(col => (
-            <div key={col.title}>
-              <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                {col.title}
-              </h3>
-              <ul className="space-y-2">
-                {col.links.map(l => (
-                  <li key={l.href}>
-                    <Link href={l.href}
-                      className="text-sm text-slate-400 transition-colors hover:text-white">
-                      {l.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
+          {/* Directory */}
+          <div>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Directory</h3>
+            <ul className="space-y-2">
+              {DIR_LINKS.map(l => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-sm text-slate-400 transition-colors hover:text-white">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Account — auth-aware */}
+          <div>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Account</h3>
+            <ul className="space-y-2">
+              {accountLinks.map(l => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-sm text-slate-400 transition-colors hover:text-white">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Legal */}
+          <div>
+            <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Legal</h3>
+            <ul className="space-y-2">
+              {LEGAL_LINKS.map(l => (
+                <li key={l.href}>
+                  <Link href={l.href} className="text-sm text-slate-400 transition-colors hover:text-white">
+                    {l.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <div className="mt-10 border-t border-brand-border pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
