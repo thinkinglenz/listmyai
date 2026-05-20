@@ -78,28 +78,38 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
   )
 }
 
-const NAV = [
+const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/admin/listings', label: 'Listings', icon: List },
-  { href: '/admin/claims', label: 'Claim Requests', icon: Shield, badge: 3 },
+  { href: '/admin/claims', label: 'Claim Requests', icon: Shield, badgeKey: 'claims' as const },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
-  { href: '/admin/dmca', label: 'DMCA Queue', icon: FileWarning, badge: 1 },
+  { href: '/admin/dmca', label: 'DMCA Queue', icon: FileWarning, badgeKey: 'dmca' as const },
   { href: '/admin/scraper', label: 'Scraper', icon: Bot },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
+  const [badges, setBadges] = useState<Record<string, number>>({})
   const pathname = usePathname()
 
   useEffect(() => {
     if (sessionStorage.getItem(SESSION_KEY) === '1') setAuthed(true)
   }, [])
 
+  // Fetch live badge counts
+  useEffect(() => {
+    if (!authed) return
+    fetch('/api/admin/badges')
+      .then(r => r.ok ? r.json() : {})
+      .then(d => setBadges(d ?? {}))
+      .catch(() => {})
+  }, [authed, pathname])
+
   if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />
 
-  function isActive(item: typeof NAV[0]) {
+  function isActive(item: typeof NAV_ITEMS[0]) {
     return item.exact ? pathname === item.href : pathname.startsWith(item.href)
   }
 
@@ -128,9 +138,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Nav */}
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {NAV.map(item => {
+          {NAV_ITEMS.map(item => {
             const Icon = item.icon
             const active = isActive(item)
+            const count = item.badgeKey ? (badges[item.badgeKey] ?? 0) : 0
             return (
               <Link
                 key={item.href}
@@ -143,10 +154,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }}>
                 <Icon className="h-4 w-4 flex-shrink-0" />
                 <span className="flex-1">{item.label}</span>
-                {item.badge && (
+                {count > 0 && (
                   <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
                     style={{ background: '#e94560' }}>
-                    {item.badge}
+                    {count}
                   </span>
                 )}
                 {active && <ChevronRight className="h-3.5 w-3.5 opacity-60" />}
