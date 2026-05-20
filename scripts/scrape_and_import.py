@@ -228,11 +228,34 @@ GITHUB_LISTS = [
      r"\[([^\]]{2,60})\]\((https?://[^\)]+)\)(?:[^\n]*?[-–:]\s*([^\n]{10,200}))?"),
 ]
 
-# URLs to skip (docs, github repos, papers, social media)
+# URLs to skip (docs, github repos, papers, social media, badges, donation)
 SKIP_URL_PATTERNS = re.compile(
     r"github\.com/(features|topics|collections|explore)|"
+    r"github\.com/[^/]+/[^/]+/?$|"              # bare github repos
+    r"github\.com/[^/]+/[^/]+/(pulls|issues|wiki|releases|blob|tree)|"
+    r"github\.com/(sponsors|apps)/|"
+    r"gist\.github\.com|"
+    r"raw\.githubusercontent\.com|"
+    r"img\.shields\.io|badges\.|badge\.|"        # badge images
+    r"visitorbadge\.io|frapsoft\.com|fossa\.com|"
+    r"opencollective\.com|patreon\.com|buymeacoffee\.com|ko-fi\.com|paypal\.com|"
+    r"npmjs\.com|pypi\.org|hub\.docker\.com|"
+    r"marketplace\.visualstudio\.com|"
     r"arxiv\.org|youtube\.com|twitter\.com|x\.com|reddit\.com|"
     r"medium\.com|substack\.com|notion\.so|docs\.|#|^mailto",
+    re.I
+)
+
+# Names that are clearly not AI tools
+SKIP_NAME_PATTERNS = re.compile(
+    r"^!\[|^\[!|"                    # markdown images/badges
+    r"^Pull Request|^Issues?$|^Stars?$|^Forks?$|^License$|"
+    r"^Contributors?$|^Visitors?$|^PRs |"
+    r"^Back to Top$|^Table of Contents$|^Contributing$|"
+    r"^Sponsor|^Donate|^README|^CHANGELOG|^TODO$|^API$|"
+    r"^Open Source|^Awesome |^List of|^Collection|"
+    r"^\d+$|^[A-Z]{1,3}$|svg\d*$|"
+    r"^GitHub |^last commit",
     re.I
 )
 
@@ -262,6 +285,8 @@ def scrape_github_lists(limit=LIMIT):
                 continue
             if SKIP_URL_PATTERNS.search(url):
                 continue
+            if SKIP_NAME_PATTERNS.search(name):
+                continue
             if url in seen:
                 continue
             # Skip lines that are section headers (##, ###)
@@ -269,6 +294,9 @@ def scrape_github_lists(limit=LIMIT):
                 continue
             # Skip obvious non-tool names
             if any(w in name.lower() for w in ["awesome", "list of", "collection", "resources", "introduction to"]):
+                continue
+            # Skip names starting with special markdown chars
+            if name[0] in "![]*#>`_":
                 continue
             if len(name) > 80 or len(name) < 2:
                 continue
