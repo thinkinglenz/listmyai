@@ -46,6 +46,9 @@ function extractMeta(html: string): Record<string, string> {
   return meta
 }
 
+// Valid pricing models matching the DB check constraint
+const VALID_PRICING = ['Free', 'Freemium', 'Free Trial', 'Subscription', 'Pay Per Use', 'One-Time Purchase', 'Enterprise'] as const
+
 // Detect pricing info from page text
 function detectPricing(html: string): { pricing_model: string | null; starting_price: string | null; has_free_trial: boolean } {
   const text = html.toLowerCase()
@@ -54,23 +57,30 @@ function detectPricing(html: string): { pricing_model: string | null; starting_p
   let has_free_trial = false
 
   // Free trial detection
-  if (/free.?trial|try.?free|start.?free|free.?plan|free.?tier|get started free/i.test(text)) {
+  if (/free.?trial|try.?free|start.?free|get started free/i.test(text)) {
     has_free_trial = true
   }
 
-  // Pricing model detection
-  if (/completely free|100% free|free and open/i.test(text) && !/free trial|freemium/i.test(text)) {
+  // Pricing model detection — must match VALID_PRICING exactly
+  if (/completely free|100% free|free and open|open.?source/i.test(text) && !/free trial|freemium/i.test(text)) {
     pricing_model = 'Free'
-  } else if (/freemium|free.?plan.*paid|free.?tier.*pro/i.test(text)) {
+  } else if (/freemium|free.?plan.*(?:paid|pro|premium)|free.?tier.*(?:pro|premium)/i.test(text)) {
     pricing_model = 'Freemium'
-  } else if (/enterprise.?pricing|contact.?sales|custom.?pricing/i.test(text)) {
+  } else if (/enterprise.?pricing|contact.?(?:us|sales).*pric|custom.?pricing|request.?(?:a )?demo/i.test(text)) {
     pricing_model = 'Enterprise'
-  } else if (/\$\d+.*?\/mo|per.?month|\$\d+.*?month|billed.*?monthly/i.test(text)) {
+  } else if (/one.?time.*(?:purchase|payment|fee)|lifetime.*(?:deal|access|license)|pay.?once/i.test(text)) {
+    pricing_model = 'One-Time Purchase'
+  } else if (/\$\d+.*?\/\s*mo|per.?month|\$\d+.*?month|billed.*?(?:monthly|annually)|subscription/i.test(text)) {
     pricing_model = 'Subscription'
-  } else if (/pay.?per.?use|pay.?as.?you.?go|per.?api.?call|usage.?based/i.test(text)) {
+  } else if (/pay.?per.?use|pay.?as.?you.?go|per.?(?:api.?)?call|usage.?based|credit.?based/i.test(text)) {
     pricing_model = 'Pay Per Use'
   } else if (has_free_trial) {
     pricing_model = 'Free Trial'
+  }
+
+  // Validate against allowed values
+  if (pricing_model && !VALID_PRICING.includes(pricing_model as typeof VALID_PRICING[number])) {
+    pricing_model = null
   }
 
   // Try to extract starting price
@@ -103,7 +113,7 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
 
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000)
+    const timeout = setTimeout(() => controller.abort(), 12000)
 
     const res = await fetch(url, {
       headers: HEADERS,
@@ -185,11 +195,12 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
     const { error } = await supabase.from('ai_tools').update(updates).eq('id', tool.id)
 
     if (error) {
-      // If a column doesn't exist, retry without it
+      // If a column doesn't exist or constraint fails, strip problematic fields
       const safeUpdates = { ...updates }
       if (error.message.includes('logo_url')) delete safeUpdates.logo_url
       if (error.message.includes('no_code')) delete safeUpdates.no_code
       if (error.message.includes('gdpr_compliant')) delete safeUpdates.gdpr_compliant
+      if (error.message.includes('pricing_model') || error.message.includes('check constraint')) delete safeUpdates.pricing_model
 
       if (Object.keys(safeUpdates).length > 0) {
         const { error: retryErr } = await supabase.from('ai_tools').update(safeUpdates).eq('id', tool.id)
