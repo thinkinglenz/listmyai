@@ -290,7 +290,6 @@ export async function POST(req: NextRequest) {
       website: tool.website,
       category_id: catId,
       status: 'active',       // goes live immediately
-      claimed: false,          // unclaimed — owner can claim later
       is_auto_enrolled: true,
       is_featured: false,
       is_sponsored: false,
