@@ -1,15 +1,16 @@
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
 import { Calendar, Clock, ArrowRight, BookOpen } from 'lucide-react'
 
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
 
 interface Article {
   id: number
@@ -30,14 +31,19 @@ function formatDate(iso: string) {
 export default async function BlogPage() {
   const supabase = getSupabase()
 
-  const { data: articles, error } = await supabase
-    .from('seo_articles')
-    .select('id, slug, title, excerpt, cover_image, published_at, reading_time, category, author')
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-    .limit(50)
+  let posts: Article[] = []
+  let error: { message: string } | null = null
 
-  const posts: Article[] = articles ?? []
+  if (supabase) {
+    const res = await supabase
+      .from('seo_articles')
+      .select('id, slug, title, excerpt, cover_image, published_at, reading_time, category, author')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
+      .limit(50)
+    posts = res.data ?? []
+    error = res.error
+  }
 
   return (
     <div className="min-h-screen" style={{ background: '#0d1117' }}>

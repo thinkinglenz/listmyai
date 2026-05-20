@@ -7,17 +7,17 @@ import { LayoutGrid } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
 }
 
 interface Props {
   searchParams: Promise<{ q?: string; category?: string; pricing?: string; sort?: string; trial?: string; api?: string; promo?: string }>
 }
 
-export const revalidate = 3600 // ISR — refresh every hour
+export const dynamic = 'force-dynamic'
 
 export default async function DirectoryPage({ searchParams }: Props) {
   const sp = await searchParams
@@ -29,6 +29,13 @@ export default async function DirectoryPage({ searchParams }: Props) {
   const api      = sp.api === '1'
 
   const supabase = getSupabase()
+  if (!supabase) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <p className="text-slate-400">Loading directory…</p>
+      </div>
+    )
+  }
 
   // ── Fetch categories ──────────────────────────────────────────────────────
   const { data: categoriesRaw } = await supabase

@@ -2,15 +2,16 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@supabase/supabase-js'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-}
 import { Calendar, Clock, ArrowLeft, ArrowRight } from 'lucide-react'
 
-export const revalidate = 3600
+export const dynamic = 'force-dynamic'
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
+}
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -23,6 +24,7 @@ function formatDate(iso: string) {
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
   const supabase = getSupabase()
+  if (!supabase) return { title: 'ListmyAI Blog' }
   const { data } = await supabase
     .from('seo_articles')
     .select('title, excerpt, cover_image')
@@ -45,6 +47,7 @@ export async function generateMetadata({ params }: Props) {
 export default async function BlogArticlePage({ params }: Props) {
   const { slug } = await params
   const supabase = getSupabase()
+  if (!supabase) notFound()
 
   const { data: article } = await supabase
     .from('seo_articles')

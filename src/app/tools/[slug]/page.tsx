@@ -17,10 +17,10 @@ import { PRICING_LABELS, PRICING_COLORS, PLATFORM_LABELS, formatCount, cn } from
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !key) return null
+  return createClient(url, key)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -91,6 +91,7 @@ interface PageProps { params: Promise<{ slug: string }> }
 
 async function fetchTool(slug: string): Promise<AiTool | null> {
   const sb = getSupabase()
+  if (!sb) return null
   const { data: t } = await sb
     .from('ai_tools')
     .select('*, categories(id, slug, name, icon, color)')
@@ -108,6 +109,7 @@ async function fetchTool(slug: string): Promise<AiTool | null> {
 
 async function fetchRelated(categoryId: string | null, excludeSlug: string): Promise<AiTool[]> {
   const sb = getSupabase()
+  if (!sb) return []
   let q = sb.from('ai_tools')
     .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, created_at, updated_at')
     .eq('status', 'active')
