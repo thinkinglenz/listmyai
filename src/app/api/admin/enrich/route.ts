@@ -159,8 +159,8 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       fields.push('logo_url')
     }
 
-    // Pricing — only fill if currently empty
-    if (!tool.pricing_model && pricing.pricing_model) {
+    // Pricing — only fill if currently empty AND value is in the allowed list
+    if (!tool.pricing_model && pricing.pricing_model && VALID_PRICING.includes(pricing.pricing_model as typeof VALID_PRICING[number])) {
       updates.pricing_model = pricing.pricing_model
       fields.push('pricing_model')
     }
@@ -200,7 +200,13 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       if (error.message.includes('logo_url')) delete safeUpdates.logo_url
       if (error.message.includes('no_code')) delete safeUpdates.no_code
       if (error.message.includes('gdpr_compliant')) delete safeUpdates.gdpr_compliant
-      if (error.message.includes('pricing_model') || error.message.includes('check constraint')) delete safeUpdates.pricing_model
+      if (error.message.includes('has_free_trial')) delete safeUpdates.has_free_trial
+      if (error.message.includes('has_api')) delete safeUpdates.has_api
+      // Any check constraint → strip pricing_model as it's the most likely culprit
+      if (error.message.includes('pricing_model') || error.message.includes('check constraint')) {
+        delete safeUpdates.pricing_model
+        delete safeUpdates.starting_price
+      }
 
       if (Object.keys(safeUpdates).length > 0) {
         const { error: retryErr } = await supabase.from('ai_tools').update(safeUpdates).eq('id', tool.id)
