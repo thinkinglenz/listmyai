@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """
-ListmyAI — Local AI Tool Scraper
-Run this from your laptop. Your home/office IP bypasses the blocks that hit Vercel.
+ListmyAI — Direct Page Scraper (no sitemaps)
+Scrapes competitor directory listing pages directly to extract tool data.
 
-Install deps:  pip install requests beautifulsoup4
-Usage:         python3 scripts/scrape_and_import.py
+Install:  pip install requests beautifulsoup4
+Usage:    python3 scripts/scrape_and_import.py
+          python3 scripts/scrape_and_import.py futurepedia   # one source
 """
 
 import requests
@@ -12,130 +13,110 @@ import json
 import time
 import re
 import sys
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-# Your live site import endpoint
-IMPORT_URL = "https://www.listmyai.com/api/tools/import-batch"
-IMPORT_SECRET = "listmyai_import_2026"   # matches IMPORT_SECRET env var in Vercel
-
-# How many tools to scrape per source (set high — deduplication handles repeats)
-LIMIT_PER_SOURCE = 500
+IMPORT_URL    = "https://www.listmyai.com/api/tools/import-batch"
+IMPORT_SECRET = "listmyai_import_2026"
+LIMIT         = 300   # max tools per source
+BATCH_SIZE    = 50
+DELAY         = 0.5   # seconds between requests
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/124.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "DNT": "1",
 }
 
-SOURCES = [
-    {"name": "There's An AI For That", "sitemap": "https://theresanaiforthat.com/sitemap.xml",
-     "tool_pattern": r"^/ai/[^/]+/?$"},
-    {"name": "Futurepedia",            "sitemap": "https://www.futurepedia.io/sitemap.xml",
-     "tool_pattern": r"^/tool/[^/]+/?$"},
-    {"name": "FutureTools",            "sitemap": "https://www.futuretools.io/sitemap.xml",
-     "tool_pattern": r"^/tools/[^/]+/?$"},
-    {"name": "Toolify.ai",             "sitemap": "https://www.toolify.ai/sitemap.xml",
-     "tool_pattern": r"^/(en/)?tool/[^/]+/?$"},
-    {"name": "AI Top Tools",           "sitemap": "https://aitoptools.com/sitemap.xml",
-     "tool_pattern": r"^/tools/[^/]+/?$"},
-    {"name": "AI Tools Directory",     "sitemap": "https://aitoolsdirectory.com/sitemap.xml",
-     "tool_pattern": r"^/tools?/[^/]+/?$"},
-]
-
+# ── CATEGORY GUESSER ──────────────────────────────────────────────────────────
 CATEGORY_RULES = [
-    (r"image|photo|art|dall|midjourney|stable.diff",  "Image Generation"),
-    (r"video|film|animation|clip",                     "Video Generation"),
-    (r"audio|music|sound|voice|speech|tts",            "Audio & Music"),
-    (r"code|program|developer|github|debug",           "Code Assistant"),
-    (r"seo|marketing|ads|campaign",                    "SEO & Marketing"),
-    (r"write|writing|copy|blog|essay|content",         "Writing & Copy"),
-    (r"data|analytic|chart|spreadsheet",               "Data & Analytics"),
-    (r"search|research|knowledge",                     "AI Search"),
-    (r"automat|workflow|integrat",                     "Automation"),
-    (r"education|learn|study|tutor",                   "Education"),
-    (r"health|medical|fitness",                        "Healthcare"),
-    (r"finance|legal|law|contract",                    "Finance & Legal"),
-    (r"chat|assistant|bot|gpt",                        "Chatbot / Assistant"),
+    (r"image|photo|art|dall|midjourney|stable.diff|flux|firefly",  "Image Generation"),
+    (r"video|film|animation|clip|sora|runway",                      "Video Generation"),
+    (r"audio|music|sound|voice|speech|tts|podcast|eleven",          "Audio & Music"),
+    (r"code|program|developer|github|debug|cursor|copilot",         "Code Assistant"),
+    (r"seo|marketing|ads|campaign|brand|social",                    "SEO & Marketing"),
+    (r"write|writing|copy|blog|essay|content|jasper",               "Writing & Copy"),
+    (r"data|analytic|chart|spreadsheet|sql|bi\b",                   "Data & Analytics"),
+    (r"search|research|knowledge|perplexity",                       "Research"),
+    (r"automat|workflow|integrat|zapier|make\b|n8n",                "Automation"),
+    (r"education|learn|study|tutor|quiz|course",                    "Education"),
+    (r"health|medical|fitness|mental",                              "Healthcare"),
+    (r"finance|legal|law|contract|accounting",                      "Finance & Legal"),
+    (r"design|ui|ux|figma|canva|logo",                              "Design & Creative"),
+    (r"chat|assistant|bot|gpt|claude|gemini|llm",                   "Chatbot / Assistant"),
 ]
 
 def guess_category(text):
-    t = text.lower()
+    t = (text or "").lower()
     for pattern, cat in CATEGORY_RULES:
         if re.search(pattern, t):
             return cat
     return "Other"
 
-def name_from_slug(url):
-    path = urlparse(url).path
-    slug = [p for p in path.split("/") if p]
-    if slug:
-        return slug[-1].replace("-", " ").title()
-    return ""
-
-def fetch(url, timeout=10):
+# ── HELPERS ───────────────────────────────────────────────────────────────────
+def fetch(url, timeout=12):
     try:
         r = requests.get(url, headers=HEADERS, timeout=timeout)
         r.raise_for_status()
         return r.text
     except Exception as e:
-        print(f"  ⚠  fetch failed {url}: {e}")
+        print(f"    ⚠  {e}")
         return None
 
-def parse_sitemap(xml):
-    return re.findall(r"<loc>\s*(https?://[^\s<]+)\s*</loc>", xml, re.IGNORECASE)
+def og(soup, prop):
+    tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
+    return (tag.get("content") or "").strip() if tag else ""
 
-def scrape_tool_page(url):
-    html = fetch(url, timeout=8)
-    if not html:
-        return None
-    soup = BeautifulSoup(html, "html.parser")
+def clean_name(name):
+    """Strip site suffixes like '— Futurepedia' or '| AI Tools'"""
+    name = re.sub(r"\s*[-|–—|·]\s*(futurepedia|futuretools|toolify|aitoptools|there.s an ai|ai tools directory).*$",
+                  "", name, flags=re.IGNORECASE)
+    return name.strip()
 
-    def og(prop):
-        tag = soup.find("meta", property=prop) or soup.find("meta", attrs={"name": prop})
-        return tag["content"].strip() if tag and tag.get("content") else ""
+def name_from_slug(url):
+    path = urlparse(url).path
+    parts = [p for p in path.split("/") if p]
+    return parts[-1].replace("-", " ").title() if parts else ""
 
-    name = og("og:title") or og("twitter:title") or (soup.title.string.strip() if soup.title else "")
-    name = re.sub(r"\s*[-|–—]\s*\S+.*$", "", name).strip()
-    if not name:
-        name = name_from_slug(url)
-    if not name:
-        return None
-
-    description = og("og:description") or og("twitter:description") or og("description")
-    description = description[:500]
-
-    # Find external link (the actual tool website)
-    page_host = urlparse(url).hostname
-    website = url  # fallback to listing URL
-    skip = {"google.com", "twitter.com", "facebook.com", "instagram.com",
-            "linkedin.com", "youtube.com", page_host}
+def external_link(soup, page_host):
+    """Find the 'Visit tool' / external link on a listing page."""
+    skip = {"google.com", "twitter.com", "x.com", "facebook.com",
+            "instagram.com", "linkedin.com", "youtube.com", "tiktok.com",
+            page_host}
+    # Prefer links with tell-tale text or classes
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = a.get("href", "")
+        if not href.startswith("http"):
+            continue
+        try:
+            h = urlparse(href).hostname or ""
+            if not any(s in h for s in skip):
+                text = (a.get_text() or "").lower()
+                cls  = " ".join(a.get("class") or []).lower()
+                if any(w in text + cls for w in ["visit", "go to", "open", "launch", "try", "website", "site"]):
+                    return href.rstrip("/")
+        except:
+            pass
+    # Fallback: first external link
+    for a in soup.find_all("a", href=True):
+        href = a.get("href", "")
         if href.startswith("http"):
             try:
                 h = urlparse(href).hostname or ""
                 if not any(s in h for s in skip):
-                    website = href.rstrip("/")
-                    break
+                    return href.rstrip("/")
             except:
                 pass
-
-    category = guess_category(name + " " + description)
-    tagline = (description.split(".")[0] or name)[:120]
-
-    return {
-        "name": name,
-        "tagline": tagline,
-        "description": description,
-        "website": website,
-        "category": category,
-    }
+    return None
 
 def import_batch(tools):
-    """POST tools to the ListmyAI import API."""
+    if not tools:
+        return {}
     try:
         r = requests.post(
             IMPORT_URL,
@@ -143,66 +124,366 @@ def import_batch(tools):
             headers={"Content-Type": "application/json"},
             timeout=30,
         )
-        data = r.json()
-        return data
+        return r.json()
     except Exception as e:
         return {"error": str(e)}
 
-def scrape_source(source):
-    print(f"\n🔍  {source['name']}")
-    xml = fetch(source["sitemap"], timeout=15)
-    if not xml:
-        print("  ✗  Could not fetch sitemap")
-        return
+def flush(tools, label=""):
+    if not tools:
+        return 0
+    print(f"\n  📤  Sending {len(tools)} tools to ListmyAI{' (' + label + ')' if label else ''}…")
+    result = import_batch(tools)
+    imported = result.get("imported", 0)
+    skipped  = result.get("skipped", 0)
+    errors   = result.get("errors", [])
+    print(f"  → imported: {imported}  skipped: {skipped}" +
+          (f"  errors: {errors[:2]}" if errors else ""))
+    return imported
 
-    all_urls = parse_sitemap(xml)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SOURCE SCRAPERS  —  each returns a list of tool dicts
+# ═══════════════════════════════════════════════════════════════════════════════
 
-    # Follow sitemap index if needed
-    if any("sitemap" in u for u in all_urls[:5]):
-        child_urls = []
-        for child in [u for u in all_urls if "sitemap" in u][:5]:
-            child_xml = fetch(child)
-            if child_xml:
-                child_urls.extend(parse_sitemap(child_xml))
-        all_urls = child_urls
-
-    host = urlparse(source["sitemap"]).hostname
-    pattern = source["tool_pattern"]
-    tool_urls = [u for u in all_urls
-                 if urlparse(u).hostname == host and re.search(pattern, urlparse(u).path)]
-
-    print(f"  📋  Found {len(tool_urls)} tool URLs in sitemap")
-    tool_urls = tool_urls[:LIMIT_PER_SOURCE]
-
+def scrape_futurepedia(limit=LIMIT):
+    """Futurepedia — paginated card grid at /ai-tools?page=N"""
+    base = "https://www.futurepedia.io"
     tools = []
-    for i, url in enumerate(tool_urls):
-        result = scrape_tool_page(url)
-        if result:
-            tools.append(result)
-            print(f"  ✓  [{i+1}/{len(tool_urls)}] {result['name']}")
-        else:
-            print(f"  ✗  [{i+1}/{len(tool_urls)}] failed: {url}")
+    page  = 1
+    while len(tools) < limit:
+        url  = f"{base}/ai-tools?page={page}"
+        html = fetch(url)
+        if not html:
+            break
+        soup = BeautifulSoup(html, "html.parser")
 
-        # Batch import every 50 tools
-        if len(tools) >= 50:
-            print(f"\n  📤  Sending batch of {len(tools)} tools to ListmyAI...")
-            result = import_batch(tools)
-            print(f"  → {result}")
-            tools = []
+        # Tool cards: <a href="/tool/xxx"> containing a heading
+        cards = soup.find_all("a", href=re.compile(r"^/tool/"))
+        if not cards:
+            break
+
+        for card in cards:
+            if len(tools) >= limit:
+                break
+            href = card.get("href", "")
+            full = urljoin(base, href)
+
+            # Extract from card itself (avoid full page fetch)
+            name_el = card.find(["h2","h3","h4","strong","span"], class_=re.compile(r"name|title|heading", re.I))
+            name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(full)
+            desc_el = card.find(["p","span"], class_=re.compile(r"desc|summary|tagline|sub", re.I))
+            desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+            if not name:
+                continue
+
+            tools.append({
+                "name":        clean_name(name),
+                "tagline":     desc[:120] or name,
+                "description": desc[:500],
+                "website":     full,   # listing URL as fallback; import-batch dedupes by website
+                "category":    guess_category(name + " " + desc),
+            })
+
+        print(f"  📄  Page {page}: {len(cards)} cards — total so far: {len(tools)}")
+        page += 1
+        time.sleep(DELAY)
+
+    return tools
+
+
+def scrape_futuretools(limit=LIMIT):
+    """FutureTools — paginated at /tools?page=N"""
+    base  = "https://www.futuretools.io"
+    tools = []
+    page  = 1
+    while len(tools) < limit:
+        url  = f"{base}/tools?page={page}"
+        html = fetch(url)
+        if not html:
+            break
+        soup = BeautifulSoup(html, "html.parser")
+
+        cards = soup.find_all("a", href=re.compile(r"^/tools/"))
+        if not cards:
+            break
+
+        for card in cards:
+            if len(tools) >= limit:
+                break
+            href = card.get("href", "")
+            full = urljoin(base, href)
+            name_el = card.find(["h2","h3","h4","strong"])
+            name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(full)
+            desc_el = card.find("p")
+            desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+            if not name:
+                continue
+            tools.append({
+                "name":        clean_name(name),
+                "tagline":     desc[:120] or name,
+                "description": desc[:500],
+                "website":     full,
+                "category":    guess_category(name + " " + desc),
+            })
+
+        print(f"  📄  Page {page}: {len(cards)} cards — total so far: {len(tools)}")
+        page += 1
+        time.sleep(DELAY)
+
+    return tools
+
+
+def scrape_toolify(limit=LIMIT):
+    """Toolify.ai — category pages + pagination"""
+    base = "https://www.toolify.ai"
+    # Their main nav categories
+    categories = [
+        "/ai-tools/",
+        "/category/ai-writing-assistant-tools",
+        "/category/ai-image-generator-tools",
+        "/category/ai-video-generator-tools",
+        "/category/ai-code-assistant-tools",
+        "/category/ai-chatbot-tools",
+    ]
+    tools = []
+    seen  = set()
+
+    for cat_path in categories:
+        if len(tools) >= limit:
+            break
+        for page in range(1, 6):  # up to 5 pages per category
+            if len(tools) >= limit:
+                break
+            url  = f"{base}{cat_path}?page={page}" if page > 1 else f"{base}{cat_path}"
+            html = fetch(url)
+            if not html:
+                break
+            soup = BeautifulSoup(html, "html.parser")
+
+            cards = soup.find_all("a", href=re.compile(r"/(en/)?tool/"))
+            if not cards:
+                break
+
+            added = 0
+            for card in cards:
+                if len(tools) >= limit:
+                    break
+                href = card.get("href", "")
+                if not href.startswith("http"):
+                    href = urljoin(base, href)
+                if href in seen:
+                    continue
+                seen.add(href)
+
+                name_el = card.find(["h2","h3","h4","strong","div"],
+                                    class_=re.compile(r"name|title|tool", re.I))
+                name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(href)
+                desc_el = card.find("p")
+                desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+                if not name or len(name) > 80:
+                    continue
+                tools.append({
+                    "name":        clean_name(name),
+                    "tagline":     desc[:120] or name,
+                    "description": desc[:500],
+                    "website":     href,
+                    "category":    guess_category(name + " " + desc),
+                })
+                added += 1
+
+            print(f"  📄  {cat_path} p{page}: +{added} — total: {len(tools)}")
+            time.sleep(DELAY)
+
+    return tools
+
+
+def scrape_aitoptools(limit=LIMIT):
+    """AI Top Tools — paginated grid"""
+    base  = "https://aitoptools.com"
+    tools = []
+    page  = 1
+    while len(tools) < limit:
+        url  = f"{base}/tools/?paged={page}" if page > 1 else f"{base}/tools/"
+        html = fetch(url)
+        if not html:
+            break
+        soup = BeautifulSoup(html, "html.parser")
+
+        cards = soup.find_all("a", href=re.compile(r"/tools?/[^/]+/?$"))
+        if not cards:
+            # Try alternate structure
+            cards = soup.select("article a, .tool-card a, .card a")
+        if not cards:
+            break
+
+        prev_count = len(tools)
+        for card in cards:
+            if len(tools) >= limit:
+                break
+            href = card.get("href", "")
+            if not href.startswith("http"):
+                href = urljoin(base, href)
+
+            name_el = card.find(["h2","h3","h4","strong"])
+            name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(href)
+            desc_el = card.find("p")
+            desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+            if not name or len(name) > 100:
+                continue
+            tools.append({
+                "name":        clean_name(name),
+                "tagline":     desc[:120] or name,
+                "description": desc[:500],
+                "website":     href,
+                "category":    guess_category(name + " " + desc),
+            })
+
+        if len(tools) == prev_count:
+            break  # no new tools found
+
+        print(f"  📄  Page {page}: total so far: {len(tools)}")
+        page += 1
+        time.sleep(DELAY)
+
+    return tools
+
+
+def scrape_taaft(limit=LIMIT):
+    """There's An AI For That — listing pages"""
+    base  = "https://theresanaiforthat.com"
+    tools = []
+    # They use /ais/?sort=...&page=N
+    page  = 1
+    while len(tools) < limit:
+        url  = f"{base}/ais/?sort=most_saved&page={page}"
+        html = fetch(url)
+        if not html:
+            break
+        soup = BeautifulSoup(html, "html.parser")
+
+        cards = soup.find_all("a", href=re.compile(r"^/ai/[^/]+/?$"))
+        if not cards:
+            break
+
+        for card in cards:
+            if len(tools) >= limit:
+                break
+            href = card.get("href", "")
+            full = urljoin(base, href)
+            name_el = card.find(["h2","h3","h4","strong","span"])
+            name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(full)
+            desc_el = card.find("p")
+            desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+            if not name:
+                continue
+            tools.append({
+                "name":        clean_name(name),
+                "tagline":     desc[:120] or name,
+                "description": desc[:500],
+                "website":     full,
+                "category":    guess_category(name + " " + desc),
+            })
+
+        print(f"  📄  Page {page}: {len(cards)} cards — total: {len(tools)}")
+        page += 1
+        time.sleep(DELAY)
+
+    return tools
+
+
+def scrape_aitoolsdirectory(limit=LIMIT):
+    """AI Tools Directory — paginated listing"""
+    base  = "https://aitoolsdirectory.com"
+    tools = []
+    page  = 1
+    while len(tools) < limit:
+        url  = f"{base}/?page={page}" if page > 1 else base + "/"
+        html = fetch(url)
+        if not html:
+            break
+        soup = BeautifulSoup(html, "html.parser")
+
+        cards = soup.find_all("a", href=re.compile(r"/tools?/[^/]+"))
+        if not cards:
+            # Try article/card selectors
+            cards = soup.select(".tool a, article a, .card a")
+        if not cards:
+            break
+
+        prev = len(tools)
+        for card in cards:
+            if len(tools) >= limit:
+                break
+            href = card.get("href","")
+            if not href.startswith("http"):
+                href = urljoin(base, href)
+
+            name_el = card.find(["h2","h3","h4","strong","span"],
+                                 class_=re.compile(r"name|title|heading", re.I))
+            if not name_el:
+                name_el = card.find(["h2","h3","h4","strong"])
+            name    = (name_el.get_text(strip=True) if name_el else "") or name_from_slug(href)
+            desc_el = card.find("p")
+            desc    = desc_el.get_text(strip=True) if desc_el else ""
+
+            if not name or len(name) > 100:
+                continue
+            tools.append({
+                "name":        clean_name(name),
+                "tagline":     desc[:120] or name,
+                "description": desc[:500],
+                "website":     href,
+                "category":    guess_category(name + " " + desc),
+            })
+
+        if len(tools) == prev:
+            break
+        print(f"  📄  Page {page}: total so far: {len(tools)}")
+        page += 1
+        time.sleep(DELAY)
+
+    return tools
+
+
+# ── SOURCE REGISTRY ────────────────────────────────────────────────────────────
+SOURCES = [
+    {"name": "Futurepedia",          "fn": scrape_futurepedia},
+    {"name": "FutureTools",          "fn": scrape_futuretools},
+    {"name": "Toolify.ai",           "fn": scrape_toolify},
+    {"name": "AI Top Tools",         "fn": scrape_aitoptools},
+    {"name": "There's An AI For That","fn": scrape_taaft},
+    {"name": "AI Tools Directory",   "fn": scrape_aitoolsdirectory},
+]
+
+# ── MAIN ───────────────────────────────────────────────────────────────────────
+if __name__ == "__main__":
+    target = sys.argv[1].lower() if len(sys.argv) > 1 else None
+
+    total_imported = 0
+
+    for source in SOURCES:
+        if target and target not in source["name"].lower():
+            continue
+
+        print(f"\n{'═'*60}")
+        print(f"🔍  {source['name']}")
+        print(f"{'═'*60}")
+
+        tools = source["fn"]()
+        print(f"\n  ✅  Scraped {len(tools)} tools from {source['name']}")
+
+        # Send in batches of BATCH_SIZE
+        for i in range(0, len(tools), BATCH_SIZE):
+            batch   = tools[i:i+BATCH_SIZE]
+            n       = flush(batch, f"{i+1}–{i+len(batch)}")
+            total_imported += n
             time.sleep(1)
 
-        time.sleep(0.3)  # polite delay
-
-    # Import remaining
-    if tools:
-        print(f"\n  📤  Sending final batch of {len(tools)} tools...")
-        result = import_batch(tools)
-        print(f"  → {result}")
-
-if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else None
-    for source in SOURCES:
-        if target and target.lower() not in source["name"].lower():
-            continue
-        scrape_source(source)
-    print("\n✅  Done! Check Admin → Listings on listmyai.com")
+    print(f"\n\n{'═'*60}")
+    print(f"🏁  ALL DONE — Total imported this run: {total_imported}")
+    print(f"    Check https://www.listmyai.com/admin/listings")
+    print(f"{'═'*60}\n")
