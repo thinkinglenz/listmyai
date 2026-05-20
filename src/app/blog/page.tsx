@@ -1,5 +1,12 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 import { Calendar, Clock, ArrowRight, BookOpen } from 'lucide-react'
 
 export const revalidate = 3600
@@ -21,7 +28,7 @@ function formatDate(iso: string) {
 }
 
 export default async function BlogPage() {
-  const supabase = await createClient()
+  const supabase = getSupabase()
 
   const { data: articles, error } = await supabase
     .from('seo_articles')

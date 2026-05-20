@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ExternalLink, Star, Users, PlayCircle, BookOpen, Zap, CheckCircle } from 'lucide-react'
+import { Star, Users, PlayCircle, BookOpen, Zap, CheckCircle, Clock } from 'lucide-react'
 
 export const metadata = {
   title: 'AI Courses & Resources — ListmyAI',
@@ -27,7 +27,7 @@ const COURSES = [
       'Building an AI-powered side hustle',
       'Lifetime access + future updates',
     ],
-    gumroadUrl: 'https://listmyai.gumroad.com/l/ai-masterclass',
+    gumroadUrl: null,
     image: null,
     color: '#e94560',
   },
@@ -51,7 +51,7 @@ const COURSES = [
       'Competitor analysis on autopilot',
       'Real campaign templates included',
     ],
-    gumroadUrl: 'https://listmyai.gumroad.com/l/ai-for-marketers',
+    gumroadUrl: null,
     image: null,
     color: '#6366f1',
   },
@@ -75,7 +75,7 @@ const COURSES = [
       'Test generation & code review automation',
       'Real project walkthroughs (React + Next.js)',
     ],
-    gumroadUrl: 'https://listmyai.gumroad.com/l/ai-coding',
+    gumroadUrl: null,
     image: null,
     color: '#10b981',
   },
@@ -177,14 +177,21 @@ export default function CoursesPage() {
                     <p className="text-sm text-slate-600 line-through mb-4">{course.originalPrice}</p>
                   )}
 
-                  <a href={course.gumroadUrl} target="_blank" rel="noopener noreferrer"
-                    className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 mb-3"
-                    style={{ background: course.color }}>
-                    Get Instant Access <ExternalLink className="h-4 w-4" />
-                  </a>
-
-                  <p className="text-xs text-slate-600">Secure checkout via Gumroad</p>
-                  <p className="text-xs text-slate-600 mt-1">30-day money-back guarantee</p>
+                  {course.gumroadUrl ? (
+                    <a href={course.gumroadUrl} target="_blank" rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 mb-3"
+                      style={{ background: course.color }}>
+                      Get Instant Access
+                    </a>
+                  ) : (
+                    <div className="w-full flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-slate-400 mb-3 cursor-not-allowed"
+                      style={{ background: '#1e2a3a' }}>
+                      <Clock className="h-4 w-4" /> Coming Soon
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-600">
+                    {course.gumroadUrl ? 'Secure checkout via Gumroad' : 'Notify me when available'}
+                  </p>
                 </div>
               </div>
             </div>

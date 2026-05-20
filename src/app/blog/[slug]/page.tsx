@@ -1,6 +1,13 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 import { Calendar, Clock, ArrowLeft, ArrowRight } from 'lucide-react'
 
 export const revalidate = 3600
@@ -15,7 +22,7 @@ function formatDate(iso: string) {
 
 export async function generateMetadata({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = getSupabase()
   const { data } = await supabase
     .from('seo_articles')
     .select('title, excerpt, cover_image')
@@ -37,7 +44,7 @@ export async function generateMetadata({ params }: Props) {
 
 export default async function BlogArticlePage({ params }: Props) {
   const { slug } = await params
-  const supabase = await createClient()
+  const supabase = getSupabase()
 
   const { data: article } = await supabase
     .from('seo_articles')

@@ -4,7 +4,14 @@ import FilterSidebar from '@/components/search/FilterSidebar'
 import ToolCard from '@/components/listing/ToolCard'
 import { AiTool, Category } from '@/types'
 import { LayoutGrid } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
+
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 interface Props {
   searchParams: Promise<{ q?: string; category?: string; pricing?: string; sort?: string; trial?: string; api?: string; promo?: string }>
@@ -21,7 +28,7 @@ export default async function DirectoryPage({ searchParams }: Props) {
   const trial    = sp.trial === '1'
   const api      = sp.api === '1'
 
-  const supabase = await createClient()
+  const supabase = getSupabase()
 
   // ── Fetch categories ──────────────────────────────────────────────────────
   const { data: categoriesRaw } = await supabase
@@ -38,6 +45,10 @@ export default async function DirectoryPage({ searchParams }: Props) {
     count: 0,
   }))
 
+  // Build category lookup map (id → Category)
+  const catMap = new Map<string, Category>()
+  for (const c of categories) catMap.set(String(c.id), c)
+
   // ── Build tools query ─────────────────────────────────────────────────────
   let query = supabase
     .from('ai_tools')
@@ -46,10 +57,9 @@ export default async function DirectoryPage({ searchParams }: Props) {
       pricing_model, starting_price, has_free_trial, has_api,
       status, is_featured, is_sponsored,
       upvotes, rating_avg, rating_count,
-      view_count, click_count,
+      view_count, click_count, category_id,
       platforms, promo_code, promo_desc,
-      created_at, updated_at,
-      categories ( id, slug, name, icon, color )
+      created_at, updated_at
     `)
     .eq('status', 'active')
 
@@ -58,26 +68,16 @@ export default async function DirectoryPage({ searchParams }: Props) {
   }
 
   if (category) {
-    // Join via category slug — need category_id subquery approach
     const { data: catRow } = await supabase
       .from('categories').select('id').eq('slug', category).maybeSingle()
     if (catRow) query = query.eq('category_id', catRow.id)
-    else query = query.eq('category_id', -1) // no match
+    else query = query.eq('category_id', '00000000-0000-0000-0000-000000000000')
   }
 
-  if (pricing) {
-    query = query.eq('pricing_model', pricing)
-  }
+  if (pricing) query = query.eq('pricing_model', pricing)
+  if (trial)   query = query.eq('has_free_trial', true)
+  if (api)     query = query.eq('has_api', true)
 
-  if (trial) {
-    query = query.eq('has_free_trial', true)
-  }
-
-  if (api) {
-    query = query.eq('has_api', true)
-  }
-
-  // Sorting
   if (sort === 'popular') query = query.order('upvotes', { ascending: false })
   else if (sort === 'rating') query = query.order('rating_avg', { ascending: false })
   else if (sort === 'name') query = query.order('name', { ascending: true })
@@ -90,7 +90,7 @@ export default async function DirectoryPage({ searchParams }: Props) {
   // ── Shape data to match AiTool type ───────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tools: AiTool[] = (toolsRaw ?? []).map((t: any) => {
-    const cat = Array.isArray(t.categories) ? t.categories[0] : t.categories
+    const cat = catMap.get(String(t.category_id))
     return {
       id: String(t.id),
       slug: t.slug,
@@ -126,10 +126,6 @@ export default async function DirectoryPage({ searchParams }: Props) {
       updated_at: t.updated_at ?? new Date().toISOString(),
     }
   })
-
-  const totalLabel = error
-    ? 'Could not load tools'
-    : `${tools.length} tool${tools.length !== 1 ? 's' : ''} found`
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
