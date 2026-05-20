@@ -22,12 +22,13 @@ interface LogEntry {
 }
 
 const DEFAULT_SOURCES: Source[] = [
-  { id: 's1', name: 'There\'s An AI For That', url: 'https://theresanaiforthat.com/sitemap.xml', status: 'idle' },
-  { id: 's2', name: 'Futurepedia', url: 'https://www.futurepedia.io/sitemap.xml', status: 'idle' },
-  { id: 's3', name: 'FutureTools', url: 'https://www.futuretools.io/sitemap.xml', status: 'idle' },
-  { id: 's4', name: 'Toolify.ai', url: 'https://www.toolify.ai/sitemap.xml', status: 'idle' },
-  { id: 's5', name: 'AI Top Tools', url: 'https://aitoptools.com/sitemap.xml', status: 'idle' },
-  { id: 's6', name: 'TopAI.tools', url: 'https://topai.tools/sitemap.xml', status: 'idle' },
+  { id: 's1', name: 'Futurepedia', url: 'https://www.futurepedia.io/sitemap.xml', status: 'idle' },
+  { id: 's2', name: 'FutureTools', url: 'https://www.futuretools.io/sitemap.xml', status: 'idle' },
+  { id: 's3', name: 'Toolify.ai', url: 'https://www.toolify.ai/sitemap.xml', status: 'idle' },
+  { id: 's4', name: 'AI Top Tools', url: 'https://aitoptools.com/sitemap.xml', status: 'idle' },
+  { id: 's5', name: 'TopAI.tools', url: 'https://topai.tools/sitemap.xml', status: 'idle' },
+  { id: 's6', name: 'AIcyclopedia', url: 'https://www.aicyclopedia.com/sitemap.xml', status: 'idle' },
+  { id: 's7', name: 'AI Tools Directory', url: 'https://aitoolsdirectory.com/sitemap.xml', status: 'idle' },
 ]
 
 export default function AdminScraperPage() {
@@ -245,12 +246,12 @@ export default function AdminScraperPage() {
           <div className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
             <p className="text-sm font-semibold text-white mb-3">+ Add Source</p>
             <div className="flex gap-2 mb-2">
-              <input value={newName} onChange={e => setNewName(e.target.value)}
-                placeholder="Source name"
+              <input id="new-source-name" name="new-source-name" value={newName} onChange={e => setNewName(e.target.value)}
+                placeholder="Source name" autoComplete="off"
                 className="w-40 rounded-xl border px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-red-500/50"
                 style={{ borderColor: '#1e2a3a', background: '#0d1117' }} />
-              <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
-                placeholder="https://example.com/sitemap.xml"
+              <input id="new-source-url" name="new-source-url" value={newUrl} onChange={e => setNewUrl(e.target.value)}
+                placeholder="https://example.com/sitemap.xml" autoComplete="off"
                 className="flex-1 rounded-xl border px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-red-500/50"
                 style={{ borderColor: '#1e2a3a', background: '#0d1117' }} />
             </div>
@@ -311,7 +312,7 @@ export default function AdminScraperPage() {
           <div className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
             <h3 className="text-sm font-semibold text-white mb-2">💡 Tips</h3>
             <ul className="space-y-2 text-xs text-slate-500">
-              <li>• Start with <strong className="text-slate-400">TAAFT</strong> — it has the most tools (5,000+)</li>
+              <li>• Start with <strong className="text-slate-400">Futurepedia</strong> or <strong className="text-slate-400">Toolify</strong> — they allow scraping</li>
               <li>• Run one source at a time to avoid rate limiting</li>
               <li>• Each run imports up to {batchSize} new tools, skipping duplicates</li>
               <li>• Scraped tools go <strong className="text-emerald-400">live immediately</strong> — no approval needed</li>
