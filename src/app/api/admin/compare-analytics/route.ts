@@ -22,7 +22,7 @@ export async function GET() {
 
   if (error) {
     // Table might not exist yet
-    if (error.message.includes('does not exist') || error.code === '42P01') {
+    if (error.message.includes('does not exist') || error.message.includes('Could not find') || error.code === '42P01') {
       return NextResponse.json({
         setup_required: true,
         sql: `CREATE TABLE comparison_logs (
