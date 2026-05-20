@@ -50,46 +50,51 @@ export default function AdminScraperPage() {
     setSources(prev => prev.map(s => s.id === source.id ? { ...s, status: 'running' } : s))
 
     try {
-      let imported = 0, skipped = 0, totalFound = 0
-      const allErrors: string[] = []
-      let offset = 0
-      let hasMore = true
+      // Phase 1: get all tool URLs from sitemap
+      const urlRes = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'getUrls', sourceUrl: source.url }),
+      })
+      const urlData = await urlRes.json()
 
-      // Keep fetching batches until done or we've imported at least batchSize tools
-      while (hasMore && imported < batchSize) {
-        const res = await fetch('/api/admin/scraper', {
+      if (urlData.error && !urlData.allUrls?.length) {
+        setSources(prev => prev.map(s => s.id === source.id ? {
+          ...s, status: 'error',
+          lastResult: { imported: 0, skipped: 0, total: 0, errors: [urlData.error] },
+          lastRun: new Date().toLocaleTimeString(),
+        } : s))
+        return
+      }
+
+      const allUrls: string[] = urlData.allUrls ?? []
+      const totalFound = allUrls.length
+
+      // Phase 2: scrape in batches of 20
+      let imported = 0, skipped = 0
+      const allErrors: string[] = urlData.error ? [urlData.error] : []
+      const toScrape = allUrls.slice(0, batchSize)
+
+      for (let i = 0; i < toScrape.length; i += 20) {
+        const batch = toScrape.slice(i, i + 20)
+        const scrapeRes = await fetch('/api/admin/scraper', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceUrl: source.url, offset, limit: Math.min(batchSize, 20) }),
+          body: JSON.stringify({ action: 'scrapeUrls', urls: batch }),
         })
-        const data = await res.json()
-
-        if (data.error) {
-          allErrors.push(data.error)
-          break
-        }
-
-        imported += data.imported ?? 0
-        skipped += data.skipped ?? 0
-        totalFound = data.total ?? 0
-        allErrors.push(...(data.errors ?? []))
-        hasMore = data.hasMore
-        offset = data.nextOffset
+        const scrapeData = await scrapeRes.json()
+        if (scrapeData.error) { allErrors.push(scrapeData.error); break }
+        imported += scrapeData.imported ?? 0
+        skipped += scrapeData.skipped ?? 0
+        allErrors.push(...(scrapeData.errors ?? []))
       }
 
       const result = { imported, skipped, total: totalFound, errors: allErrors }
       setSources(prev => prev.map(s => s.id === source.id ? {
-        ...s, status: allErrors.length > 0 && imported === 0 ? 'error' : 'success',
+        ...s, status: imported === 0 && allErrors.length > 0 ? 'error' : 'success',
         lastResult: result, lastRun: new Date().toLocaleTimeString(),
       } : s))
-
-      setLogs(prev => [{
-        time: new Date().toLocaleTimeString(),
-        source: source.name,
-        ...result,
-      }, ...prev].slice(0, 20))
-
-      // Refresh stats
+      setLogs(prev => [{ time: new Date().toLocaleTimeString(), source: source.name, ...result }, ...prev].slice(0, 20))
       fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})
 
     } catch (err) {

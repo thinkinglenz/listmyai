@@ -1,329 +1,274 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-export const maxDuration = 60 // Vercel Pro: up to 60s per invocation
+// Two-phase scraper:
+//   Phase 1 — POST { action:'getUrls', sourceUrl }  → returns URL list from sitemap
+//   Phase 2 — POST { action:'scrapeUrls', urls[] }  → scrapes those pages and saves to DB
+//   GET                                              → DB stats
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-// ── Browser-like headers to avoid 403s ───────────────────────────────────────
-const HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Language': 'en-US,en;q=0.5',
 }
 
-// ── Fetch helper ──────────────────────────────────────────────────────────────
-async function fetchText(url: string, timeoutMs = 8000): Promise<string> {
+async function safeFetch(url: string, ms = 7000): Promise<string> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  const t = setTimeout(() => ctrl.abort(), ms)
   try {
-    const res = await fetch(url, { headers: HEADERS, signal: ctrl.signal })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.text()
+    const r = await fetch(url, { headers: BROWSER_HEADERS, signal: ctrl.signal })
+    if (!r.ok) throw new Error(`HTTP ${r.status} from ${url}`)
+    return await r.text()
   } finally {
-    clearTimeout(timer)
+    clearTimeout(t)
   }
 }
 
-// ── Meta tag extraction ───────────────────────────────────────────────────────
-function meta(html: string, prop: string): string {
-  // Try property="..." then name="..."
-  for (const attr of ['property', 'name']) {
-    const m = html.match(
-      new RegExp(`<meta[^>]+${attr}=["']${prop}["'][^>]+content=["']([^"']{1,500})["']`, 'i')
-    ) || html.match(
-      new RegExp(`<meta[^>]+content=["']([^"']{1,500})["'][^>]+${attr}=["']${prop}["']`, 'i')
-    )
+// ── Extract meta tags ────────────────────────────────────────────────────────
+function getMeta(html: string, key: string): string {
+  const patterns = [
+    new RegExp(`<meta[^>]+property=["']${key}["'][^>]+content=["']([^"']{1,600})["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']{1,600})["'][^>]+property=["']${key}["']`, 'i'),
+    new RegExp(`<meta[^>]+name=["']${key}["'][^>]+content=["']([^"']{1,600})["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']{1,600})["'][^>]+name=["']${key}["']`, 'i'),
+  ]
+  for (const re of patterns) {
+    const m = html.match(re)
     if (m?.[1]) return m[1].trim()
   }
   return ''
 }
 
-function extractTitle(html: string): string {
-  return (
-    meta(html, 'og:title') ||
-    meta(html, 'twitter:title') ||
-    html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1]?.trim() ||
-    ''
-  ).replace(/\s*[-|–]\s*.+$/, '').trim() // strip " - Site Name" suffix
+function getTitle(html: string): string {
+  const t = getMeta(html, 'og:title') ||
+    getMeta(html, 'twitter:title') ||
+    (html.match(/<title[^>]*>([^<]{1,200})<\/title>/i)?.[1] ?? '')
+  return t.replace(/\s*[|\-–—]\s*[^|\-–—]+$/, '').trim()
 }
 
-function extractDescription(html: string): string {
-  return (
-    meta(html, 'og:description') ||
-    meta(html, 'twitter:description') ||
-    meta(html, 'description') ||
-    ''
-  ).slice(0, 500)
+function getDesc(html: string): string {
+  return (getMeta(html, 'og:description') ||
+    getMeta(html, 'twitter:description') ||
+    getMeta(html, 'description')).slice(0, 500)
 }
 
-function extractWebsite(html: string, pageUrl: string): string {
-  const pageHost = new URL(pageUrl).hostname
-
-  // Look for "Visit Site" / "Go to Website" external links
-  const visitPatterns = [
-    /<a[^>]+href=["'](https?:\/\/(?!www\.google|twitter|facebook|linkedin)[^"']+)["'][^>]*>(?:[^<]*(?:visit|go to|open|launch|website|site|tool)[^<]*)<\/a>/gi,
-    /<a[^>]+(?:rel=["'][^"']*(?:nofollow|noopener)[^"']*["']|target=["']_blank["'])[^>]+href=["'](https?:\/\/[^"']+)["']/gi,
-  ]
-
-  for (const pattern of visitPatterns) {
+function getExternalLink(html: string, pageHost: string): string {
+  // Try target="_blank" links to different domains
+  const re = /href=["'](https?:\/\/[^"'#?]+)["'][^>]*target=["']_blank["']/gi
+  const re2 = /target=["']_blank["'][^>]*href=["'](https?:\/\/[^"'#?]+)["']/gi
+  const skip = ['google', 'twitter', 'facebook', 'instagram', 'linkedin', 'youtube', pageHost]
+  for (const pattern of [re, re2]) {
     let m: RegExpExecArray | null
     while ((m = pattern.exec(html)) !== null) {
-      const href = m[1]
       try {
-        const host = new URL(href).hostname
-        if (host !== pageHost && !host.includes('google') && !host.includes('twitter') && !host.includes('facebook')) {
-          return href.split('?')[0].replace(/\/$/, '')
-        }
+        const host = new URL(m[1]).hostname
+        if (!skip.some(s => host.includes(s))) return m[1].replace(/\/$/, '')
       } catch {}
     }
   }
-
-  // Fall back to og:url if it's a different domain
-  const ogUrl = meta(html, 'og:url')
-  if (ogUrl) {
-    try {
-      if (new URL(ogUrl).hostname !== pageHost) return ogUrl
-    } catch {}
-  }
-
   return ''
 }
 
-function inferCategory(name: string, description: string): string {
-  const text = (name + ' ' + description).toLowerCase()
-  const rules: [RegExp, string][] = [
-    [/image|photo|art|design|generat|diffusion|midjourney|stable|dall/i, 'Image Generation'],
-    [/video|film|movie|animation|clip|render/i, 'Video Generation'],
-    [/audio|music|sound|voice|speech|tts|transcri/i, 'Audio & Music'],
-    [/code|program|developer|github|debug|sql|api/i, 'Code Assistant'],
-    [/write|writing|copy|blog|essay|content|seo|email draft/i, 'Writing & Copy'],
-    [/seo|marketing|ads|campaign|social media/i, 'SEO & Marketing'],
-    [/data|analytic|insight|chart|spreadsheet/i, 'Data & Analytics'],
-    [/search|research|knowledge|question/i, 'AI Search'],
-    [/automat|workflow|zapier|integrat/i, 'Automation'],
-    [/education|learn|study|tutor|course/i, 'Education'],
-    [/health|medical|fitness|mental/i, 'Healthcare'],
-    [/finance|legal|contract|law|accounting/i, 'Finance & Legal'],
-    [/chat|assistant|conversati|gpt|bot/i, 'Chatbot / Assistant'],
-  ]
-  for (const [re, cat] of rules) if (re.test(text)) return cat
+function guessCategory(text: string): string {
+  const t = text.toLowerCase()
+  if (/image|photo|art|dall|midjourney|stable.diff|generat.*image/i.test(t)) return 'Image Generation'
+  if (/video|film|animation|clip/i.test(t)) return 'Video Generation'
+  if (/audio|music|sound|voice|speech|tts/i.test(t)) return 'Audio & Music'
+  if (/code|program|developer|github|debug/i.test(t)) return 'Code Assistant'
+  if (/seo|marketing|ads|campaign/i.test(t)) return 'SEO & Marketing'
+  if (/write|writing|copy|blog|essay|content/i.test(t)) return 'Writing & Copy'
+  if (/data|analytic|chart|spreadsheet/i.test(t)) return 'Data & Analytics'
+  if (/search|research|knowledge/i.test(t)) return 'AI Search'
+  if (/automat|workflow|integrat/i.test(t)) return 'Automation'
+  if (/education|learn|study|tutor/i.test(t)) return 'Education'
+  if (/health|medical|fitness/i.test(t)) return 'Healthcare'
+  if (/finance|legal|law|contract/i.test(t)) return 'Finance & Legal'
+  if (/chat|assistant|bot|gpt/i.test(t)) return 'Chatbot / Assistant'
   return 'Other'
 }
 
-function makeSlug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim()
+function slugify(name: string): string {
+  return name.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
+    .slice(0, 60)
 }
 
-// ── Sitemap parser ────────────────────────────────────────────────────────────
-function parseSitemap(xml: string): string[] {
+// ── Parse sitemap XML for URLs ────────────────────────────────────────────────
+function extractSitemapUrls(xml: string): string[] {
   const urls: string[] = []
-  for (const m of xml.matchAll(/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/gi)) {
-    urls.push(m[1].trim())
-  }
-  // Also handle sitemap index (sitemap of sitemaps)
+  const re = /<loc>\s*(https?:\/\/[^\s<]+)\s*<\/loc>/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(xml)) !== null) urls.push(m[1].trim())
   return urls
 }
 
-// ── Per-site URL filters ──────────────────────────────────────────────────────
-function isToolUrl(url: string, sourceHost: string): boolean {
+// Per-site tool URL patterns
+function isToolPage(url: string, host: string): boolean {
   try {
     const { hostname, pathname } = new URL(url)
-    if (hostname !== sourceHost) return false
-
-    // Site-specific patterns
-    if (hostname.includes('theresanaiforthat')) return pathname.startsWith('/ai/')
-    if (hostname.includes('futurepedia')) return pathname.startsWith('/tool/')
-    if (hostname.includes('toolify')) return /^\/(en\/)?tool\//.test(pathname)
-    if (hostname.includes('aitoptools')) return pathname.startsWith('/tools/')
-    if (hostname.includes('topai.tools')) return /^\/[^/]+\/?$/.test(pathname) && pathname !== '/'
-    if (hostname.includes('futuretools')) return pathname.startsWith('/tools/')
-    if (hostname.includes('aisuperstar')) return pathname.startsWith('/tools/')
-
-    // Generic: any path with /tool/ or /ai/ or /app/
-    return /\/(tool|ai|app|product)s?\//i.test(pathname)
-  } catch {
-    return false
-  }
+    if (hostname !== host) return false
+    if (hostname.includes('theresanaiforthat')) return /^\/ai\/[^/]+\/?$/.test(pathname)
+    if (hostname.includes('futurepedia'))       return /^\/tool\/[^/]+\/?$/.test(pathname)
+    if (hostname.includes('futuretools'))       return /^\/tools\/[^/]+\/?$/.test(pathname)
+    if (hostname.includes('toolify'))           return /^\/(en\/)?tool\/[^/]+\/?$/.test(pathname)
+    if (hostname.includes('aitoptools'))        return /^\/tools\/[^/]+\/?$/.test(pathname)
+    if (hostname.includes('topai'))             return /^\/[a-z0-9-]+\/?$/.test(pathname) && pathname.length > 2
+    return /\/(tool|ai|app)s?\/[^/]+\/?$/.test(pathname)
+  } catch { return false }
 }
 
-// ── Scrape one tool page ──────────────────────────────────────────────────────
-async function scrapeToolPage(url: string): Promise<{
-  name: string; description: string; website: string; category: string; tagline: string
-} | null> {
+// ── Phase 1: get tool URLs from a source ─────────────────────────────────────
+async function getToolUrls(sourceUrl: string): Promise<{ urls: string[]; error?: string }> {
+  const host = new URL(sourceUrl).hostname
   try {
-    const html = await fetchText(url)
-    const name = extractTitle(html)
-    if (!name || name.length < 2) return null
+    const xml = await safeFetch(sourceUrl, 10000)
+    let urls = extractSitemapUrls(xml)
 
-    const description = extractDescription(html)
-    const website = extractWebsite(html, url)
-    const category = inferCategory(name, description)
-    const tagline = description.split('.')[0].slice(0, 100)
-
-    return { name, description, website: website || url, category, tagline }
-  } catch {
-    return null
-  }
-}
-
-// ── Check which websites already exist ───────────────────────────────────────
-async function getExistingWebsites(): Promise<Set<string>> {
-  const { data } = await supabase.from('ai_tools').select('website')
-  const set = new Set<string>()
-  for (const row of data ?? []) {
-    if (row.website) set.add(row.website.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase())
-  }
-  return set
-}
-
-// ── Look up or create category ────────────────────────────────────────────────
-async function getCategoryId(name: string): Promise<number | null> {
-  const { data } = await supabase.from('categories').select('id').ilike('name', `%${name.split(' ')[0]}%`).single()
-  return data?.id ?? null
-}
-
-// ── Main POST handler ─────────────────────────────────────────────────────────
-export async function POST(req: NextRequest) {
-  const { sourceUrl, offset = 0, limit = 20 } = await req.json()
-
-  if (!sourceUrl) return NextResponse.json({ error: 'sourceUrl required' }, { status: 400 })
-
-  let sourceHost: string
-  try {
-    sourceHost = new URL(sourceUrl).hostname
-  } catch {
-    return NextResponse.json({ error: 'Invalid URL' }, { status: 400 })
-  }
-
-  // Step 1 — get the sitemap / listing page and extract tool URLs
-  let toolUrls: string[] = []
-  try {
-    const isSitemap = sourceUrl.includes('sitemap') || sourceUrl.endsWith('.xml')
-
-    if (isSitemap) {
-      const xml = await fetchText(sourceUrl)
-      const allUrls = parseSitemap(xml)
-
-      // If it's a sitemap index (points to other sitemaps), follow them
-      if (allUrls.some(u => u.includes('sitemap'))) {
-        const subSitemaps = allUrls.filter(u => u.includes('sitemap'))
-        for (const surl of subSitemaps.slice(0, 3)) {
-          const subXml = await fetchText(surl)
-          toolUrls.push(...parseSitemap(subXml))
-        }
-      } else {
-        toolUrls = allUrls
+    // Sitemap index? Follow child sitemaps
+    const childSitemaps = urls.filter(u => u.includes('sitemap') && (u.endsWith('.xml') || u.includes('sitemap')))
+    if (childSitemaps.length > 0 && urls.filter(u => isToolPage(u, host)).length === 0) {
+      const toolUrls: string[] = []
+      for (const child of childSitemaps.slice(0, 5)) {
+        try {
+          const childXml = await safeFetch(child, 8000)
+          toolUrls.push(...extractSitemapUrls(childXml))
+        } catch {}
       }
-
-      // Filter to tool pages only
-      toolUrls = toolUrls.filter(u => isToolUrl(u, sourceHost))
-    } else {
-      // It's a listing page — try to find the sitemap automatically
-      const guessedSitemap = `https://${sourceHost}/sitemap.xml`
-      try {
-        const xml = await fetchText(guessedSitemap)
-        const allUrls = parseSitemap(xml)
-        toolUrls = allUrls.filter(u => isToolUrl(u, sourceHost))
-      } catch {
-        // Couldn't find sitemap — scrape the listing page for links
-        const html = await fetchText(sourceUrl)
-        const linkRe = /href=["'](https?:\/\/[^"']+|\/[^"']+)["']/gi
-        let m: RegExpExecArray | null
-        while ((m = linkRe.exec(html)) !== null) {
-          try {
-            const abs = new URL(m[1], sourceUrl).href
-            if (isToolUrl(abs, sourceHost)) toolUrls.push(abs)
-          } catch {}
-        }
-        toolUrls = [...new Set(toolUrls)]
-      }
+      urls = toolUrls
     }
-  } catch (err) {
-    return NextResponse.json({ error: `Failed to fetch source: ${String(err)}` }, { status: 500 })
+
+    const filtered = urls.filter(u => isToolPage(u, host))
+    return { urls: filtered }
+  } catch (e) {
+    return { urls: [], error: String(e) }
   }
+}
 
-  const totalFound = toolUrls.length
-  const batch = toolUrls.slice(offset, offset + limit)
+// ── Phase 2: scrape a batch of tool pages ────────────────────────────────────
+async function scrapeAndSave(urls: string[]): Promise<{ imported: number; skipped: number; errors: string[] }> {
+  // Load existing websites for dedup
+  const { data: existing } = await supabase.from('ai_tools').select('website')
+  const knownSites = new Set<string>(
+    (existing ?? []).map((r: { website: string }) =>
+      (r.website ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
+    )
+  )
 
-  if (batch.length === 0) {
-    return NextResponse.json({ imported: 0, skipped: 0, errors: [], total: totalFound, hasMore: false })
-  }
-
-  // Step 2 — get existing websites to avoid duplicates
-  const existingWebsites = await getExistingWebsites()
-
-  // Step 3 — scrape each tool page (in parallel, max 5 at a time)
-  const CHUNK = 5
-  const results: Array<{ name: string; description: string; website: string; category: string; tagline: string } | null> = []
-  for (let i = 0; i < batch.length; i += CHUNK) {
-    const chunk = batch.slice(i, i + CHUNK)
-    const chunkResults = await Promise.all(chunk.map(u => scrapeToolPage(u)))
-    results.push(...chunkResults)
-    // Small delay to be polite
-    if (i + CHUNK < batch.length) await new Promise(r => setTimeout(r, 500))
-  }
-
-  // Step 4 — save new tools to Supabase
-  let imported = 0
-  let skipped = 0
+  let imported = 0, skipped = 0
   const errors: string[] = []
 
-  for (const tool of results) {
-    if (!tool) { errors.push('Failed to parse page'); continue }
+  // Process in chunks of 5
+  for (let i = 0; i < urls.length; i += 5) {
+    const chunk = urls.slice(i, i + 5)
+    const results = await Promise.allSettled(chunk.map(async (url) => {
+      const html = await safeFetch(url, 6000)
+      const name = getTitle(html)
+      if (!name || name.length < 2) throw new Error('No title found')
+      const description = getDesc(html)
+      const website = getExternalLink(html, new URL(url).hostname) || url
+      const category = guessCategory(name + ' ' + description)
+      const tagline = description.split(/[.!?]/)[0].slice(0, 120) || name
+      return { name, description, website, category, tagline }
+    }))
 
-    // Normalise website for dedup check
-    const normWebsite = tool.website.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
-    if (existingWebsites.has(normWebsite)) { skipped++; continue }
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        errors.push(String(result.reason))
+        continue
+      }
+      const tool = result.value
+      const norm = tool.website.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
+      if (knownSites.has(norm)) { skipped++; continue }
 
-    const slug = makeSlug(tool.name)
-    const catId = await getCategoryId(tool.category)
+      // Look up category
+      const { data: cat } = await supabase
+        .from('categories').select('id')
+        .ilike('name', `%${tool.category.split(' ')[0]}%`)
+        .maybeSingle()
 
-    const { error } = await supabase.from('ai_tools').insert({
-      slug: `${slug}-${Date.now()}`, // ensure uniqueness
-      name: tool.name,
-      tagline: tool.tagline || tool.name,
-      description: tool.description,
-      website: tool.website,
-      category_id: catId,
-      status: 'active',       // goes live immediately
-      claimed: false,          // unclaimed — owner can claim later
-      is_auto_enrolled: true,
-      is_featured: false,
-      is_sponsored: false,
-      upvotes: 0,
-      rating_avg: 0,
-      rating_count: 0,
-      view_count: 0,
-      click_count: 0,
-    })
+      const { error: insErr } = await supabase.from('ai_tools').insert({
+        slug: `${slugify(tool.name)}-${Date.now()}`,
+        name: tool.name,
+        tagline: tool.tagline,
+        description: tool.description,
+        website: tool.website,
+        category_id: cat?.id ?? null,
+        status: 'active',
+        claimed: false,
+        is_auto_enrolled: true,
+        is_featured: false,
+        is_sponsored: false,
+        upvotes: 0, rating_avg: 0, rating_count: 0, view_count: 0, click_count: 0,
+      })
 
-    if (error) {
-      if (error.code === '23505') { skipped++; continue } // duplicate slug
-      errors.push(`${tool.name}: ${error.message}`)
-    } else {
-      imported++
-      existingWebsites.add(normWebsite) // prevent within-batch dupes
+      if (insErr) {
+        if (insErr.code === '23505') { skipped++; continue }
+        errors.push(`${tool.name}: ${insErr.message}`)
+      } else {
+        imported++
+        knownSites.add(norm)
+      }
     }
+
+    // Be polite between chunks
+    if (i + 5 < urls.length) await new Promise(r => setTimeout(r, 300))
   }
 
-  return NextResponse.json({
-    imported,
-    skipped,
-    errors,
-    total: totalFound,
-    hasMore: offset + limit < totalFound,
-    nextOffset: offset + limit,
-  })
+  return { imported, skipped, errors }
 }
 
-// ── GET — returns live stats ──────────────────────────────────────────────────
+// ── POST handler ─────────────────────────────────────────────────────────────
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json()
+    const { action, sourceUrl, urls, offset = 0, limit = 20 } = body
+
+    // Phase 1: get URL list from sitemap
+    if (action === 'getUrls') {
+      if (!sourceUrl) return NextResponse.json({ error: 'sourceUrl required' }, { status: 400 })
+      const result = await getToolUrls(sourceUrl)
+      return NextResponse.json({
+        urls: result.urls.slice(offset, offset + limit),
+        total: result.urls.length,
+        allUrls: result.urls, // send all so client can paginate
+        error: result.error,
+      })
+    }
+
+    // Phase 2: scrape a batch of URLs
+    if (action === 'scrapeUrls') {
+      if (!Array.isArray(urls) || urls.length === 0) {
+        return NextResponse.json({ error: 'urls array required' }, { status: 400 })
+      }
+      const result = await scrapeAndSave(urls.slice(0, 20)) // max 20 per call
+      return NextResponse.json(result)
+    }
+
+    return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
+  } catch (err) {
+    // Always return JSON — never a bare 500
+    return NextResponse.json({ error: `Scraper error: ${String(err)}` }, { status: 500 })
+  }
+}
+
+// ── GET: DB stats ─────────────────────────────────────────────────────────────
 export async function GET() {
-  const { count: total } = await supabase.from('ai_tools').select('*', { count: 'exact', head: true })
-  const { count: pending } = await supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('status', 'pending')
-  const { count: autoEnrolled } = await supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('is_auto_enrolled', true)
-  return NextResponse.json({ total, pending, autoEnrolled })
+  try {
+    const [{ count: total }, { count: pending }, { count: autoEnrolled }] = await Promise.all([
+      supabase.from('ai_tools').select('*', { count: 'exact', head: true }),
+      supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('is_auto_enrolled', true),
+    ])
+    return NextResponse.json({ total, pending, autoEnrolled })
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 })
+  }
 }
