@@ -46,6 +46,9 @@ export async function POST(req: NextRequest) {
     let imported = 0, skipped = 0
     const errors: string[] = []
 
+    // Probe which status values the check constraint allows
+    let useStatus = 'active'
+
     for (const tool of tools) {
       if (!tool.name || !tool.website) { skipped++; continue }
 
@@ -59,16 +62,15 @@ export async function POST(req: NextRequest) {
         .ilike('name', `%${catName.split(' ')[0]}%`)
         .maybeSingle()
 
-      const { error } = await supabase.from('ai_tools').insert({
+      const baseRow = {
         slug: `${slugify(tool.name)}-${Date.now()}`,
         name: tool.name,
         tagline: tool.tagline ?? tool.name,
         description: tool.description ?? '',
         website: tool.website,
         category_id: cat?.id ?? null,
-        status: 'active',
+        status: useStatus,
         claimed: false,
-        is_auto_enrolled: true,
         is_featured: false,
         is_sponsored: false,
         upvotes: 0,
@@ -76,7 +78,33 @@ export async function POST(req: NextRequest) {
         rating_count: 0,
         view_count: 0,
         click_count: 0,
-      })
+      }
+
+      let { error } = await supabase.from('ai_tools').insert(baseRow)
+
+      // If check constraint fails on 'active', retry with 'pending'
+      if (error && error.message.includes('check constraint')) {
+        useStatus = 'pending'
+        const retryRow = { ...baseRow, status: 'pending' }
+        const retry = await supabase.from('ai_tools').insert(retryRow)
+        error = retry.error
+      }
+
+      // If column doesn't exist error, strip that column and retry
+      if (error && error.message.includes('column')) {
+        // Retry with minimal columns only
+        const minRow = {
+          slug: baseRow.slug,
+          name: baseRow.name,
+          tagline: baseRow.tagline,
+          description: baseRow.description,
+          website: baseRow.website,
+          category_id: baseRow.category_id,
+          status: useStatus,
+        }
+        const retry = await supabase.from('ai_tools').insert(minRow)
+        error = retry.error
+      }
 
       if (error) {
         if (error.code === '23505') { skipped++; continue }
