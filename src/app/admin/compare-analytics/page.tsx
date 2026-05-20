@@ -156,7 +156,7 @@ export default function CompareAnalyticsPage() {
         <StatCard icon={BarChart3} label="Total Comparisons" value={s.total_comparisons} sub={`${s.api_calls} API calls · ${s.cache_hits} cached`} color="#e94560" />
         <StatCard icon={Users} label="Unique Users" value={s.unique_users} sub={`${data.today.unique_users} today`} color="#6366f1" />
         <StatCard icon={Zap} label="Tokens Used" value={formatTokens(s.total_tokens)} sub={`${formatTokens(s.tokens_input)} in · ${formatTokens(s.tokens_output)} out`} color="#f59e0b" />
-        <StatCard icon={DollarSign} label="Est. API Cost" value={`$${s.estimated_cost_usd.toFixed(3)}`} sub="Haiku 4.5 pricing" color="#10b981" />
+        <StatCard icon={DollarSign} label="API Cost" value="$0.00" sub="Data-driven (no AI API)" color="#10b981" />
       </div>
 
       {/* ── Today + Rate Limit + Cache ──────────────────────────────────────── */}

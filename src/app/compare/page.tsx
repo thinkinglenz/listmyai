@@ -248,11 +248,10 @@ export default function ComparePage() {
         <div className="mb-10 text-center">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium"
             style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.08)', color: '#e94560' }}>
-            <Zap className="h-3.5 w-3.5" /> AI-Powered Comparison
+            <Zap className="h-3.5 w-3.5" /> Data-Driven Comparison
           </div>
           <h1 className="text-4xl font-black text-white">Compare AI Tools</h1>
-          <p className="mt-2 text-slate-500">Pick two tools — our AI gives you an honest, data-driven verdict</p>
-          <p className="mt-1 text-xs text-slate-600">5 free comparisons per hour</p>
+          <p className="mt-2 text-slate-500">Pick two tools — get an instant, data-driven comparison based on real community data</p>
         </div>
 
         {/* Tool pickers */}
@@ -288,9 +287,9 @@ export default function ComparePage() {
             className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
             style={{ background: '#e94560' }}>
             {loading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Analysing with AI…</>
+              <><Loader2 className="h-4 w-4 animate-spin" /> Comparing…</>
             ) : (
-              <><Zap className="h-4 w-4" /> Compare with AI</>
+              <><Zap className="h-4 w-4" /> Compare Now</>
             )}
           </button>
         )}
@@ -299,8 +298,8 @@ export default function ComparePage() {
         {loading && (
           <div className="mt-8 rounded-2xl border p-10 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: '#e94560' }} />
-            <p className="text-white font-semibold mb-1">Claude is analysing both tools…</p>
-            <p className="text-slate-500 text-sm">Comparing features, pricing, use cases and community data</p>
+            <p className="text-white font-semibold mb-1">Comparing both tools…</p>
+            <p className="text-slate-500 text-sm">Analysing community data, features, and pricing</p>
           </div>
         )}
 
@@ -407,8 +406,8 @@ export default function ComparePage() {
             <div className="rounded-2xl border p-6" style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.04)' }}>
               <div className="flex items-center gap-2 mb-3">
                 <Zap className="h-4 w-4" style={{ color: '#e94560' }} />
-                <p className="font-bold text-white">AI Verdict</p>
-                <span className="text-xs text-slate-600 ml-auto">Powered by Claude</span>
+                <p className="font-bold text-white">Verdict</p>
+                <span className="text-xs text-slate-600 ml-auto">Based on community data</span>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed">{result.verdict}</p>
             </div>
