@@ -136,20 +136,38 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
     const updates: Record<string, any> = {}
     const fields: string[] = []
 
+    // Helper: strip markdown artifacts from scraped text
+    const cleanText = (s: string) => s
+      .replace(/`#\w+`/g, '')             // `#free`, `#paid`, etc.
+      .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
+      .replace(/`([^`]+)`/g, '$1')        // `code` → code
+      .replace(/\s{2,}/g, ' ')
+      .trim()
+
     // Description: enrich if empty or very short
     const ogDesc = meta['og:description'] || meta['twitter:description'] || meta['description'] || ''
     if ((!tool.description || tool.description.length < 30) && ogDesc.length > 30) {
-      updates.description = ogDesc.slice(0, 800)
+      updates.description = cleanText(ogDesc).slice(0, 800)
       fields.push('description')
     }
+    // Also clean existing descriptions with markdown artifacts
+    if (tool.description && /`#\w+`/.test(tool.description)) {
+      updates.description = cleanText(tool.description)
+      if (!fields.includes('description')) fields.push('description')
+    }
 
-    // Tagline: if empty or same as name
+    // Tagline: if empty, same as name, or has markdown artifacts
     if ((!tool.tagline || tool.tagline === tool.name) && ogDesc) {
-      const tagline = ogDesc.split(/[.!?]/)[0]?.trim()
+      const tagline = cleanText(ogDesc).split(/[.!?]/)[0]?.trim()
       if (tagline && tagline.length >= 10 && tagline.length <= 150) {
         updates.tagline = tagline
         fields.push('tagline')
       }
+    }
+    // Clean existing taglines with markdown artifacts
+    if (tool.tagline && /`#\w+`/.test(tool.tagline)) {
+      updates.tagline = cleanText(tool.tagline)
+      if (!fields.includes('tagline')) fields.push('tagline')
     }
 
     // Logo / image
