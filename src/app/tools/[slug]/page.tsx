@@ -151,14 +151,58 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 // ── FAQ generator ─────────────────────────────────────────────────────────────
 
 function buildFAQs(tool: AiTool) {
-  const faqs = [
-    { q: `Is ${tool.name} free?`, a: tool.pricing_model === 'free' ? `Yes, ${tool.name} is completely free to use.` : tool.pricing_model === 'freemium' ? `${tool.name} has a free tier. Paid plans start at ${tool.starting_price ?? 'various price points'} for advanced features.` : `${tool.name} is a paid tool starting at ${tool.starting_price ?? 'see website for pricing'}.` },
-    ...(tool.has_free_trial ? [{ q: `Does ${tool.name} have a free trial?`, a: tool.trial_duration ? `Yes — ${tool.trial_duration}.` : `Yes, ${tool.name} offers a free trial. Check the website for current trial terms.` }] : []),
-    ...(tool.has_api ? [{ q: `Does ${tool.name} have an API?`, a: `Yes, ${tool.name} provides a developer API${tool.api_docs_url ? `. API documentation is available at ${tool.api_docs_url}.` : '.'}` }] : []),
-    { q: `What is ${tool.name} used for?`, a: tool.use_cases ? `${tool.name} is commonly used for: ${tool.use_cases.split('\n').filter(Boolean).join(', ')}.` : `${tool.name} is an AI tool used for ${tool.category?.name ?? 'various AI tasks'}.` },
-    { q: `Who makes ${tool.name}?`, a: `${tool.name} is developed by ${tool.company_name ?? 'its respective company'}${tool.hq_location ? `, headquartered in ${tool.hq_location}` : ''}.` },
-    { q: `What are the best alternatives to ${tool.name}?`, a: tool.alternatives?.length ? `Popular alternatives to ${tool.name} include: ${tool.alternatives.join(', ')}.` : `Browse the ListmyAI ${tool.category?.name ?? ''} category to find alternatives.` },
-  ]
+  const faqs: { q: string; a: string }[] = []
+
+  // Only include FAQs where we have real data to back the answer
+  faqs.push({
+    q: `Is ${tool.name} free?`,
+    a: tool.pricing_model === 'free'
+      ? `Yes, ${tool.name} is completely free to use.`
+      : tool.pricing_model === 'freemium'
+        ? `${tool.name} has a free tier.${tool.starting_price ? ` Paid plans start at ${tool.starting_price}.` : ' Paid plans are available for advanced features.'}`
+        : `${tool.name} is a paid tool.${tool.starting_price ? ` Plans start at ${tool.starting_price}.` : ' Visit the website for current pricing.'}`
+  })
+
+  if (tool.has_free_trial) {
+    faqs.push({
+      q: `Does ${tool.name} have a free trial?`,
+      a: tool.trial_duration ? `Yes — ${tool.trial_duration}.` : `Yes, ${tool.name} offers a free trial. Check the website for current trial terms.`
+    })
+  }
+
+  if (tool.has_api) {
+    faqs.push({
+      q: `Does ${tool.name} have an API?`,
+      a: `Yes, ${tool.name} provides a developer API${tool.api_docs_url ? `. Documentation: ${tool.api_docs_url}` : '.'}`
+    })
+  }
+
+  if (tool.use_cases) {
+    faqs.push({
+      q: `What is ${tool.name} used for?`,
+      a: `${tool.name} is commonly used for: ${tool.use_cases.split('\n').filter(Boolean).join(', ')}.`
+    })
+  } else if (tool.category?.name) {
+    faqs.push({
+      q: `What is ${tool.name} used for?`,
+      a: `${tool.name} is an AI tool in the ${tool.category.name} category. Visit their website for detailed use cases.`
+    })
+  }
+
+  if (tool.company_name) {
+    faqs.push({
+      q: `Who makes ${tool.name}?`,
+      a: `${tool.name} is developed by ${tool.company_name}${tool.hq_location ? `, headquartered in ${tool.hq_location}` : ''}.`
+    })
+  }
+
+  if (tool.alternatives?.length) {
+    faqs.push({
+      q: `What are the best alternatives to ${tool.name}?`,
+      a: `Popular alternatives to ${tool.name} include: ${tool.alternatives.join(', ')}.`
+    })
+  }
+
   return faqs
 }
 
