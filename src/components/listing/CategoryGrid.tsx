@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageSquare, Image, Video, Music, Code2, PenLine, TrendingUp, BarChart3, Mic, Search, Zap, Palette, BookOpen, GraduationCap, Heart, Scale, Sparkles } from 'lucide-react'
+import { MessageSquare, Image, Video, Music, Code2, PenLine, TrendingUp, BarChart3, Mic, Search, Zap, Palette, BookOpen, GraduationCap, Heart, Scale, Sparkles, Layers, Bot, Brain, Globe, Wrench, FileText, Shield } from 'lucide-react'
 import { useState } from 'react'
 import { Category } from '@/types'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 const ICON_MAP: Record<string, React.ElementType> = {
   MessageSquare, Image, Video, Music, Code2, PenLine, TrendingUp, BarChart3,
   Mic, Search, Zap, Palette, BookOpen, GraduationCap, Heart, Scale, Sparkles,
+  Layers, Bot, Brain, Globe, Wrench, FileText, Shield,
 }
 
 function CategoryCard({ cat }: { cat: Category }) {
