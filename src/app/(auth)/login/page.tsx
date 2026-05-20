@@ -61,6 +61,18 @@ function LoginForm() {
           <p className="mt-1 text-sm text-slate-500">Log in to manage your AI listings</p>
         </div>
 
+        {/* Success messages from registration / verification */}
+        {searchParams.get('verified') === '1' && (
+          <div className="mb-4 rounded-xl border border-green-500/20 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+            Email verified successfully! You can now log in.
+          </div>
+        )}
+        {searchParams.get('registered') === '1' && (
+          <div className="mb-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-400">
+            Account created! Please check your email to verify, then log in.
+          </div>
+        )}
+
         <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div>

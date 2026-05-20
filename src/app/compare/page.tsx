@@ -252,6 +252,7 @@ export default function ComparePage() {
           </div>
           <h1 className="text-4xl font-black text-white">Compare AI Tools</h1>
           <p className="mt-2 text-slate-500">Pick two tools — our AI gives you an honest, data-driven verdict</p>
+          <p className="mt-1 text-xs text-slate-600">5 free comparisons per hour</p>
         </div>
 
         {/* Tool pickers */}

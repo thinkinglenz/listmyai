@@ -1,20 +1,102 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+// ─── In-memory rate limiter ──────────────────────────────────────────────────
+// Tracks requests per IP. Resets when the serverless function cold-starts,
+// but that's fine — it still blocks rapid abuse within a single instance.
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
+
+const RATE_LIMIT_MAX = 5       // max comparisons per window
+const RATE_LIMIT_WINDOW = 3600 // 1 hour in seconds
+
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now()
+  const entry = rateLimitMap.get(ip)
+
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW * 1000 })
+    return { allowed: true, remaining: RATE_LIMIT_MAX - 1, resetIn: RATE_LIMIT_WINDOW }
+  }
+
+  if (entry.count >= RATE_LIMIT_MAX) {
+    const resetIn = Math.ceil((entry.resetAt - now) / 1000)
+    return { allowed: false, remaining: 0, resetIn }
+  }
+
+  entry.count++
+  return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count, resetIn: Math.ceil((entry.resetAt - now) / 1000) }
+}
+
+// Clean up stale entries every 10 minutes to prevent memory leak
+setInterval(() => {
+  const now = Date.now()
+  for (const [ip, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(ip)
+  }
+}, 600_000)
+
+// ─── Simple in-memory cache for identical comparisons ─────────────────────────
+const compareCache = new Map<string, { result: object; cachedAt: number }>()
+const CACHE_TTL = 86400_000 // 24 hours
+
+function getCacheKey(slugA: string, slugB: string, useCase?: string): string {
+  const sorted = [slugA, slugB].sort()
+  return `${sorted[0]}:${sorted[1]}:${useCase || ''}`
+}
+
+// ─── Supabase client ─────────────────────────────────────────────────────────
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
 
 export async function POST(req: NextRequest) {
   try {
     const { tool_a, tool_b, use_case } = await req.json()
     if (!tool_a || !tool_b) return NextResponse.json({ error: 'tool_a and tool_b required' }, { status: 400 })
+    if (tool_a === tool_b) return NextResponse.json({ error: 'Please select two different tools' }, { status: 400 })
 
+    // ── Rate limit by IP ──────────────────────────────────────────────────
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('x-real-ip')
+      || 'unknown'
+
+    const { allowed, remaining, resetIn } = checkRateLimit(ip)
+
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Rate limit exceeded. You can make ${RATE_LIMIT_MAX} comparisons per hour. Try again in ${Math.ceil(resetIn / 60)} minutes.` },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(resetIn),
+            'X-RateLimit-Limit': String(RATE_LIMIT_MAX),
+            'X-RateLimit-Remaining': '0',
+          },
+        }
+      )
+    }
+
+    // ── Check cache ───────────────────────────────────────────────────────
+    const cacheKey = getCacheKey(tool_a, tool_b, use_case)
+    const cached = compareCache.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+      return NextResponse.json(cached.result, {
+        headers: {
+          'X-RateLimit-Remaining': String(remaining),
+          'X-Cache': 'HIT',
+        },
+      })
+    }
+
+    // ── Validate API key exists ───────────────────────────────────────────
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
 
-    // Fetch both tools from DB
+    // ── Fetch both tools from DB ──────────────────────────────────────────
+    const supabase = getSupabase()
     const { data: tools } = await supabase
       .from('ai_tools')
       .select('name, slug, tagline, description, website, pricing_model, starting_price, has_free_trial, has_api')
@@ -79,7 +161,17 @@ Scores are out of 10. Be honest and specific.`
     if (!jsonMatch) return NextResponse.json({ error: 'Could not parse Claude response' }, { status: 500 })
 
     const comparison = JSON.parse(jsonMatch[0])
-    return NextResponse.json({ comparison, tool_a: a, tool_b: b })
+    const result = { comparison, tool_a: a, tool_b: b }
+
+    // ── Cache the result ──────────────────────────────────────────────────
+    compareCache.set(cacheKey, { result, cachedAt: Date.now() })
+
+    return NextResponse.json(result, {
+      headers: {
+        'X-RateLimit-Remaining': String(remaining),
+        'X-Cache': 'MISS',
+      },
+    })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
   }
