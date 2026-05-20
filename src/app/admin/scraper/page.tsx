@@ -1,68 +1,118 @@
 'use client'
 
-import { useState } from 'react'
-import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database } from 'lucide-react'
 
-interface ScraperSource {
+interface Source {
   id: string
-  url: string
   name: string
-  lastScraped: string | null
+  url: string
   status: 'idle' | 'running' | 'success' | 'error'
-  toolsFound: number
+  lastResult?: { imported: number; skipped: number; total: number; errors: string[] }
+  lastRun?: string
 }
 
-interface CronLog {
-  id: string
+interface LogEntry {
   time: string
-  type: 'scrape' | 'email'
-  status: 'success' | 'error'
-  message: string
+  source: string
+  imported: number
+  skipped: number
+  total: number
+  errors: string[]
 }
 
-const MOCK_SOURCES: ScraperSource[] = [
-  { id:'s1', url:'https://producthunt.com/topics/artificial-intelligence', name:'Product Hunt – AI', lastScraped:'6h ago', status:'success', toolsFound:14 },
-  { id:'s2', url:'https://theresanaiforthat.com/sitemap.xml', name:'TAAFT Sitemap', lastScraped:'6h ago', status:'success', toolsFound:38 },
-  { id:'s3', url:'https://futuretools.io', name:'FutureTools', lastScraped:'2d ago', status:'idle', toolsFound:0 },
-  { id:'s4', url:'https://aitoptools.com/sitemap.xml', name:'AI Top Tools', lastScraped:null, status:'error', toolsFound:0 },
-  { id:'s5', url:'https://topai.tools', name:'TopAI Tools', lastScraped:'1d ago', status:'success', toolsFound:9 },
+const DEFAULT_SOURCES: Source[] = [
+  { id: 's1', name: 'There\'s An AI For That', url: 'https://theresanaiforthat.com/sitemap.xml', status: 'idle' },
+  { id: 's2', name: 'Futurepedia', url: 'https://www.futurepedia.io/sitemap.xml', status: 'idle' },
+  { id: 's3', name: 'FutureTools', url: 'https://www.futuretools.io/sitemap.xml', status: 'idle' },
+  { id: 's4', name: 'Toolify.ai', url: 'https://www.toolify.ai/sitemap.xml', status: 'idle' },
+  { id: 's5', name: 'AI Top Tools', url: 'https://aitoptools.com/sitemap.xml', status: 'idle' },
+  { id: 's6', name: 'TopAI.tools', url: 'https://topai.tools/sitemap.xml', status: 'idle' },
 ]
-
-const MOCK_LOGS: CronLog[] = [
-  { id:'l1', time:'03:00 today', type:'scrape', status:'success', message:'Scraped 4 sources · 61 new tools imported' },
-  { id:'l2', time:'09:00 today', type:'email', status:'success', message:'Trial reminders sent to 3 users' },
-  { id:'l3', time:'03:00 yesterday', type:'scrape', status:'error', message:'aitoptools.com returned 403 — skipped' },
-  { id:'l4', time:'09:00 yesterday', type:'email', status:'success', message:'No emails to send' },
-  { id:'l5', time:'03:00 2d ago', type:'scrape', status:'success', message:'Scraped 5 sources · 23 new tools imported' },
-]
-
-const STATUS_ICON: Record<string, React.ReactNode> = {
-  idle:    <Clock className="h-4 w-4 text-slate-500" />,
-  running: <RefreshCw className="h-4 w-4 text-blue-400 animate-spin" />,
-  success: <CheckCircle className="h-4 w-4 text-emerald-400" />,
-  error:   <XCircle className="h-4 w-4 text-red-400" />,
-}
 
 export default function AdminScraperPage() {
-  const [sources, setSources] = useState<ScraperSource[]>(MOCK_SOURCES)
-  const [running, setRunning] = useState(false)
+  const [sources, setSources] = useState<Source[]>(DEFAULT_SOURCES)
+  const [logs, setLogs] = useState<LogEntry[]>([])
+  const [stats, setStats] = useState<{ total: number; pending: number; autoEnrolled: number } | null>(null)
   const [newUrl, setNewUrl] = useState('')
   const [newName, setNewName] = useState('')
+  const [batchSize, setBatchSize] = useState(20)
 
-  function runScraper() {
-    setRunning(true)
-    setSources(prev => prev.map(s => s.status !== 'error' ? { ...s, status: 'running' } : s))
-    setTimeout(() => {
-      setRunning(false)
-      setSources(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'success', lastScraped: 'Just now', toolsFound: Math.floor(Math.random() * 30) + 5 } : s))
-    }, 3000)
+  // Load DB stats on mount
+  useEffect(() => {
+    fetch('/api/admin/scraper')
+      .then(r => r.json())
+      .then(d => setStats(d))
+      .catch(() => {})
+  }, [])
+
+  async function runSource(source: Source) {
+    setSources(prev => prev.map(s => s.id === source.id ? { ...s, status: 'running' } : s))
+
+    try {
+      let imported = 0, skipped = 0, totalFound = 0
+      const allErrors: string[] = []
+      let offset = 0
+      let hasMore = true
+
+      // Keep fetching batches until done or we've imported at least batchSize tools
+      while (hasMore && imported < batchSize) {
+        const res = await fetch('/api/admin/scraper', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sourceUrl: source.url, offset, limit: Math.min(batchSize, 20) }),
+        })
+        const data = await res.json()
+
+        if (data.error) {
+          allErrors.push(data.error)
+          break
+        }
+
+        imported += data.imported ?? 0
+        skipped += data.skipped ?? 0
+        totalFound = data.total ?? 0
+        allErrors.push(...(data.errors ?? []))
+        hasMore = data.hasMore
+        offset = data.nextOffset
+      }
+
+      const result = { imported, skipped, total: totalFound, errors: allErrors }
+      setSources(prev => prev.map(s => s.id === source.id ? {
+        ...s, status: allErrors.length > 0 && imported === 0 ? 'error' : 'success',
+        lastResult: result, lastRun: new Date().toLocaleTimeString(),
+      } : s))
+
+      setLogs(prev => [{
+        time: new Date().toLocaleTimeString(),
+        source: source.name,
+        ...result,
+      }, ...prev].slice(0, 20))
+
+      // Refresh stats
+      fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})
+
+    } catch (err) {
+      setSources(prev => prev.map(s => s.id === source.id ? {
+        ...s, status: 'error',
+        lastResult: { imported: 0, skipped: 0, total: 0, errors: [String(err)] },
+        lastRun: new Date().toLocaleTimeString(),
+      } : s))
+    }
+  }
+
+  async function runAll() {
+    for (const source of sources) {
+      if (source.status !== 'running') {
+        await runSource(source)
+        await new Promise(r => setTimeout(r, 1000)) // brief pause between sources
+      }
+    }
   }
 
   function addSource() {
     if (!newUrl || !newName) return
-    setSources(prev => [...prev, {
-      id: `s${Date.now()}`, url: newUrl, name: newName, lastScraped: null, status: 'idle', toolsFound: 0
-    }])
+    setSources(prev => [...prev, { id: `s${Date.now()}`, name: newName, url: newUrl, status: 'idle' }])
     setNewUrl('')
     setNewName('')
   }
@@ -71,130 +121,197 @@ export default function AdminScraperPage() {
     setSources(prev => prev.filter(s => s.id !== id))
   }
 
+  const isAnyRunning = sources.some(s => s.status === 'running')
+  const totalImported = logs.reduce((acc, l) => acc + l.imported, 0)
+
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white">Scraper Control</h1>
-          <p className="text-sm text-slate-500">Auto-discovery runs daily at 3:00 AM UTC via Vercel Cron</p>
+          <p className="text-sm text-slate-500">Scrapes competitor directories and auto-imports all AI tools into your database</p>
         </div>
-        <button onClick={runScraper} disabled={running}
-          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+        <button onClick={runAll} disabled={isAnyRunning}
+          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
           style={{ background: '#e94560' }}>
-          {running ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-          {running ? 'Running…' : 'Run Now'}
+          {isAnyRunning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+          {isAnyRunning ? 'Running…' : 'Run All Sources'}
         </button>
       </div>
 
-      {running && (
-        <div className="mb-6 flex gap-3 rounded-2xl border p-4" style={{ borderColor: 'rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.06)' }}>
-          <RefreshCw className="h-5 w-5 text-blue-400 animate-spin flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-white">Scraper running…</p>
-            <p className="text-xs text-slate-400">Fetching sources and discovering new AI tools. This may take 1–3 minutes.</p>
-          </div>
+      {/* DB Stats */}
+      {stats && (
+        <div className="mb-6 grid grid-cols-3 gap-4">
+          {[
+            { label: 'Total Tools in DB', value: stats.total ?? 0, color: '#e94560' },
+            { label: 'Pending Review', value: stats.pending ?? 0, color: '#f59e0b' },
+            { label: 'Auto-Enrolled', value: stats.autoEnrolled ?? 0, color: '#6366f1' },
+          ].map(s => (
+            <div key={s.label} className="rounded-2xl border p-4 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+              <p className="text-3xl font-black" style={{ color: s.color }}>{s.value?.toLocaleString()}</p>
+              <p className="mt-1 text-xs text-slate-500">{s.label}</p>
+            </div>
+          ))}
         </div>
       )}
 
+      {/* How it works banner */}
+      <div className="mb-6 rounded-2xl border p-4" style={{ borderColor: 'rgba(99,102,241,0.25)', background: 'rgba(99,102,241,0.06)' }}>
+        <p className="text-sm font-semibold text-white mb-1">🤖 How it works</p>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Each source is a competitor AI directory. The scraper fetches their sitemap, visits every tool page,
+          extracts the name, description, website, and category, then saves them to your database as{' '}
+          <span className="text-amber-400 font-medium">Pending</span>.
+          Go to <a href="/admin/listings" className="underline" style={{ color: '#e94560' }}>Listings → Pending</a> to bulk-approve imported tools.
+          Tools already in your database are automatically skipped.
+        </p>
+      </div>
+
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Sources */}
-        <div className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-bold text-white">Scraper Sources</h2>
-            <span className="text-xs text-slate-500">{sources.length} sources</span>
+        {/* Sources list */}
+        <div className="lg:col-span-2 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-white">Competitor Sources ({sources.length})</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Tools per run:</span>
+              <select value={batchSize} onChange={e => setBatchSize(Number(e.target.value))}
+                className="rounded-lg border px-2 py-1 text-xs text-slate-300 outline-none"
+                style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
           </div>
 
-          <div className="space-y-3 mb-4">
-            {sources.map(source => (
-              <div key={source.id} className="flex items-center gap-3 rounded-2xl border px-4 py-3"
-                style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl"
-                  style={{ background: '#0d1117' }}>
+          {sources.map(source => (
+            <div key={source.id} className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl mt-0.5" style={{ background: '#0d1117' }}>
                   <Globe className="h-4 w-4 text-slate-500" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white">{source.name}</p>
-                  <p className="text-xs text-slate-600 truncate">{source.url}</p>
-                </div>
-                <div className="text-right text-xs">
-                  <div className="flex items-center gap-1.5 justify-end mb-0.5">
-                    {STATUS_ICON[source.status]}
-                    <span className={
-                      source.status === 'success' ? 'text-emerald-400' :
-                      source.status === 'error' ? 'text-red-400' :
-                      source.status === 'running' ? 'text-blue-400' : 'text-slate-500'
-                    }>
-                      {source.status === 'success' && source.toolsFound > 0 ? `+${source.toolsFound} tools` :
-                       source.status === 'error' ? 'Failed' :
-                       source.status === 'running' ? 'Running' : 'Never run'}
-                    </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-sm font-semibold text-white">{source.name}</p>
+                    {source.status === 'running' && <RefreshCw className="h-3.5 w-3.5 text-blue-400 animate-spin" />}
+                    {source.status === 'success' && <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />}
+                    {source.status === 'error' && <XCircle className="h-3.5 w-3.5 text-red-400" />}
                   </div>
-                  <p className="text-slate-600">{source.lastScraped ?? '—'}</p>
+                  <p className="text-xs text-slate-600 truncate">{source.url}</p>
+
+                  {source.lastResult && (
+                    <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                      <span className="text-emerald-400 font-semibold">+{source.lastResult.imported} imported</span>
+                      <span className="text-slate-500">{source.lastResult.skipped} skipped</span>
+                      <span className="text-slate-600">{source.lastResult.total.toLocaleString()} total found</span>
+                      {source.lastResult.errors.length > 0 && (
+                        <span className="text-red-400">{source.lastResult.errors.length} errors</span>
+                      )}
+                      {source.lastRun && <span className="text-slate-600">· {source.lastRun}</span>}
+                    </div>
+                  )}
+
+                  {source.status === 'running' && (
+                    <p className="mt-2 text-xs text-blue-400">Fetching sitemap and scraping tool pages…</p>
+                  )}
+
+                  {source.lastResult?.errors[0] && (
+                    <p className="mt-1 text-xs text-red-400 truncate">⚠ {source.lastResult.errors[0]}</p>
+                  )}
                 </div>
-                <button onClick={() => removeSource(source.id)}
-                  className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-slate-600 transition hover:bg-red-500/10 hover:text-red-400">
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
+
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <button onClick={() => runSource(source)} disabled={source.status === 'running' || isAnyRunning}
+                    className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                    style={{ background: source.status === 'running' ? '#1e2a3a' : '#e94560' }}>
+                    {source.status === 'running' ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
+                    {source.status === 'running' ? 'Running' : 'Scrape'}
+                  </button>
+                  <button onClick={() => removeSource(source.id)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-600 hover:bg-red-500/10 hover:text-red-400">
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
 
           {/* Add source */}
-          <div className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <p className="text-sm font-semibold text-white mb-3">Add Source</p>
+          <div className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
+            <p className="text-sm font-semibold text-white mb-3">+ Add Source</p>
             <div className="flex gap-2 mb-2">
               <input value={newName} onChange={e => setNewName(e.target.value)}
                 placeholder="Source name"
-                className="w-36 rounded-xl border px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-red-500/50"
+                className="w-40 rounded-xl border px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-red-500/50"
                 style={{ borderColor: '#1e2a3a', background: '#0d1117' }} />
               <input value={newUrl} onChange={e => setNewUrl(e.target.value)}
-                placeholder="https://source-url.com"
+                placeholder="https://example.com/sitemap.xml"
                 className="flex-1 rounded-xl border px-3 py-2 text-sm text-white placeholder-slate-600 outline-none focus:border-red-500/50"
                 style={{ borderColor: '#1e2a3a', background: '#0d1117' }} />
             </div>
-            <button onClick={addSource}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+            <button onClick={addSource} disabled={!newUrl || !newName}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
               style={{ background: '#1e2a3a' }}>
-              <Plus className="h-4 w-4" /> Add Source
+              Add Source
             </button>
           </div>
         </div>
 
-        {/* Cron logs */}
-        <div>
-          <h2 className="mb-3 font-bold text-white">Cron Logs</h2>
-          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <div className="divide-y" style={{ borderColor: '#1e2a3a' }}>
-              {MOCK_LOGS.map(log => (
-                <div key={log.id} className="px-4 py-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    {log.status === 'success'
-                      ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
-                      : <AlertCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />}
-                    <span className="text-xs font-semibold text-slate-400 capitalize">{log.type}</span>
-                    <span className="ml-auto text-[10px] text-slate-600">{log.time}</span>
-                  </div>
-                  <p className="text-xs text-slate-500">{log.message}</p>
+        {/* Logs & next steps */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="mb-3 font-bold text-white">Run Log</h2>
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+              {logs.length === 0 ? (
+                <div className="py-8 text-center">
+                  <Clock className="h-6 w-6 text-slate-700 mx-auto mb-2" />
+                  <p className="text-xs text-slate-600">No runs yet. Click Scrape on a source.</p>
                 </div>
-              ))}
+              ) : (
+                <div className="divide-y" style={{ borderColor: '#1e2a3a' }}>
+                  {logs.map((log, i) => (
+                    <div key={i} className="px-4 py-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        {log.imported > 0
+                          ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                          : <AlertCircle className="h-3.5 w-3.5 text-amber-400 flex-shrink-0" />}
+                        <span className="text-xs font-semibold text-white truncate">{log.source}</span>
+                        <span className="ml-auto text-[10px] text-slate-600">{log.time}</span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        +{log.imported} imported · {log.skipped} skipped · {log.total.toLocaleString()} found
+                      </p>
+                      {log.errors[0] && <p className="text-[10px] text-red-400 mt-0.5 truncate">⚠ {log.errors[0]}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Cron schedule */}
-          <div className="mt-4 rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <h3 className="text-sm font-semibold text-white mb-3">Cron Schedule</h3>
-            <div className="space-y-2.5">
-              {[
-                { label: 'Scraper', cron: '0 3 * * *', next: 'Tomorrow 3:00 AM' },
-                { label: 'Trial Emails', cron: '0 9 * * *', next: 'Tomorrow 9:00 AM' },
-              ].map(j => (
-                <div key={j.label} className="rounded-lg p-2.5" style={{ background: 'rgba(255,255,255,0.02)' }}>
-                  <p className="text-xs font-semibold text-white">{j.label}</p>
-                  <code className="text-[11px] text-slate-500">{j.cron}</code>
-                  <p className="text-[10px] text-slate-600 mt-0.5">Next: {j.next} UTC</p>
-                </div>
-              ))}
+          {totalImported > 0 && (
+            <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.06)' }}>
+              <p className="text-sm font-bold text-emerald-400 mb-1">✅ {totalImported} tools imported this session</p>
+              <p className="text-xs text-slate-400 mb-3">
+                They are saved as <strong className="text-amber-400">Pending</strong> in your database. Review and approve them now.
+              </p>
+              <a href="/admin/listings?status=pending"
+                className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                style={{ background: '#10b981' }}>
+                <Database className="h-4 w-4" /> Review Pending Listings
+              </a>
             </div>
+          )}
+
+          <div className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+            <h3 className="text-sm font-semibold text-white mb-2">💡 Tips</h3>
+            <ul className="space-y-2 text-xs text-slate-500">
+              <li>• Start with <strong className="text-slate-400">TAAFT</strong> — it has the most tools (5,000+)</li>
+              <li>• Run one source at a time to avoid rate limiting</li>
+              <li>• Each run imports up to {batchSize} new tools, skipping duplicates</li>
+              <li>• After scraping, go to <a href="/admin/listings" className="underline" style={{ color: '#e94560' }}>Listings → Pending</a> to bulk-approve</li>
+              <li>• Tools auto-enrolled this way show up for users immediately after approval</li>
+            </ul>
           </div>
         </div>
       </div>
