@@ -259,7 +259,17 @@ export async function POST(req: NextRequest) {
     const b = toolData.find((t: any) => t.slug === tool_b)
 
     if (!a || !b) {
-      return NextResponse.json({ error: 'One or both tools not found', debug: { slugs: [tool_a, tool_b], found: toolData.length, fetchErr: fetchErr?.message } }, { status: 404 })
+      return NextResponse.json({
+        error: 'One or both tools not found',
+        debug: {
+          slugs: [tool_a, tool_b],
+          found: toolData.length,
+          fetchErr: fetchErr?.message || null,
+          foundSlugs: toolData.map((t: any) => t.slug), // eslint-disable-line @typescript-eslint/no-explicit-any
+          hasUrl: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+          hasKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        }
+      }, { status: 404 })
     }
 
     // Add category name from join
