@@ -29,14 +29,18 @@ const TYPE_META: Record<string, { label: string; color: string }> = {
 export default function AdminClaimsPage() {
   const [claims, setClaims] = useState<Claim[]>([])
   const [loading, setLoading] = useState(true)
+  const [tableReady, setTableReady] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
 
   useEffect(() => {
     fetch('/api/admin/claims')
-      .then(r => r.json())
-      .then(d => { if (d.claims) setClaims(d.claims) })
-      .catch(() => {})
+      .then(r => {
+        if (!r.ok) { setTableReady(false); return null }
+        return r.json()
+      })
+      .then(d => { if (d?.claims) setClaims(d.claims) })
+      .catch(() => setTableReady(false))
       .finally(() => setLoading(false))
   }, [])
 
@@ -75,13 +79,15 @@ export default function AdminClaimsPage() {
           <p className="mt-1 text-sm text-slate-600">
             When someone clicks &quot;Claim Listing&quot; on a tool page, it will appear here.
           </p>
-          <div className="mt-6 rounded-xl border p-4 text-left max-w-md" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
-            <p className="text-xs text-amber-400 font-semibold mb-1">⚠️ One setup step needed</p>
-            <p className="text-xs text-slate-400">
-              Run this SQL in Supabase to create the claims table:
-            </p>
-            <pre className="mt-2 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap" style={{ fontFamily: 'monospace' }}>{SQL_HINT}</pre>
-          </div>
+          {!tableReady && (
+            <div className="mt-6 rounded-xl border p-4 text-left max-w-md" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
+              <p className="text-xs text-amber-400 font-semibold mb-1">⚠️ One setup step needed</p>
+              <p className="text-xs text-slate-400">
+                Run this SQL in Supabase to create the claims table:
+              </p>
+              <pre className="mt-2 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap" style={{ fontFamily: 'monospace' }}>{SQL_HINT}</pre>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-5">
