@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 
 // ─── In-memory rate limiter ──────────────────────────────────────────────────
-// Tracks requests per IP. Resets when the serverless function cold-starts,
-// but that's fine — it still blocks rapid abuse within a single instance.
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-
-const RATE_LIMIT_MAX = 5       // max comparisons per window
-const RATE_LIMIT_WINDOW = 3600 // 1 hour in seconds
+const RATE_LIMIT_MAX = 5
+const RATE_LIMIT_WINDOW = 3600
 
 function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
   const now = Date.now()
@@ -27,7 +25,7 @@ function checkRateLimit(ip: string): { allowed: boolean; remaining: number; rese
   return { allowed: true, remaining: RATE_LIMIT_MAX - entry.count, resetIn: Math.ceil((entry.resetAt - now) / 1000) }
 }
 
-// Clean up stale entries every 10 minutes to prevent memory leak
+// Clean up stale entries periodically
 setInterval(() => {
   const now = Date.now()
   for (const [ip, entry] of rateLimitMap) {
@@ -35,21 +33,44 @@ setInterval(() => {
   }
 }, 600_000)
 
-// ─── Simple in-memory cache for identical comparisons ─────────────────────────
+// ─── Simple comparison cache ─────────────────────────────────────────────────
 const compareCache = new Map<string, { result: object; cachedAt: number }>()
-const CACHE_TTL = 86400_000 // 24 hours
+const CACHE_TTL = 86400_000 // 24h
 
 function getCacheKey(slugA: string, slugB: string, useCase?: string): string {
   const sorted = [slugA, slugB].sort()
   return `${sorted[0]}:${sorted[1]}:${useCase || ''}`
 }
 
-// ─── Supabase client ─────────────────────────────────────────────────────────
+// ─── Supabase ────────────────────────────────────────────────────────────────
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+}
+
+// Hash IP for privacy (we don't store raw IPs)
+function hashIP(ip: string): string {
+  return createHash('sha256').update(ip + 'lmai-salt').digest('hex').slice(0, 16)
+}
+
+// Log comparison to Supabase (fire-and-forget, never blocks the response)
+function logComparison(params: {
+  tool_a_slug: string
+  tool_b_slug: string
+  tool_a_name: string
+  tool_b_name: string
+  ip_hash: string
+  use_case: string | null
+  cache_hit: boolean
+  tokens_input: number
+  tokens_output: number
+  rate_limited: boolean
+  model: string
+}) {
+  const supabase = getSupabase()
+  supabase.from('comparison_logs').insert(params).then(() => {}, () => {})
 }
 
 export async function POST(req: NextRequest) {
@@ -58,14 +79,24 @@ export async function POST(req: NextRequest) {
     if (!tool_a || !tool_b) return NextResponse.json({ error: 'tool_a and tool_b required' }, { status: 400 })
     if (tool_a === tool_b) return NextResponse.json({ error: 'Please select two different tools' }, { status: 400 })
 
-    // ── Rate limit by IP ──────────────────────────────────────────────────
-    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    // ── IP + rate limit ───────────────────────────────────────────────────
+    const rawIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
       || req.headers.get('x-real-ip')
       || 'unknown'
+    const ipHash = hashIP(rawIp)
 
-    const { allowed, remaining, resetIn } = checkRateLimit(ip)
+    const { allowed, remaining, resetIn } = checkRateLimit(rawIp)
 
     if (!allowed) {
+      // Log the rate-limited attempt
+      logComparison({
+        tool_a_slug: tool_a, tool_b_slug: tool_b,
+        tool_a_name: tool_a, tool_b_name: tool_b,
+        ip_hash: ipHash, use_case: use_case || null,
+        cache_hit: false, tokens_input: 0, tokens_output: 0,
+        rate_limited: true, model: '',
+      })
+
       return NextResponse.json(
         { error: `Rate limit exceeded. You can make ${RATE_LIMIT_MAX} comparisons per hour. Try again in ${Math.ceil(resetIn / 60)} minutes.` },
         {
@@ -83,19 +114,25 @@ export async function POST(req: NextRequest) {
     const cacheKey = getCacheKey(tool_a, tool_b, use_case)
     const cached = compareCache.get(cacheKey)
     if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
+      // Log cache hit
+      logComparison({
+        tool_a_slug: tool_a, tool_b_slug: tool_b,
+        tool_a_name: tool_a, tool_b_name: tool_b,
+        ip_hash: ipHash, use_case: use_case || null,
+        cache_hit: true, tokens_input: 0, tokens_output: 0,
+        rate_limited: false, model: 'cache',
+      })
+
       return NextResponse.json(cached.result, {
-        headers: {
-          'X-RateLimit-Remaining': String(remaining),
-          'X-Cache': 'HIT',
-        },
+        headers: { 'X-RateLimit-Remaining': String(remaining), 'X-Cache': 'HIT' },
       })
     }
 
-    // ── Validate API key exists ───────────────────────────────────────────
+    // ── Validate API key ──────────────────────────────────────────────────
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
 
-    // ── Fetch both tools from DB ──────────────────────────────────────────
+    // ── Fetch tools from DB ───────────────────────────────────────────────
     const supabase = getSupabase()
     const { data: tools } = await supabase
       .from('ai_tools')
@@ -108,6 +145,8 @@ export async function POST(req: NextRequest) {
 
     const toolAInfo = a ? `${a.name}: ${a.tagline || ''} | ${a.description?.slice(0, 200) || ''} | pricing: ${a.pricing_model} ${a.starting_price || ''} | free_trial: ${a.has_free_trial} | api: ${a.has_api}` : tool_a
     const toolBInfo = b ? `${b.name}: ${b.tagline || ''} | ${b.description?.slice(0, 200) || ''} | pricing: ${b.pricing_model} ${b.starting_price || ''} | free_trial: ${b.has_free_trial} | api: ${b.has_api}` : tool_b
+
+    const modelId = 'claude-haiku-4-5'
 
     const prompt = `Compare these two AI tools for a user${use_case ? ` who wants to: ${use_case}` : ''}.
 
@@ -144,7 +183,7 @@ Scores are out of 10. Be honest and specific.`
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
+        model: modelId,
         max_tokens: 1500,
         messages: [{ role: 'user', content: prompt }],
       }),
@@ -160,17 +199,33 @@ Scores are out of 10. Be honest and specific.`
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) return NextResponse.json({ error: 'Could not parse Claude response' }, { status: 500 })
 
+    // Extract token usage from API response
+    const tokensInput = data.usage?.input_tokens ?? 0
+    const tokensOutput = data.usage?.output_tokens ?? 0
+
     const comparison = JSON.parse(jsonMatch[0])
     const result = { comparison, tool_a: a, tool_b: b }
 
-    // ── Cache the result ──────────────────────────────────────────────────
+    // ── Log to Supabase ───────────────────────────────────────────────────
+    logComparison({
+      tool_a_slug: tool_a,
+      tool_b_slug: tool_b,
+      tool_a_name: a?.name || tool_a,
+      tool_b_name: b?.name || tool_b,
+      ip_hash: ipHash,
+      use_case: use_case || null,
+      cache_hit: false,
+      tokens_input: tokensInput,
+      tokens_output: tokensOutput,
+      rate_limited: false,
+      model: modelId,
+    })
+
+    // ── Cache ─────────────────────────────────────────────────────────────
     compareCache.set(cacheKey, { result, cachedAt: Date.now() })
 
     return NextResponse.json(result, {
-      headers: {
-        'X-RateLimit-Remaining': String(remaining),
-        'X-Cache': 'MISS',
-      },
+      headers: { 'X-RateLimit-Remaining': String(remaining), 'X-Cache': 'MISS' },
     })
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 })
