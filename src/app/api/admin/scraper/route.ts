@@ -465,6 +465,120 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result)
     }
 
+    // ── Import deals: add promo codes to existing or new tools ────────────────
+    if (action === 'importDeals') {
+      interface DealInput {
+        name: string
+        promo_code?: string
+        promo_desc?: string
+        pricing_model?: string
+        starting_price?: string
+        has_free_trial?: boolean
+        description?: string
+        website?: string
+      }
+      const deals: DealInput[] = body.deals
+      if (!Array.isArray(deals) || deals.length === 0) {
+        return NextResponse.json({ error: 'deals array required' }, { status: 400 })
+      }
+
+      let updated = 0, created = 0, errors = 0
+      const details: { name: string; action: string; error?: string }[] = []
+
+      for (const deal of deals) {
+        try {
+          // Try to find existing tool by name (case-insensitive)
+          const { data: existing } = await supabase
+            .from('ai_tools')
+            .select('id, name, promo_code')
+            .ilike('name', deal.name)
+            .maybeSingle()
+
+          if (existing) {
+            // Update existing tool with deal info
+            const updates: Record<string, unknown> = {}
+            if (deal.promo_code) updates.promo_code = deal.promo_code
+            if (deal.promo_desc) updates.promo_desc = deal.promo_desc
+            if (deal.pricing_model) updates.pricing_model = deal.pricing_model
+            if (deal.starting_price) updates.starting_price = deal.starting_price
+            if (deal.has_free_trial) updates.has_free_trial = true
+
+            if (Object.keys(updates).length > 0) {
+              const { error: upErr } = await supabase.from('ai_tools').update(updates).eq('id', existing.id)
+              if (upErr) {
+                // Try without pricing_model if constraint fails
+                if (upErr.message?.includes('check constraint') || upErr.message?.includes('pricing_model')) {
+                  delete updates.pricing_model
+                  await supabase.from('ai_tools').update(updates).eq('id', existing.id)
+                } else {
+                  details.push({ name: deal.name, action: 'error', error: upErr.message })
+                  errors++
+                  continue
+                }
+              }
+            }
+            details.push({ name: deal.name, action: 'updated' })
+            updated++
+          } else {
+            // Create new tool with deal info
+            const category = guessCategory(`${deal.name} ${deal.description ?? ''} ${deal.promo_desc ?? ''}`)
+            const { data: cat } = await supabase
+              .from('categories').select('id')
+              .ilike('name', `%${category.split(' ')[0]}%`)
+              .maybeSingle()
+
+            const slug = `${slugify(deal.name)}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`
+            const tagline = (deal.description ?? deal.promo_desc ?? deal.name).split(/[.!?]/)[0].slice(0, 120)
+
+            const row: Record<string, unknown> = {
+              slug,
+              name: deal.name,
+              tagline,
+              description: deal.description ?? deal.promo_desc ?? '',
+              website: deal.website ?? '',
+              category_id: cat?.id ?? null,
+              status: 'active',
+              claimed: false,
+              is_auto_enrolled: true,
+              is_featured: false,
+              is_sponsored: false,
+              upvotes: 0, rating_avg: 0, rating_count: 0, view_count: 0, click_count: 0,
+            }
+            if (deal.promo_code) row.promo_code = deal.promo_code
+            if (deal.promo_desc) row.promo_desc = deal.promo_desc
+            if (deal.pricing_model) row.pricing_model = deal.pricing_model
+            if (deal.starting_price) row.starting_price = deal.starting_price
+            if (deal.has_free_trial) row.has_free_trial = true
+
+            const { error: insErr } = await supabase.from('ai_tools').insert(row)
+            if (insErr) {
+              // Retry without pricing_model if constraint fails
+              if (insErr.message?.includes('check constraint') || insErr.message?.includes('pricing_model')) {
+                delete row.pricing_model
+                const { error: retryErr } = await supabase.from('ai_tools').insert(row)
+                if (retryErr) {
+                  details.push({ name: deal.name, action: 'error', error: retryErr.message })
+                  errors++
+                  continue
+                }
+              } else {
+                details.push({ name: deal.name, action: 'error', error: insErr.message })
+                errors++
+                continue
+              }
+            }
+            details.push({ name: deal.name, action: 'created' })
+            created++
+          }
+        } catch (err) {
+          details.push({ name: deal.name, action: 'error', error: String(err) })
+          errors++
+        }
+      }
+
+      return NextResponse.json({ updated, created, errors, total: deals.length, details })
+    }
+
     // ── Cleanup: find & remove junk entries ───────────────────────────────────
     if (action === 'findJunk') {
       const { data, error } = await supabase
