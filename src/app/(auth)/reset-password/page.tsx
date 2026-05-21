@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Lock, CheckCircle2, ArrowRight, Eye, EyeOff } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -14,21 +14,6 @@ export default function ResetPasswordPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
-  const [ready, setReady] = useState(false)
-
-  // Supabase sends the user here with a hash fragment containing the access token
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setReady(true)
-      }
-    })
-    // Also check if already in recovery session
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setReady(true)
-    })
-  }, [])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -69,26 +54,11 @@ export default function ResetPasswordPage() {
           </div>
           <h1 className="text-2xl font-black text-white">Password Updated</h1>
           <p className="mt-2 text-sm text-slate-400">
-            Your password has been reset. Redirecting to login...
+            Your password has been reset successfully. Redirecting to login...
           </p>
           <Link href="/login" className="mt-4 inline-block text-sm font-semibold hover:underline" style={{ color: '#e94560' }}>
             Go to login now
           </Link>
-        </div>
-      </div>
-    )
-  }
-
-  if (!ready) {
-    return (
-      <div className="flex min-h-[80vh] items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm text-center">
-          <h1 className="text-2xl font-black text-white">Loading...</h1>
-          <p className="mt-2 text-sm text-slate-400">Verifying your reset link...</p>
-          <p className="mt-4 text-xs text-slate-500">
-            If this takes too long, your link may have expired.{' '}
-            <Link href="/forgot-password" className="hover:underline" style={{ color: '#e94560' }}>Request a new one</Link>
-          </p>
         </div>
       </div>
     )
