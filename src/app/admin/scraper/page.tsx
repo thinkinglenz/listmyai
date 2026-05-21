@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database, Sparkles } from 'lucide-react'
+import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database, Sparkles, GitFork, Download, Eye, Link2 } from 'lucide-react'
 
 interface Source {
   id: string
@@ -30,6 +30,245 @@ const DEFAULT_SOURCES: Source[] = [
   { id: 's6', name: 'AIcyclopedia', url: 'https://www.aicyclopedia.com/sitemap.xml', status: 'idle' },
   { id: 's7', name: 'AI Tools Directory', url: 'https://aitoolsdirectory.com/sitemap.xml', status: 'idle' },
 ]
+
+// ── GitHub Awesome Lists Component ──
+interface GitForkList { name: string; url: string }
+interface GitForkImportResult { imported: number; skipped: number; errors: string[]; total: number }
+
+function GitForkListsSection({ onImported }: { onImported: () => void }) {
+  const [lists, setLists] = useState<GitForkList[]>([])
+  const [loading, setLoading] = useState(false)
+  const [importingUrl, setImportingUrl] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [previewTools, setPreviewTools] = useState<{ name: string; website: string; description: string; category: string }[]>([])
+  const [result, setResult] = useState<GitForkImportResult | null>(null)
+  const [customUrl, setCustomUrl] = useState('')
+  const [maxImport, setMaxImport] = useState(200)
+
+  useEffect(() => {
+    fetch('/api/admin/scraper', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'listGitForkLists' }),
+    })
+      .then(r => r.json())
+      .then(d => setLists(d.lists ?? []))
+      .catch(() => {})
+  }, [])
+
+  async function preview(url: string) {
+    setPreviewUrl(url)
+    setPreviewTools([])
+    setLoading(true)
+    try {
+      const res = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'previewGitForkList', listUrl: url }),
+      })
+      const data = await res.json()
+      setPreviewTools(data.tools ?? [])
+    } catch (err) {
+      setPreviewTools([])
+    }
+    setLoading(false)
+  }
+
+  async function importList(url: string) {
+    setImportingUrl(url)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'importGitForkList', listUrl: url, maxImport }),
+      })
+      const data = await res.json()
+      setResult(data)
+      onImported()
+    } catch (err) {
+      setResult({ imported: 0, skipped: 0, errors: [String(err)], total: 0 })
+    }
+    setImportingUrl(null)
+  }
+
+  async function importCustom() {
+    if (!customUrl) return
+    setImportingUrl(customUrl)
+    setResult(null)
+    try {
+      const res = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'importCustomList', listUrl: customUrl, maxImport }),
+      })
+      const data = await res.json()
+      setResult(data)
+      onImported()
+    } catch (err) {
+      setResult({ imported: 0, skipped: 0, errors: [String(err)], total: 0 })
+    }
+    setImportingUrl(null)
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(255,255,255,0.08)' }}>
+            <GitFork className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-white">GitHub Awesome Lists</h2>
+            <p className="text-xs text-slate-500">Import AI tools from curated GitHub awesome-list repositories — no scraping blocks</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-slate-500">Max import:</span>
+          <select value={maxImport} onChange={e => setMaxImport(Number(e.target.value))}
+            className="rounded-lg border px-2 py-1 text-xs text-slate-300 outline-none"
+            style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value={200}>200</option>
+            <option value={500}>500</option>
+          </select>
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div className="mb-4 rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.15)' }}>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <strong className="text-emerald-400">✨ No scraping needed!</strong> These lists are public markdown files on GitHub.
+          The parser extracts tool names, URLs, descriptions, and auto-categorises them. Duplicates are automatically skipped.
+        </p>
+      </div>
+
+      {/* Available lists */}
+      <div className="space-y-2 mb-4">
+        {lists.map(list => (
+          <div key={list.url} className="flex items-center gap-3 rounded-xl p-3" style={{ background: '#0d1117' }}>
+            <GitFork className="h-4 w-4 text-slate-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white">{list.name}</p>
+              <p className="text-[10px] text-slate-600 truncate">{list.url}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <button onClick={() => preview(list.url)} disabled={loading || !!importingUrl}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:text-white hover:bg-white/5 disabled:opacity-40"
+                style={{ border: '1px solid #1e2a3a' }}>
+                <Eye className="h-3 w-3" /> Preview
+              </button>
+              <button onClick={() => importList(list.url)} disabled={!!importingUrl}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ background: importingUrl === list.url ? '#1e2a3a' : '#10b981' }}>
+                {importingUrl === list.url
+                  ? <><RefreshCw className="h-3 w-3 animate-spin" /> Importing…</>
+                  : <><Download className="h-3 w-3" /> Import</>}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Custom URL */}
+      <div className="rounded-xl p-3 mb-4" style={{ background: '#0d1117', border: '1px dashed #1e2a3a' }}>
+        <p className="text-xs font-semibold text-slate-400 mb-2">+ Custom GitHub List URL</p>
+        <div className="flex gap-2">
+          <input value={customUrl} onChange={e => setCustomUrl(e.target.value)}
+            placeholder="https://raw.githubusercontent.com/user/repo/main/README.md"
+            className="flex-1 rounded-lg border px-3 py-2 text-xs text-white placeholder-slate-600 outline-none focus:border-emerald-500/50"
+            style={{ borderColor: '#1e2a3a', background: '#161b27' }} />
+          <button onClick={importCustom} disabled={!customUrl || !!importingUrl}
+            className="flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+            style={{ background: '#10b981' }}>
+            {importingUrl === customUrl
+              ? <><RefreshCw className="h-3 w-3 animate-spin" /> Importing…</>
+              : <><Link2 className="h-3 w-3" /> Import</>}
+          </button>
+        </div>
+      </div>
+
+      {/* Preview modal */}
+      {previewUrl && previewTools.length > 0 && (
+        <div className="mb-4 rounded-xl border overflow-hidden" style={{ borderColor: '#1e2a3a' }}>
+          <div className="flex items-center justify-between px-4 py-2" style={{ background: '#0d1117' }}>
+            <p className="text-xs font-semibold text-white">
+              Preview: {previewTools.length} tools found
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => importList(previewUrl)} disabled={!!importingUrl}
+                className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ background: '#10b981' }}>
+                <Download className="h-3 w-3" /> Import All
+              </button>
+              <button onClick={() => { setPreviewUrl(null); setPreviewTools([]) }}
+                className="text-xs text-slate-500 hover:text-white px-2">✕</button>
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto divide-y" style={{ borderColor: '#1e2a3a' }}>
+            {previewTools.slice(0, 50).map((t, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-2 text-xs" style={{ background: i % 2 === 0 ? '#161b27' : '#0d1117' }}>
+                <span className="font-semibold text-white min-w-[140px] truncate">{t.name}</span>
+                <span className="text-slate-500 truncate flex-1">{t.description.slice(0, 80)}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full whitespace-nowrap" style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8' }}>{t.category}</span>
+              </div>
+            ))}
+            {previewTools.length > 50 && (
+              <div className="px-4 py-2 text-xs text-slate-500 text-center">
+                … and {previewTools.length - 50} more
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {loading && (
+        <div className="mb-4 flex items-center gap-2 text-xs text-blue-400">
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Parsing markdown…
+        </div>
+      )}
+
+      {/* Import result */}
+      {result && (
+        <div className="rounded-xl p-4" style={{ background: '#0d1117' }}>
+          <div className="flex flex-wrap gap-6 mb-2">
+            <div className="text-center">
+              <p className="text-2xl font-black text-emerald-400">{result.imported}</p>
+              <p className="text-[10px] text-slate-500">Imported</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-black text-slate-500">{result.skipped}</p>
+              <p className="text-[10px] text-slate-500">Skipped (duplicates)</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-black text-slate-300">{result.total}</p>
+              <p className="text-[10px] text-slate-500">Total Found</p>
+            </div>
+            {result.errors.length > 0 && (
+              <div className="text-center">
+                <p className="text-2xl font-black text-red-400">{result.errors.length}</p>
+                <p className="text-[10px] text-slate-500">Errors</p>
+              </div>
+            )}
+          </div>
+          {result.errors.length > 0 && (
+            <div className="mt-2 max-h-32 overflow-y-auto">
+              {result.errors.slice(0, 10).map((e, i) => (
+                <p key={i} className="text-[10px] text-red-400 truncate">⚠ {e}</p>
+              ))}
+            </div>
+          )}
+          {result.imported > 0 && (
+            <p className="mt-3 text-xs text-emerald-400 font-semibold">
+              ✅ {result.imported} new tools are now live and visible in the directory!
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AdminScraperPage() {
   const [sources, setSources] = useState<Source[]>(DEFAULT_SOURCES)
@@ -345,6 +584,9 @@ export default function AdminScraperPage() {
           </div>
         </div>
       </div>
+
+      {/* ── GitHub Awesome Lists Section ── */}
+      <GitForkListsSection onImported={() => fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})} />
 
       {/* ── Enrichment Section ── */}
       <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>

@@ -253,6 +253,149 @@ async function scrapeAndSave(urls: string[]): Promise<{ imported: number; skippe
   return { imported, skipped, errors }
 }
 
+// ── GitHub Awesome-List Parser ───────────────────────────────────────────────
+
+/** Known awesome-list repos with AI tools */
+const AWESOME_LISTS = [
+  { name: 'awesome-ai-tools (mahseema)', url: 'https://raw.githubusercontent.com/mahseema/awesome-ai-tools/main/README.md' },
+  { name: 'ai-collection', url: 'https://raw.githubusercontent.com/ai-collection/ai-collection/main/README.md' },
+  { name: 'awesome-generative-ai', url: 'https://raw.githubusercontent.com/steven2358/awesome-generative-ai/master/README.md' },
+  { name: 'awesome-chatgpt', url: 'https://raw.githubusercontent.com/OpenMindClub/awesome-chatgpt/main/README.md' },
+  { name: 'awesome-ai-apps', url: 'https://raw.githubusercontent.com/e2b-dev/awesome-ai-agents/main/README.md' },
+]
+
+interface ParsedTool {
+  name: string
+  website: string
+  description: string
+  category: string
+}
+
+/**
+ * Parse markdown content from an awesome-list and extract tool entries.
+ * Handles patterns like:
+ *   - [Tool Name](https://url) - Description
+ *   - [Tool Name](https://url) — Description
+ *   - | [Tool Name](url) | Description | Category |
+ *   - **[Tool Name](url)** - Description
+ */
+function parseAwesomeList(markdown: string): ParsedTool[] {
+  const tools: ParsedTool[] = []
+  const seen = new Set<string>()
+  const lines = markdown.split('\n')
+
+  // Track the current section heading for category hints
+  let currentSection = ''
+
+  for (const line of lines) {
+    // Track section headings
+    const headingMatch = line.match(/^#{1,4}\s+(.+)/)
+    if (headingMatch) {
+      currentSection = headingMatch[1].replace(/[*_`]/g, '').trim()
+      continue
+    }
+
+    // Pattern: markdown link with description
+    // Matches: - [Name](url) - desc  |  * [Name](url) — desc  |  - **[Name](url)** - desc
+    const linkPattern = /\[([^\]]{2,80})\]\((https?:\/\/[^\s)]+)\)\]?\*{0,2}\s*[-–—:|]\s*(.+)/
+    const m = line.match(linkPattern)
+    if (!m) continue
+
+    const rawName = m[1].replace(/[*_`]/g, '').trim()
+    let url = m[2].replace(/\/$/, '').trim()
+    const desc = m[3]
+      .replace(/\|.*$/, '')     // strip table columns after first
+      .replace(/<!--.*?-->/, '') // strip HTML comments
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 500)
+
+    // Skip non-tool links (GitHub repos, docs, papers, etc.)
+    if (!rawName || rawName.length < 2) continue
+    if (/^(http|ftp|mailto)/i.test(rawName)) continue
+    if (url.includes('github.com') && !url.includes('github.io')) continue
+    if (url.includes('arxiv.org') || url.includes('wikipedia.org')) continue
+    if (url.includes('youtube.com') || url.includes('twitter.com')) continue
+
+    // Normalise URL
+    try { url = new URL(url).origin + new URL(url).pathname.replace(/\/$/, '') } catch { continue }
+
+    const normHost = url.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
+    if (seen.has(normHost)) continue
+    seen.add(normHost)
+
+    const combinedText = `${rawName} ${desc} ${currentSection}`
+    const category = guessCategory(combinedText)
+
+    tools.push({ name: rawName, website: url, description: desc, category })
+  }
+
+  return tools
+}
+
+/** Import parsed tools into DB, deduplicating against existing websites */
+async function importParsedTools(tools: ParsedTool[]): Promise<{
+  imported: number; skipped: number; errors: string[]; total: number
+}> {
+  // Load existing websites for dedup
+  const { data: existing } = await supabase.from('ai_tools').select('website')
+  const knownSites = new Set<string>(
+    (existing ?? []).map((r: { website: string }) =>
+      (r.website ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
+    )
+  )
+
+  let imported = 0, skipped = 0
+  const errors: string[] = []
+
+  // Process in chunks of 10
+  for (let i = 0; i < tools.length; i += 10) {
+    const chunk = tools.slice(i, i + 10)
+
+    for (const tool of chunk) {
+      const norm = tool.website.replace(/^https?:\/\//, '').replace(/\/$/, '').toLowerCase()
+      if (knownSites.has(norm)) { skipped++; continue }
+
+      const tagline = tool.description.split(/[.!?]/)[0].slice(0, 120) || tool.name
+      const slug = `${slugify(tool.name)}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+
+      // Look up category
+      const { data: cat } = await supabase
+        .from('categories').select('id')
+        .ilike('name', `%${tool.category.split(' ')[0]}%`)
+        .maybeSingle()
+
+      const { error: insErr } = await supabase.from('ai_tools').insert({
+        slug,
+        name: tool.name,
+        tagline,
+        description: tool.description,
+        website: tool.website,
+        category_id: cat?.id ?? null,
+        status: 'active',
+        claimed: false,
+        is_auto_enrolled: true,
+        is_featured: false,
+        is_sponsored: false,
+        upvotes: 0, rating_avg: 0, rating_count: 0, view_count: 0, click_count: 0,
+      })
+
+      if (insErr) {
+        if (insErr.code === '23505') { skipped++; continue }
+        errors.push(`${tool.name}: ${insErr.message}`)
+      } else {
+        imported++
+        knownSites.add(norm)
+      }
+    }
+
+    // Brief pause between chunks
+    if (i + 10 < tools.length) await new Promise(r => setTimeout(r, 100))
+  }
+
+  return { imported, skipped, errors, total: tools.length }
+}
+
 // ── POST handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
   try {
@@ -277,6 +420,48 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'urls array required' }, { status: 400 })
       }
       const result = await scrapeAndSave(urls.slice(0, 20)) // max 20 per call
+      return NextResponse.json(result)
+    }
+
+    // GitHub Awesome-List: list available repos
+    if (action === 'listGithubLists') {
+      return NextResponse.json({ lists: AWESOME_LISTS })
+    }
+
+    // GitHub Awesome-List: preview (parse without importing)
+    if (action === 'previewGithubList') {
+      const listUrl = body.listUrl
+      if (!listUrl) return NextResponse.json({ error: 'listUrl required' }, { status: 400 })
+      const markdown = await safeFetch(listUrl, 15000)
+      const parsed = parseAwesomeList(markdown)
+      return NextResponse.json({ tools: parsed, total: parsed.length })
+    }
+
+    // GitHub Awesome-List: import parsed tools
+    if (action === 'importGithubList') {
+      const listUrl = body.listUrl
+      if (!listUrl) return NextResponse.json({ error: 'listUrl required' }, { status: 400 })
+      const maxImport = body.maxImport ?? 200
+      const markdown = await safeFetch(listUrl, 15000)
+      const parsed = parseAwesomeList(markdown).slice(0, maxImport)
+      if (parsed.length === 0) {
+        return NextResponse.json({ imported: 0, skipped: 0, errors: ['No tools found in this list'], total: 0 })
+      }
+      const result = await importParsedTools(parsed)
+      return NextResponse.json(result)
+    }
+
+    // GitHub Awesome-List: import from custom markdown URL
+    if (action === 'importCustomList') {
+      const listUrl = body.listUrl
+      if (!listUrl) return NextResponse.json({ error: 'listUrl required' }, { status: 400 })
+      const maxImport = body.maxImport ?? 200
+      const markdown = await safeFetch(listUrl, 15000)
+      const parsed = parseAwesomeList(markdown).slice(0, maxImport)
+      if (parsed.length === 0) {
+        return NextResponse.json({ imported: 0, skipped: 0, errors: ['No tools found — check the URL returns raw markdown with [Name](url) links'], total: 0 })
+      }
+      const result = await importParsedTools(parsed)
       return NextResponse.json(result)
     }
 
