@@ -32,16 +32,16 @@ const DEFAULT_SOURCES: Source[] = [
 ]
 
 // ── GitHub Awesome Lists Component ──
-interface GitForkList { name: string; url: string }
-interface GitForkImportResult { imported: number; skipped: number; errors: string[]; total: number }
+interface GithubList { name: string; url: string }
+interface GithubImportResult { imported: number; skipped: number; errors: string[]; total: number }
 
-function GitForkListsSection({ onImported }: { onImported: () => void }) {
-  const [lists, setLists] = useState<GitForkList[]>([])
+function GithubListsSection({ onImported }: { onImported: () => void }) {
+  const [lists, setLists] = useState<GithubList[]>([])
   const [loading, setLoading] = useState(false)
   const [importingUrl, setImportingUrl] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [previewTools, setPreviewTools] = useState<{ name: string; website: string; description: string; category: string }[]>([])
-  const [result, setResult] = useState<GitForkImportResult | null>(null)
+  const [result, setResult] = useState<GithubImportResult | null>(null)
   const [customUrl, setCustomUrl] = useState('')
   const [maxImport, setMaxImport] = useState(200)
 
@@ -49,7 +49,7 @@ function GitForkListsSection({ onImported }: { onImported: () => void }) {
     fetch('/api/admin/scraper', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'listGitForkLists' }),
+      body: JSON.stringify({ action: 'listGithubLists' }),
     })
       .then(r => r.json())
       .then(d => setLists(d.lists ?? []))
@@ -64,7 +64,7 @@ function GitForkListsSection({ onImported }: { onImported: () => void }) {
       const res = await fetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'previewGitForkList', listUrl: url }),
+        body: JSON.stringify({ action: 'previewGithubList', listUrl: url }),
       })
       const data = await res.json()
       setPreviewTools(data.tools ?? [])
@@ -81,7 +81,7 @@ function GitForkListsSection({ onImported }: { onImported: () => void }) {
       const res = await fetch('/api/admin/scraper', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'importGitForkList', listUrl: url, maxImport }),
+        body: JSON.stringify({ action: 'importGithubList', listUrl: url, maxImport }),
       })
       const data = await res.json()
       setResult(data)
@@ -586,7 +586,7 @@ export default function AdminScraperPage() {
       </div>
 
       {/* ── GitHub Awesome Lists Section ── */}
-      <GitForkListsSection onImported={() => fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})} />
+      <GithubListsSection onImported={() => fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})} />
 
       {/* ── Enrichment Section ── */}
       <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
