@@ -9,27 +9,35 @@ const supabase = createClient(
 export async function GET() {
   try {
     // Get profiles (joined with auth user data via service role)
-    const { data: profiles, error } = await supabase
+    // Get auth users first (service role only) — this is the source of truth
+    const { data: authData } = await supabase.auth.admin.listUsers()
+    const authUsers = authData?.users ?? []
+
+    // Try profiles table — fall back gracefully if columns don't exist
+    let profiles: Record<string, Record<string, unknown>> = {}
+    const { data: profileData } = await supabase
       .from('profiles')
-      .select('id, full_name, role, plan, created_at, updated_at')
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(100)
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    if (profileData) {
+      for (const p of profileData) {
+        profiles[(p as Record<string, unknown>).id as string] = p as Record<string, unknown>
+      }
+    }
 
-    // Get auth users for email (service role only)
-    const { data: authData } = await supabase.auth.admin.listUsers()
-    const emailMap: Record<string, string> = {}
-    authData?.users?.forEach(u => { emailMap[u.id] = u.email ?? '' })
-
-    const users = (profiles ?? []).map(p => ({
-      id: p.id,
-      name: p.full_name ?? 'Unknown',
-      email: emailMap[p.id] ?? '—',
-      role: p.role ?? 'user',
-      plan: p.plan ?? 'free',
-      joined: p.created_at,
-    }))
+    const users = authUsers.map(u => {
+      const p = profiles[u.id] || {}
+      return {
+        id: u.id,
+        name: (p.display_name || p.full_name || u.user_metadata?.full_name || u.user_metadata?.name || 'Unknown') as string,
+        email: u.email ?? '—',
+        role: (p.role ?? 'user') as string,
+        plan: (p.plan ?? 'free') as string,
+        joined: u.created_at,
+      }
+    })
 
     return NextResponse.json({ users })
   } catch (err) {
