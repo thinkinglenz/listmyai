@@ -397,33 +397,53 @@ export async function GET(req: NextRequest) {
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
   const limitParam = req.nextUrl.searchParams.get('limit')
   const limit = Math.min(parseInt(limitParam || '50', 10), 200)
-  const offset = parseInt(req.nextUrl.searchParams.get('offset') || '0', 10)
 
   const supabase = getSupabase()
 
-  // Fetch tools that need enrichment (missing description, pricing, etc.)
-  const { data: tools, error } = await supabase
+  // Fetch tools that actually NEED enrichment — skip already-complete tools
+  // A tool needs enrichment if it's missing description, pricing, tagline, or contact info
+  // Also skip tools where enrichment was already attempted (enrichment_tried_at is set)
+  let query = supabase
     .from('ai_tools')
-    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, company_description, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url')
+    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, company_description, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url, enrichment_tried_at')
     .eq('status', 'active')
     .order('created_at', { ascending: true })
-    .range(offset, offset + limit - 1)
+    .limit(limit * 3)  // fetch more to filter, then take `limit`
+
+  // Skip already-attempted tools unless forced
+  const force = req.nextUrl.searchParams.get('force') === '1'
+  if (!force) {
+    query = query.is('enrichment_tried_at', null)
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: rawTools, error } = await query as any
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // Filter to only tools that actually need enrichment
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const needsWork = (rawTools || []).filter((t: any) =>
+    !t.description || t.description.length < 30 ||
+    !t.pricing_model ||
+    !t.tagline || t.tagline === t.name ||
+    !t.contact_email ||
+    (t.tagline && /`#\w+`/.test(t.tagline)) ||
+    (t.description && /`#\w+`/.test(t.description))
+  )
+
+  // Take only `limit` tools that need work
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tools = needsWork.slice(0, limit) as any[]
+
   if (dryRun) {
-    // Just show what would be enriched
-    const needsWork = (tools || []).filter(t =>
-      !t.description || t.description.length < 30 ||
-      !t.pricing_model ||
-      !t.tagline || t.tagline === t.name
-    )
     return NextResponse.json({
-      total_tools: (tools || []).length,
+      total_tools: (rawTools || []).length,
       needs_enrichment: needsWork.length,
-      samples: needsWork.slice(0, 10).map(t => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      samples: needsWork.slice(0, 10).map((t: any) => ({
         slug: t.slug,
         name: t.name,
         website: t.website,
@@ -431,6 +451,7 @@ export async function GET(req: NextRequest) {
           !t.description || t.description.length < 30 ? 'description' : null,
           !t.pricing_model ? 'pricing' : null,
           !t.tagline || t.tagline === t.name ? 'tagline' : null,
+          !t.contact_email ? 'contact_email' : null,
         ].filter(Boolean),
       })),
     })
@@ -439,16 +460,22 @@ export async function GET(req: NextRequest) {
   // Enrich tools in parallel batches
   const results = []
   let enriched = 0, skipped = 0, errors = 0
-  const allTools = tools || []
 
-  for (let i = 0; i < allTools.length; i += BATCH_SIZE) {
-    const batch = allTools.slice(i, i + BATCH_SIZE)
+  for (let i = 0; i < tools.length; i += BATCH_SIZE) {
+    const batch = tools.slice(i, i + BATCH_SIZE)
     const batchResults = await Promise.all(batch.map(tool => enrichTool(tool)))
     for (const result of batchResults) {
       results.push(result)
       if (result.updated) enriched++
       else if (result.error) errors++
       else skipped++
+
+      // Mark enrichment as attempted so we don't re-process this tool
+      try {
+        await supabase.from('ai_tools')
+          .update({ enrichment_tried_at: new Date().toISOString() })
+          .eq('slug', result.slug)
+      } catch { /* column may not exist yet */ }
     }
   }
 
@@ -456,7 +483,7 @@ export async function GET(req: NextRequest) {
     enriched,
     skipped,
     errors,
-    total: (tools || []).length,
+    total: tools.length,
     details: results,
   })
 }

@@ -521,21 +521,25 @@ export default function AdminScraperPage() {
 
   // ── Enrichment state ──
   const [enrichLimit, setEnrichLimit] = useState(10)
-  const [enrichOffset, setEnrichOffset] = useState(0)
   const [enriching, setEnriching] = useState(false)
+  const [enrichForce, setEnrichForce] = useState(false)
   const [enrichResult, setEnrichResult] = useState<{ enriched: number; skipped: number; errors: number; total: number; details?: { slug: string; updated: boolean; fields: string[]; error?: string }[] } | null>(null)
 
   async function runEnrich() {
     setEnriching(true)
     setEnrichResult(null)
     try {
-      const res = await fetch(`/api/admin/enrich?secret=listmyai_import_2026&limit=${enrichLimit}&offset=${enrichOffset}`)
+      const params = new URLSearchParams({
+        secret: 'listmyai_import_2026',
+        limit: String(enrichLimit),
+      })
+      if (enrichForce) params.set('force', '1')
+      const res = await fetch(`/api/admin/enrich?${params}`)
       const data = await res.json()
       if (data.error) {
         setEnrichResult({ enriched: 0, skipped: 0, errors: 1, total: 0, details: [{ slug: '-', updated: false, fields: [], error: data.error }] })
       } else {
         setEnrichResult(data)
-        setEnrichOffset(prev => prev + enrichLimit)
       }
     } catch (err) {
       setEnrichResult({ enriched: 0, skipped: 0, errors: 1, total: 0, details: [{ slug: '-', updated: false, fields: [], error: String(err) }] })
@@ -777,18 +781,13 @@ export default function AdminScraperPage() {
               <option value={30}>30</option>
             </select>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500">Offset:</span>
-            <input type="number" value={enrichOffset} onChange={e => setEnrichOffset(Number(e.target.value))}
-              min={0} step={10}
-              className="w-20 rounded-lg border px-2 py-1 text-xs text-slate-300 outline-none"
-              style={{ borderColor: '#1e2a3a', background: '#161b27' }} />
-          </div>
-          <button onClick={() => setEnrichOffset(0)} className="text-xs text-slate-500 hover:text-white transition">
-            Reset offset
-          </button>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={enrichForce} onChange={e => setEnrichForce(e.target.checked)}
+              className="rounded border-slate-600 accent-purple-500" />
+            <span className="text-xs text-slate-500">Force re-enrich (include already attempted)</span>
+          </label>
           <span className="text-xs text-slate-600 ml-auto">
-            Processing tools {enrichOffset + 1}–{enrichOffset + enrichLimit} (oldest first)
+            Auto-skips already enriched tools · only processes tools with missing data
           </span>
         </div>
 
