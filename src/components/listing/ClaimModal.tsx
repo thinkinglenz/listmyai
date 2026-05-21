@@ -7,7 +7,8 @@ import Link from 'next/link'
 
 // Common free/consumer email providers — blocked for claims
 const FREE_DOMAINS = new Set([
-  'gmail.com','googlemail.com','yahoo.com','yahoo.co.uk','yahoo.fr','yahoo.de',
+  // 'gmail.com','googlemail.com', // TODO: re-enable after testing
+  'yahoo.com','yahoo.co.uk','yahoo.fr','yahoo.de',
   'hotmail.com','hotmail.co.uk','hotmail.fr','outlook.com','outlook.co.uk',
   'live.com','live.co.uk','msn.com','icloud.com','me.com','mac.com',
   'aol.com','protonmail.com','proton.me','mail.com','zoho.com','zohomail.com',
