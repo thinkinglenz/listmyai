@@ -1,63 +1,96 @@
-import { Suspense } from 'react'
-import PromoCard from '@/components/promo/PromoCard'
-import { Promotion, Category } from '@/types'
-import { Gift, Tag, Zap, Percent, BadgeCheck } from 'lucide-react'
+import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
+import { Gift, Tag, Zap, Percent, BadgeCheck, ExternalLink, Sparkles } from 'lucide-react'
+import CopyCodeButton from '@/components/promo/CopyCodeButton'
 
-const CATEGORIES: Category[] = [
-  { id:4,  slug:'code',      name:'Code Assistant',   icon:'Code2',    color:'#06b6d4', count:15 },
-  { id:10, slug:'voice',     name:'Voice & Speech',   icon:'Mic',      color:'#14b8a6', count:6  },
-  { id:1,  slug:'chatbot',   name:'Chatbot',          icon:'MessageSquare', color:'#6366f1', count:24 },
-]
+export const dynamic = 'force-dynamic'
 
-const PROMOS: Promotion[] = [
-  { id:'p1', tool_id:'4', promo_type:'trial',    title:'30-Day Free Trial',             description:'Try GitHub Copilot free for 30 days. No credit card required. Full access to all features.',      promo_code:'COPILOT30', discount_pct:0,  trial_days:30, valid_until:'2025-12-31', is_verified:true, created_at:'2024-01-01', tool:{ id:'4', name:'GitHub Copilot', slug:'github-copilot', category:CATEGORIES[0] } },
-  { id:'p2', tool_id:'6', promo_type:'free_tier', title:'Free Voice Generation Forever', description:'ElevenLabs gives you 10,000 characters per month on the free tier. No credit card, no expiry.',promo_code:'',          discount_pct:0,  trial_days:0,  is_verified:true, created_at:'2024-01-01', tool:{ id:'6', name:'ElevenLabs',    slug:'elevenlabs',    category:CATEGORIES[1] } },
-  { id:'p3', tool_id:'5', promo_type:'coupon',   title:'20% off Cursor Pro',            description:'Use this exclusive code at checkout for 20% off your first 3 months of Cursor Pro subscription.',promo_code:'LISTMYAI20',discount_pct:20, trial_days:0,  valid_until:'2025-09-30', is_verified:true, created_at:'2024-01-01', tool:{ id:'5', name:'Cursor',        slug:'cursor',        category:CATEGORIES[0] } },
-  { id:'p4', tool_id:'2', promo_type:'free_tier', title:'Claude Free Tier',             description:'Use Claude for free — up to a generous daily limit. Free access to Claude 3.5 Sonnet.',          promo_code:'',          discount_pct:0,  trial_days:0,  is_verified:true, created_at:'2024-01-01', tool:{ id:'2', name:'Claude',        slug:'claude',        category:CATEGORIES[2] } },
-  { id:'p5', tool_id:'1', promo_type:'free_tier', title:'ChatGPT Free Access',          description:'ChatGPT is free with GPT-4o access. No credit card required to start.',                           promo_code:'',          discount_pct:0,  trial_days:0,  is_verified:true, created_at:'2024-01-01', tool:{ id:'1', name:'ChatGPT',       slug:'chatgpt',       category:CATEGORIES[2] } },
-  { id:'p6', tool_id:'7', promo_type:'trial',     title:'Runway 1-Month Free Trial',    description:'New users get 625 free credits to try Runway Gen-3 Alpha video generation.',                     promo_code:'RUNWAY2025',discount_pct:0,  trial_days:0,  valid_until:'2025-08-31', is_verified:true, created_at:'2024-01-01', tool:{ id:'7', name:'Runway ML',     slug:'runway',        category:CATEGORIES[0] } },
-]
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
-const DEAL_TYPES = [
-  { key:'all',       label:'All Deals',  icon:<Gift className="h-4 w-4" /> },
-  { key:'trial',     label:'Free Trials',icon:<Zap className="h-4 w-4" /> },
-  { key:'coupon',    label:'Promo Codes',icon:<Tag className="h-4 w-4" /> },
-  { key:'discount',  label:'Discounts',  icon:<Percent className="h-4 w-4" /> },
-  { key:'free_tier', label:'Free Tiers', icon:<BadgeCheck className="h-4 w-4" /> },
+type DealType = 'all' | 'promo_code' | 'free_trial' | 'free' | 'freemium'
+
+const DEAL_TABS: { key: DealType; label: string; icon: React.ReactNode }[] = [
+  { key: 'all',        label: 'All Deals',    icon: <Gift className="h-4 w-4" /> },
+  { key: 'promo_code', label: 'Promo Codes',  icon: <Tag className="h-4 w-4" /> },
+  { key: 'free_trial', label: 'Free Trials',  icon: <Zap className="h-4 w-4" /> },
+  { key: 'free',       label: 'Free Tools',   icon: <BadgeCheck className="h-4 w-4" /> },
+  { key: 'freemium',   label: 'Freemium',     icon: <Percent className="h-4 w-4" /> },
 ]
 
 interface Props { searchParams: Promise<{ type?: string }> }
 
 export default async function DealsPage({ searchParams }: Props) {
   const { type = 'all' } = await searchParams
-  const filtered = type === 'all' ? PROMOS : PROMOS.filter(p => p.promo_type === type)
+  const activeType = type as DealType
+
+  // Build query — fetch tools that have deals (promo codes, free trials, free/freemium pricing)
+  let query = supabase
+    .from('ai_tools')
+    .select('id, name, slug, logo_url, website, tagline, pricing_model, starting_price, has_free_trial, trial_duration, promo_code, promo_desc, categories(name)')
+    .in('status', ['active', 'approved', 'claimed', 'verified'])
+    .order('upvotes', { ascending: false })
+    .limit(100)
+
+  if (activeType === 'promo_code') {
+    query = query.not('promo_code', 'is', null).neq('promo_code', '')
+  } else if (activeType === 'free_trial') {
+    query = query.eq('has_free_trial', true)
+  } else if (activeType === 'free') {
+    query = query.eq('pricing_model', 'free')
+  } else if (activeType === 'freemium') {
+    query = query.eq('pricing_model', 'freemium')
+  } else {
+    // "all" — tools that have at least one deal aspect
+    query = query.or('promo_code.neq.,has_free_trial.eq.true,pricing_model.eq.free,pricing_model.eq.freemium,pricing_model.eq.free_trial')
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: tools } = await query as any
+
+  const deals = (tools ?? []) as {
+    id: string; name: string; slug: string; logo_url?: string; website?: string
+    tagline?: string; pricing_model?: string; starting_price?: string
+    has_free_trial: boolean; trial_duration?: string
+    promo_code?: string; promo_desc?: string
+    categories?: { name: string }
+  }[]
+
+  // Count stats
+  const allDeals = deals
+  const promoCount = deals.filter(t => t.promo_code).length
+  const trialCount = deals.filter(t => t.has_free_trial).length
+  const freeCount = deals.filter(t => t.pricing_model === 'free').length
+  const freemiumCount = deals.filter(t => t.pricing_model === 'freemium').length
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
       {/* Header */}
       <div className="mb-10 text-center">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm"
-          style={{borderColor:'rgba(233,69,96,0.25)',background:'rgba(233,69,96,0.1)',color:'#e94560'}}>
-          <Gift className="h-3.5 w-3.5" />
-          Updated daily
+          style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.1)', color: '#e94560' }}>
+          <Sparkles className="h-3.5 w-3.5" />
+          {allDeals.length} deals available
         </div>
-        <h1 className="text-4xl font-black text-white">AI Deals & Promo Codes</h1>
+        <h1 className="text-4xl font-black text-white">AI Deals & Free Tools</h1>
         <p className="mx-auto mt-3 max-w-xl text-slate-400">
-          Free trials, exclusive discount codes, and free tiers — all verified and updated daily.
+          Promo codes, free trials, and free AI tools — save money on the best AI tools.
         </p>
       </div>
 
       {/* Type filter tabs */}
       <div className="mb-8 flex flex-wrap items-center justify-center gap-2">
-        {DEAL_TYPES.map(dt => {
-          const active = dt.key === type
+        {DEAL_TABS.map(dt => {
+          const active = dt.key === activeType
           return (
             <a key={dt.key} href={`/deals${dt.key === 'all' ? '' : `?type=${dt.key}`}`}
               className="flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition"
               style={{
                 borderColor: active ? 'rgba(233,69,96,0.4)' : '#1e2a3a',
-                background:  active ? 'rgba(233,69,96,0.15)' : 'rgba(255,255,255,0.03)',
-                color:       active ? '#e94560' : '#94a3b8',
+                background: active ? 'rgba(233,69,96,0.15)' : 'rgba(255,255,255,0.03)',
+                color: active ? '#e94560' : '#94a3b8',
               }}>
               {dt.icon}{dt.label}
             </a>
@@ -68,39 +101,149 @@ export default async function DealsPage({ searchParams }: Props) {
       {/* Stats bar */}
       <div className="mb-8 flex flex-wrap justify-center gap-6 text-center">
         {[
-          { n: PROMOS.length,                                     l:'Total Deals' },
-          { n: PROMOS.filter(p=>p.promo_type==='trial').length,   l:'Free Trials' },
-          { n: PROMOS.filter(p=>p.promo_code).length,             l:'Promo Codes' },
-          { n: PROMOS.filter(p=>p.promo_type==='free_tier').length,l:'Free Tiers'  },
+          { n: allDeals.length, l: 'Total Deals' },
+          { n: promoCount, l: 'Promo Codes' },
+          { n: trialCount, l: 'Free Trials' },
+          { n: freeCount + freemiumCount, l: 'Free / Freemium' },
         ].map(s => (
-          <div key={s.l} className="rounded-2xl border px-6 py-3 text-center" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.03)'}}>
+          <div key={s.l} className="rounded-2xl border px-6 py-3 text-center" style={{ borderColor: '#1e2a3a', background: 'rgba(255,255,255,0.03)' }}>
             <div className="text-2xl font-black text-white">{s.n}</div>
-            <div className="text-xs" style={{color:'#64748b'}}>{s.l}</div>
+            <div className="text-xs" style={{ color: '#64748b' }}>{s.l}</div>
           </div>
         ))}
       </div>
 
       {/* Grid */}
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {filtered.map(p => <PromoCard key={p.id} promo={p} />)}
+        {deals.map(tool => (
+          <DealCard key={tool.id} tool={tool} />
+        ))}
       </div>
 
-      {filtered.length === 0 && (
-        <div className="rounded-2xl border border-brand-border py-20 text-center" style={{background:'rgba(255,255,255,0.02)'}}>
+      {deals.length === 0 && (
+        <div className="rounded-2xl border border-brand-border py-20 text-center" style={{ background: 'rgba(255,255,255,0.02)' }}>
           <p className="text-4xl">🎁</p>
           <p className="mt-3 font-semibold text-white">No deals in this category yet</p>
-          <p className="mt-1 text-sm text-slate-500">Check back soon — we add new deals daily.</p>
+          <p className="mt-1 text-sm text-slate-500">Check back soon — new deals are added as tool owners claim their listings.</p>
         </div>
       )}
 
-      {/* CTA to submit a promo */}
-      <div className="mt-14 rounded-2xl border p-8 text-center" style={{borderColor:'rgba(233,69,96,0.2)',background:'rgba(233,69,96,0.05)'}}>
+      {/* CTA */}
+      <div className="mt-14 rounded-2xl border p-8 text-center" style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.05)' }}>
         <h2 className="text-xl font-bold text-white">Have a deal to share?</h2>
         <p className="mt-2 text-sm text-slate-400">Claim your listing and add your promo code — it&apos;s free.</p>
         <a href="/submit" className="mt-4 inline-flex items-center gap-2 rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
-          style={{background:'#e94560'}}>
+          style={{ background: '#e94560' }}>
           Submit Your AI Tool
         </a>
+      </div>
+    </div>
+  )
+}
+
+// ── Deal Card (server component) ──
+
+const TYPE_BADGE: Record<string, { label: string; cls: string }> = {
+  free:       { label: 'Free',       cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20' },
+  freemium:   { label: 'Freemium',   cls: 'bg-blue-500/15 text-blue-400 border-blue-500/20' },
+  free_trial: { label: 'Free Trial', cls: 'bg-violet-500/15 text-violet-400 border-violet-500/20' },
+  subscription: { label: 'Subscription', cls: 'bg-amber-500/15 text-amber-400 border-amber-500/20' },
+  pay_per_use: { label: 'Pay per Use', cls: 'bg-orange-500/15 text-orange-400 border-orange-500/20' },
+  one_time:   { label: 'One-Time',   cls: 'bg-pink-500/15 text-pink-400 border-pink-500/20' },
+  enterprise: { label: 'Enterprise', cls: 'bg-slate-500/15 text-slate-400 border-slate-500/20' },
+}
+
+function DealCard({ tool }: { tool: {
+  id: string; name: string; slug: string; logo_url?: string; website?: string
+  tagline?: string; pricing_model?: string; starting_price?: string
+  has_free_trial: boolean; trial_duration?: string
+  promo_code?: string; promo_desc?: string
+  categories?: { name: string }
+} }) {
+  const badge = TYPE_BADGE[tool.pricing_model ?? ''] ?? TYPE_BADGE.free
+  const hasPromo = tool.promo_code && tool.promo_code.length > 0
+
+  return (
+    <div className="group relative rounded-2xl border overflow-hidden transition-all hover:border-brand-red/30 hover:shadow-card-hover"
+      style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+      {/* Top accent */}
+      <div className="h-1 w-full bg-gradient-to-r from-brand-red to-red-400" />
+
+      <div className="p-5">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Link href={`/tools/${tool.slug}`}
+              className="text-base font-bold text-white hover:text-brand-red transition-colors line-clamp-1">
+              {tool.name}
+            </Link>
+            {tool.categories?.name && (
+              <p className="text-xs text-slate-500 mt-0.5">{tool.categories.name}</p>
+            )}
+          </div>
+          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium ${badge.cls}`}>
+            {badge.label}
+          </span>
+        </div>
+
+        {/* Tagline */}
+        {tool.tagline && (
+          <p className="mt-3 text-sm text-slate-400 leading-relaxed line-clamp-2">{tool.tagline}</p>
+        )}
+
+        {/* Deal highlights */}
+        <div className="mt-4 space-y-2">
+          {hasPromo && (
+            <div className="flex items-center gap-2">
+              <div className="flex flex-1 items-center gap-2 rounded-lg border border-dashed px-3 py-2"
+                style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.05)' }}>
+                <Tag className="h-4 w-4 shrink-0" style={{ color: '#e94560' }} />
+                <code className="flex-1 text-sm font-bold tracking-wider" style={{ color: '#e94560' }}>{tool.promo_code}</code>
+              </div>
+              <CopyCodeButton code={tool.promo_code!} />
+            </div>
+          )}
+
+          {tool.promo_desc && (
+            <p className="text-xs text-slate-400 italic">{tool.promo_desc}</p>
+          )}
+
+          {tool.has_free_trial && (
+            <div className="flex items-center gap-2 text-sm text-violet-400">
+              <Zap className="h-3.5 w-3.5" />
+              Free trial{tool.trial_duration ? ` — ${tool.trial_duration}` : ''}
+            </div>
+          )}
+
+          {tool.starting_price && (
+            <div className="flex items-center gap-2 text-sm text-slate-300">
+              <Percent className="h-3.5 w-3.5 text-slate-500" />
+              Starting at {tool.starting_price}
+            </div>
+          )}
+
+          {tool.pricing_model === 'free' && !hasPromo && !tool.has_free_trial && (
+            <div className="flex items-center gap-2 text-sm text-emerald-400">
+              <BadgeCheck className="h-3.5 w-3.5" />
+              Completely free to use
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="mt-4 flex items-center justify-between">
+          <Link href={`/tools/${tool.slug}`}
+            className="text-xs text-slate-500 hover:text-white transition">
+            View details →
+          </Link>
+          {tool.website && (
+            <a href={tool.website} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs text-slate-300 transition hover:text-white"
+              style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <ExternalLink className="h-3.5 w-3.5" /> Visit
+            </a>
+          )}
+        </div>
       </div>
     </div>
   )
