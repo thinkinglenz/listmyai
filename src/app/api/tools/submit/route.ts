@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { sendEmail, submissionConfirmationEmail } from '@/lib/email'
 
 const supabase = createClient(
@@ -87,7 +89,30 @@ export async function POST(req: NextRequest) {
       .single()
 
     const catId = catRow?.id ?? 1
-    let row = buildInsert(slug, body, catId)
+    let row: Record<string, unknown> = buildInsert(slug, body, catId)
+
+    // Try to get the logged-in user to link submission
+    try {
+      const cookieStore = await cookies()
+      const supabaseUser = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() { return cookieStore.getAll() },
+            setAll(c: { name: string; value: string; options?: Record<string, unknown> }[]) {
+              c.forEach(({ name, value, options }) => {
+                try { cookieStore.set(name, value, options) } catch { /* ignore */ }
+              })
+            },
+          },
+        }
+      )
+      const { data: { user } } = await supabaseUser.auth.getUser()
+      if (user?.id) {
+        row.submitted_by = user.id
+      }
+    } catch { /* not logged in — that's fine */ }
 
     // Try insert — auto-strip any columns missing from the schema (up to 10 iterations)
     for (let attempt = 0; attempt < 10; attempt++) {

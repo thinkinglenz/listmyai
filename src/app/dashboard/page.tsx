@@ -17,7 +17,7 @@ interface Listing {
   name: string
   slug: string
   category_name?: string
-  status: 'active' | 'pending' | 'rejected'
+  status: 'active' | 'pending' | 'rejected' | 'claimed' | 'verified'
   view_count: number
   upvotes: number
   rating_avg: number
@@ -36,6 +36,8 @@ interface UserProfile {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
   active:   { label: 'Active',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   Icon: CheckCircle },
+  claimed:  { label: 'Claimed',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: Shield },
+  verified: { label: 'Verified', color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CheckCircle },
   pending:  { label: 'Pending',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  Icon: Clock },
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: AlertCircle },
 }
@@ -161,7 +163,7 @@ export default function DashboardPage() {
     ? listings.reduce((s, l) => s + l.rating_avg * l.rating_count, 0) / listings.reduce((s, l) => s + l.rating_count, 0)
     : 0
   const totalReviews = listings.reduce((s, l) => s + l.rating_count, 0)
-  const activeCount = listings.filter(l => l.status === 'active').length
+  const activeCount = listings.filter(l => ['active', 'claimed', 'verified'].includes(l.status)).length
 
   const navItems: { id: Tab; label: string; Icon: React.ElementType }[] = [
     { id: 'overview',   label: 'Overview',   Icon: LayoutDashboard },
