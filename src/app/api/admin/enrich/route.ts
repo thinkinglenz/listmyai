@@ -50,8 +50,8 @@ function extractMeta(html: string): Record<string, string> {
   return meta
 }
 
-// Valid pricing models matching the DB check constraint
-const VALID_PRICING = ['Free', 'Freemium', 'Free Trial', 'Subscription', 'Pay Per Use', 'One-Time Purchase', 'Enterprise'] as const
+// Valid pricing models matching the DB check constraint (lowercase with underscores)
+const VALID_PRICING = ['free', 'freemium', 'free_trial', 'subscription', 'pay_per_use', 'one_time', 'enterprise'] as const
 
 // Detect pricing info from page text
 function detectPricing(html: string): { pricing_model: string | null; starting_price: string | null; has_free_trial: boolean } {
@@ -65,21 +65,21 @@ function detectPricing(html: string): { pricing_model: string | null; starting_p
     has_free_trial = true
   }
 
-  // Pricing model detection — must match VALID_PRICING exactly
+  // Pricing model detection — values match DB constraint exactly
   if (/completely free|100% free|free and open|open.?source/i.test(text) && !/free trial|freemium/i.test(text)) {
-    pricing_model = 'Free'
+    pricing_model = 'free'
   } else if (/freemium|free.?plan.*(?:paid|pro|premium)|free.?tier.*(?:pro|premium)/i.test(text)) {
-    pricing_model = 'Freemium'
+    pricing_model = 'freemium'
   } else if (/enterprise.?pricing|contact.?(?:us|sales).*pric|custom.?pricing|request.?(?:a )?demo/i.test(text)) {
-    pricing_model = 'Enterprise'
+    pricing_model = 'enterprise'
   } else if (/one.?time.*(?:purchase|payment|fee)|lifetime.*(?:deal|access|license)|pay.?once/i.test(text)) {
-    pricing_model = 'One-Time Purchase'
+    pricing_model = 'one_time'
   } else if (/\$\d+.*?\/\s*mo|per.?month|\$\d+.*?month|billed.*?(?:monthly|annually)|subscription/i.test(text)) {
-    pricing_model = 'Subscription'
+    pricing_model = 'subscription'
   } else if (/pay.?per.?use|pay.?as.?you.?go|per.?(?:api.?)?call|usage.?based|credit.?based/i.test(text)) {
-    pricing_model = 'Pay Per Use'
+    pricing_model = 'pay_per_use'
   } else if (has_free_trial) {
-    pricing_model = 'Free Trial'
+    pricing_model = 'free_trial'
   }
 
   // Validate against allowed values
