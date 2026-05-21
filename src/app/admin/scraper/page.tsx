@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database } from 'lucide-react'
+import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database, Sparkles } from 'lucide-react'
 
 interface Source {
   id: string
@@ -127,6 +127,30 @@ export default function AdminScraperPage() {
     setSources(prev => prev.filter(s => s.id !== id))
   }
 
+  // ── Enrichment state ──
+  const [enrichLimit, setEnrichLimit] = useState(10)
+  const [enrichOffset, setEnrichOffset] = useState(0)
+  const [enriching, setEnriching] = useState(false)
+  const [enrichResult, setEnrichResult] = useState<{ enriched: number; skipped: number; errors: number; total: number; details?: { slug: string; updated: boolean; fields: string[]; error?: string }[] } | null>(null)
+
+  async function runEnrich() {
+    setEnriching(true)
+    setEnrichResult(null)
+    try {
+      const res = await fetch(`/api/admin/enrich?secret=listmyai_import_2026&limit=${enrichLimit}&offset=${enrichOffset}`)
+      const data = await res.json()
+      if (data.error) {
+        setEnrichResult({ enriched: 0, skipped: 0, errors: 1, total: 0, details: [{ slug: '-', updated: false, fields: [], error: data.error }] })
+      } else {
+        setEnrichResult(data)
+        setEnrichOffset(prev => prev + enrichLimit)
+      }
+    } catch (err) {
+      setEnrichResult({ enriched: 0, skipped: 0, errors: 1, total: 0, details: [{ slug: '-', updated: false, fields: [], error: String(err) }] })
+    }
+    setEnriching(false)
+  }
+
   const isAnyRunning = sources.some(s => s.status === 'running')
   const totalImported = logs.reduce((acc, l) => acc + l.imported, 0)
 
@@ -134,8 +158,8 @@ export default function AdminScraperPage() {
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-white">Scraper Control</h1>
-          <p className="text-sm text-slate-500">Scrapes competitor directories and auto-imports all AI tools into your database</p>
+          <h1 className="text-2xl font-black text-white">Scraper & Enrichment</h1>
+          <p className="text-sm text-slate-500">Import tools from competitors and enrich existing listings with metadata</p>
         </div>
         <button onClick={runAll} disabled={isAnyRunning}
           className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
@@ -320,6 +344,102 @@ export default function AdminScraperPage() {
             </ul>
           </div>
         </div>
+      </div>
+
+      {/* ── Enrichment Section ── */}
+      <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(139,92,246,0.15)' }}>
+              <Sparkles className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-white">Enrichment</h2>
+              <p className="text-xs text-slate-500">Scrapes each tool&apos;s website to fill in missing metadata — description, pricing, socials, about page, etc.</p>
+            </div>
+          </div>
+          <button onClick={runEnrich} disabled={enriching}
+            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+            style={{ background: '#8b5cf6' }}>
+            {enriching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {enriching ? 'Enriching…' : 'Run Enrichment'}
+          </button>
+        </div>
+
+        {/* Controls */}
+        <div className="flex flex-wrap items-center gap-4 mb-4 rounded-xl p-3" style={{ background: '#0d1117' }}>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Batch size:</span>
+            <select value={enrichLimit} onChange={e => setEnrichLimit(Number(e.target.value))}
+              className="rounded-lg border px-2 py-1 text-xs text-slate-300 outline-none"
+              style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Offset:</span>
+            <input type="number" value={enrichOffset} onChange={e => setEnrichOffset(Number(e.target.value))}
+              min={0} step={10}
+              className="w-20 rounded-lg border px-2 py-1 text-xs text-slate-300 outline-none"
+              style={{ borderColor: '#1e2a3a', background: '#161b27' }} />
+          </div>
+          <button onClick={() => setEnrichOffset(0)} className="text-xs text-slate-500 hover:text-white transition">
+            Reset offset
+          </button>
+          <span className="text-xs text-slate-600 ml-auto">
+            Processing tools {enrichOffset + 1}–{enrichOffset + enrichLimit} (oldest first)
+          </span>
+        </div>
+
+        {/* Results */}
+        {enrichResult && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-4 rounded-xl p-3" style={{ background: '#0d1117' }}>
+              <div className="text-center">
+                <p className="text-xl font-black text-emerald-400">{enrichResult.enriched}</p>
+                <p className="text-[10px] text-slate-500">Enriched</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-black text-slate-500">{enrichResult.skipped}</p>
+                <p className="text-[10px] text-slate-500">Skipped</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-black text-red-400">{enrichResult.errors}</p>
+                <p className="text-[10px] text-slate-500">Errors</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xl font-black text-slate-300">{enrichResult.total}</p>
+                <p className="text-[10px] text-slate-500">Processed</p>
+              </div>
+            </div>
+
+            {/* Detail rows */}
+            <div className="max-h-64 overflow-y-auto rounded-xl border divide-y" style={{ borderColor: '#1e2a3a' }}>
+              {enrichResult.details?.map((d, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-2 text-xs" style={{ background: i % 2 === 0 ? '#161b27' : '#0d1117' }}>
+                  {d.updated
+                    ? <CheckCircle className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                    : d.error
+                    ? <XCircle className="h-3.5 w-3.5 text-red-400 flex-shrink-0" />
+                    : <span className="h-3.5 w-3.5 rounded-full bg-slate-700 flex-shrink-0" />}
+                  <span className="font-semibold text-white min-w-[120px]">{d.slug}</span>
+                  {d.updated && (
+                    <span className="text-emerald-400">{d.fields.join(', ')}</span>
+                  )}
+                  {d.error && (
+                    <span className="text-red-400 truncate">{d.error}</span>
+                  )}
+                  {!d.updated && !d.error && (
+                    <span className="text-slate-600">Already complete</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

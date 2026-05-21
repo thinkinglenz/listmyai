@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+const BATCH_SIZE = 5  // Process 5 tools in parallel
+const FETCH_TIMEOUT = 6000  // 6s max per website fetch
+const ABOUT_TIMEOUT = 5000  // 5s max per about page
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -161,7 +165,7 @@ async function scrapeAboutPage(baseUrl: string, homepageHtml: string): Promise<s
       for (const path of paths) {
         try {
           const testUrl = new URL(path, base.origin).toString()
-          const testRes = await fetch(testUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+          const testRes = await fetch(testUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(ABOUT_TIMEOUT) })
           if (testRes.ok) { aboutUrl = testUrl; break }
         } catch { /* continue */ }
       }
@@ -169,7 +173,7 @@ async function scrapeAboutPage(baseUrl: string, homepageHtml: string): Promise<s
 
     if (!aboutUrl) return ''
 
-    const aboutRes = await fetch(aboutUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+    const aboutRes = await fetch(aboutUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(ABOUT_TIMEOUT) })
     if (!aboutRes.ok) return ''
 
     const aboutHtml = await aboutRes.text()
@@ -232,15 +236,11 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
   }
 
   try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 12000)
-
     const res = await fetch(url, {
       headers: HEADERS,
-      signal: controller.signal,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
       redirect: 'follow',
     })
-    clearTimeout(timeout)
 
     if (!res.ok) {
       return { slug: tool.slug, updated: false, fields: [], error: `HTTP ${res.status}` }
@@ -436,19 +436,20 @@ export async function GET(req: NextRequest) {
     })
   }
 
-  // Enrich tools (with 500ms delay between requests to be polite)
+  // Enrich tools in parallel batches
   const results = []
   let enriched = 0, skipped = 0, errors = 0
+  const allTools = tools || []
 
-  for (const tool of (tools || [])) {
-    const result = await enrichTool(tool)
-    results.push(result)
-    if (result.updated) enriched++
-    else if (result.error) errors++
-    else skipped++
-
-    // Be polite — don't hammer websites
-    await new Promise(r => setTimeout(r, 500))
+  for (let i = 0; i < allTools.length; i += BATCH_SIZE) {
+    const batch = allTools.slice(i, i + BATCH_SIZE)
+    const batchResults = await Promise.all(batch.map(tool => enrichTool(tool)))
+    for (const result of batchResults) {
+      results.push(result)
+      if (result.updated) enriched++
+      else if (result.error) errors++
+      else skipped++
+    }
   }
 
   return NextResponse.json({
