@@ -6,14 +6,16 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
-  const badges: Record<string, number> = { claims: 0, dmca: 0 }
+  const badges: Record<string, number> = { claims: 0, dmca: 0, listings: 0 }
 
   try {
     const { count: claimsCount } = await supabase
       .from('claim_requests')
       .select('*', { count: 'exact', head: true })
-      .eq('status', 'pending')
+      .in('status', ['pending', 'pending_verification'])
     badges.claims = claimsCount ?? 0
   } catch {}
 
@@ -23,6 +25,14 @@ export async function GET() {
       .select('*', { count: 'exact', head: true })
       .eq('status', 'pending')
     badges.dmca = dmcaCount ?? 0
+  } catch {}
+
+  try {
+    const { count: pendingListings } = await supabase
+      .from('ai_tools')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    badges.listings = pendingListings ?? 0
   } catch {}
 
   return NextResponse.json(badges)

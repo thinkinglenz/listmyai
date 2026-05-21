@@ -80,7 +80,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 
 const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
-  { href: '/admin/listings', label: 'Listings', icon: List },
+  { href: '/admin/listings', label: 'Listings', icon: List, badgeKey: 'listings' as const },
   { href: '/admin/claims', label: 'Claim Requests', icon: Shield, badgeKey: 'claims' as const },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
