@@ -111,7 +111,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />
 
   function isActive(item: typeof NAV_ITEMS[0]) {
-    return item.exact ? pathname === item.href : pathname.startsWith(item.href)
+    const p = pathname?.replace(/\/$/, '') || ''
+    return item.exact ? p === item.href : p.startsWith(item.href)
   }
 
   return (
