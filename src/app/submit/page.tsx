@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { CheckCircle2, Sparkles, Clock, Star, Zap } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
+import { createClient } from '@/lib/supabase/client'
 
 const CATEGORIES = [
   'Chatbot / Assistant','Image Generation','Video Generation','Audio & Music',
@@ -22,16 +24,40 @@ const PERKS = [
 ]
 
 export default function SubmitPage() {
+  const { user } = useAuth()
   const [step, setStep] = useState<1|2|3>(1)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [prefilled, setPrefilled] = useState(false)
   const [form, setForm] = useState({
     name:'', website:'', tagline:'', description:'', category:'', pricing_model:'',
     starting_price:'', has_free_trial:false, trial_duration:'', promo_code:'', promo_desc:'',
     has_api:false, company_name:'', hq_location:'', founded_year:'',
     contact_email:'', contact_name:'',
   })
+
+  // Pre-fill contact details from logged-in user's profile
+  useEffect(() => {
+    if (!user || prefilled) return
+    async function prefill() {
+      const supabase = createClient()
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('full_name, display_name, company')
+        .eq('id', user!.id)
+        .maybeSingle()
+
+      setForm(f => ({
+        ...f,
+        contact_name: f.contact_name || prof?.full_name || prof?.display_name || user!.user_metadata?.full_name || '',
+        contact_email: f.contact_email || user!.email || '',
+        company_name: f.company_name || prof?.company || '',
+      }))
+      setPrefilled(true)
+    }
+    prefill()
+  }, [user, prefilled])
 
   function set(k: string, v: string | boolean) {
     setForm(f => ({ ...f, [k]: v }))
@@ -241,7 +267,11 @@ export default function SubmitPage() {
 
             {step === 3 && <>
               <h2 className="text-lg font-bold text-white">Contact Details</h2>
-              <p className="text-sm text-slate-500">Used to send your listing confirmation and account setup email.</p>
+              {user ? (
+                <p className="text-sm text-slate-500">Pre-filled from your account. Edit if needed.</p>
+              ) : (
+                <p className="text-sm text-slate-500">Used to send your listing confirmation and account setup email.</p>
+              )}
               {[
                 { key:'contact_name',  label:'Your Name *',          type:'text',  placeholder:'Jane Smith',                    required:true  },
                 { key:'contact_email', label:'Email Address *',       type:'email', placeholder:'jane@yourcompany.com',          required:true  },

@@ -114,6 +114,20 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* not logged in — that's fine */ }
 
+    // Check if website already exists
+    const { data: existing } = await supabase
+      .from('ai_tools')
+      .select('id, name, slug')
+      .eq('website', website)
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({
+        error: `This website is already listed as "${existing.name}". If you own this tool, find it in the directory and click "Claim Listing" to take ownership.`,
+        existing_slug: existing.slug,
+      }, { status: 409 })
+    }
+
     // Try insert — auto-strip any columns missing from the schema (up to 10 iterations)
     for (let attempt = 0; attempt < 10; attempt++) {
       const { error } = await supabase.from('ai_tools').insert(row)
@@ -130,18 +144,16 @@ export async function POST(req: NextRequest) {
       }
 
       // Duplicate slug → retry with timestamp suffix
-      if (error.code === '23505') {
+      if (error.code === '23505' && error.message?.includes('slug')) {
         row = { ...row, slug: `${slug}-${Date.now()}` }
-        const { error: e2 } = await supabase.from('ai_tools').insert(row)
-        if (!e2) {
-          sendEmail({
-            to: contact_email,
-            subject: `✅ "${name}" has been submitted to ListmyAI`,
-            html: submissionConfirmationEmail(contact_name ?? '', name, contact_email, APP_URL),
-          }).catch(err => console.error('[submit email]', err))
-          return NextResponse.json({ success: true })
-        }
-        return NextResponse.json({ error: e2.message }, { status: 500 })
+        continue
+      }
+
+      // Duplicate website (race condition) → friendly message
+      if (error.code === '23505' && error.message?.includes('website')) {
+        return NextResponse.json({
+          error: 'This website is already listed. Find it in the directory and click "Claim Listing" to take ownership.',
+        }, { status: 409 })
       }
 
       // Unknown column → strip it and retry
