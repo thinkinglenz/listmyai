@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle2, Sparkles, Clock, Star, Zap } from 'lucide-react'
+import Link from 'next/link'
+import { CheckCircle2, Sparkles, Clock, Star, Zap, LogIn } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { createClient } from '@/lib/supabase/client'
 
@@ -109,6 +110,36 @@ export default function SubmitPage() {
       </div>
     </div>
   )
+
+  // Require sign-in
+  if (!user) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center px-4">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-20 w-20 items-center justify-center rounded-full"
+            style={{ background: 'rgba(233,69,96,0.15)', border: '2px solid rgba(233,69,96,0.3)' }}>
+            <LogIn className="h-10 w-10" style={{ color: '#e94560' }} />
+          </div>
+          <h1 className="text-3xl font-black text-white">Sign in to Submit</h1>
+          <p className="mt-3 text-slate-400">
+            You need to be signed in to list your AI tool on ListmyAI. This helps us link the listing to your account.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Link href="/login?redirect=/submit"
+              className="rounded-xl px-6 py-3 text-sm font-semibold text-white transition hover:opacity-90"
+              style={{ background: '#e94560' }}>
+              Sign In
+            </Link>
+            <Link href="/register?redirect=/submit"
+              className="rounded-xl border px-6 py-3 text-sm text-slate-300 transition hover:text-white"
+              style={{ borderColor: '#1e2a3a' }}>
+              Create Account
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const stepCls = (s: number) => s === step
     ? 'border-brand-red bg-brand-red text-white'
