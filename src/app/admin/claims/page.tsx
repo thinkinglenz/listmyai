@@ -53,9 +53,15 @@ export default function AdminClaimsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
     })
+    const data = await res.json()
     if (res.ok) {
       setClaims(prev => prev.map(c => c.id === id ? { ...c, status } : c))
       setActiveId(null)
+      if (data.update_error) {
+        alert(`Claim status updated but tool update failed: ${data.update_error}`)
+      }
+    } else {
+      alert(`Error: ${data.error || 'Unknown error'}`)
     }
     setActing(false)
   }
