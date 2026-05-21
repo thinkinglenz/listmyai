@@ -93,6 +93,53 @@ function detectPricing(html: string): { pricing_model: string | null; starting_p
   return { pricing_model, starting_price, has_free_trial }
 }
 
+// Extract contact & social links from HTML
+function detectContact(html: string, websiteUrl: string): Record<string, string> {
+  const result: Record<string, string> = {}
+
+  // Twitter / X
+  const twitterMatch = html.match(/href=["'](https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[a-zA-Z0-9_]+)["']/i)
+  if (twitterMatch) result.twitter_url = twitterMatch[1]
+
+  // LinkedIn
+  const linkedinMatch = html.match(/href=["'](https?:\/\/(?:www\.)?linkedin\.com\/(?:company|in)\/[a-zA-Z0-9_-]+(?:\/?)?)["']/i)
+  if (linkedinMatch) result.linkedin_url = linkedinMatch[1]
+
+  // GitHub
+  const githubMatch = html.match(/href=["'](https?:\/\/(?:www\.)?github\.com\/[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_-]+)?)["']/i)
+  if (githubMatch) result.github_url = githubMatch[1]
+
+  // Discord
+  const discordMatch = html.match(/href=["'](https?:\/\/(?:www\.)?discord\.(?:gg|com\/invite)\/[a-zA-Z0-9_-]+)["']/i)
+  if (discordMatch) result.discord_url = discordMatch[1]
+
+  // YouTube
+  const youtubeMatch = html.match(/href=["'](https?:\/\/(?:www\.)?youtube\.com\/(?:@|c\/|channel\/)[a-zA-Z0-9_-]+)["']/i)
+  if (youtubeMatch) result.youtube_url = youtubeMatch[1]
+
+  // Contact email (look for mailto: links, skip generic ones)
+  const emailMatches = html.match(/href=["']mailto:([^"'?]+)/gi)
+  if (emailMatches) {
+    for (const m of emailMatches) {
+      const email = m.replace(/href=["']mailto:/i, '').toLowerCase()
+      // Skip noreply, unsubscribe, etc.
+      if (!/noreply|no-reply|unsubscribe|bounce|mailer-daemon|postmaster/i.test(email) && email.includes('@')) {
+        result.contact_email = email
+        break
+      }
+    }
+  }
+
+  // Support URL (look for /support, /help, /contact links on same domain)
+  try {
+    const domain = new URL(websiteUrl).hostname.replace(/^www\./, '')
+    const supportMatch = html.match(new RegExp(`href=["'](https?://[^"']*${domain.replace('.', '\\.')}[^"']*(?:/(?:support|help|contact|docs)[^"']*))["']`, 'i'))
+    if (supportMatch) result.support_url = supportMatch[1]
+  } catch { /* ignore */ }
+
+  return result
+}
+
 // Detect features from page
 function detectFeatures(html: string): { has_api: boolean; no_code: boolean; gdpr_compliant: boolean } {
   const text = html.toLowerCase()
@@ -130,6 +177,7 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
     const meta = extractMeta(html)
     const pricing = detectPricing(html)
     const features = detectFeatures(html)
+    const contact = detectContact(html, url)
 
     // Build update object — only fill in missing/empty fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,6 +253,15 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       fields.push('gdpr_compliant')
     }
 
+    // Contact / social — only fill in missing fields
+    const contactFields = ['contact_email', 'support_url', 'twitter_url', 'linkedin_url', 'github_url', 'discord_url', 'youtube_url'] as const
+    for (const field of contactFields) {
+      if (!tool[field] && contact[field]) {
+        updates[field] = contact[field]
+        fields.push(field)
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return { slug: tool.slug, updated: false, fields: [] }
     }
@@ -220,6 +277,10 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       if (error.message.includes('gdpr_compliant')) delete safeUpdates.gdpr_compliant
       if (error.message.includes('has_free_trial')) delete safeUpdates.has_free_trial
       if (error.message.includes('has_api')) delete safeUpdates.has_api
+      // Strip contact fields if columns don't exist yet
+      for (const cf of ['contact_email','support_url','twitter_url','linkedin_url','github_url','discord_url','youtube_url']) {
+        if (error.message.includes(cf)) delete safeUpdates[cf]
+      }
       // Any check constraint → strip pricing_model as it's the most likely culprit
       if (error.message.includes('pricing_model') || error.message.includes('check constraint')) {
         delete safeUpdates.pricing_model
@@ -257,7 +318,7 @@ export async function GET(req: NextRequest) {
   // Fetch tools that need enrichment (missing description, pricing, etc.)
   const { data: tools, error } = await supabase
     .from('ai_tools')
-    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status')
+    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url')
     .eq('status', 'active')
     .order('created_at', { ascending: true })
     .range(offset, offset + limit - 1)

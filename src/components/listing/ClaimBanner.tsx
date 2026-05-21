@@ -5,12 +5,13 @@ import { AlertCircle, Shield } from 'lucide-react'
 import ClaimModal from './ClaimModal'
 
 interface Props {
+  toolId: string
   toolName: string
   toolSlug: string
   toolWebsite: string
 }
 
-export default function ClaimBanner({ toolName, toolSlug, toolWebsite }: Props) {
+export default function ClaimBanner({ toolId, toolName, toolSlug, toolWebsite }: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -35,6 +36,7 @@ export default function ClaimBanner({ toolName, toolSlug, toolWebsite }: Props) 
 
       {open && (
         <ClaimModal
+          toolId={toolId}
           toolName={toolName}
           toolSlug={toolSlug}
           toolWebsite={toolWebsite}

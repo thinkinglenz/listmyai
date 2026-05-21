@@ -54,6 +54,22 @@ const BTN = (href: string, label: string) =>
 const H1 = (text: string) => `<h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:#fff">${text}</h1>`
 const P  = (text: string) => `<p style="margin:12px 0;font-size:14px;line-height:1.6;color:#94a3b8">${text}</p>`
 
+export function claimVerificationEmail(toolName: string, claimantName: string, verifyUrl: string, appUrl: string) {
+  return BASE(`
+    ${H1(`Verify your claim for "${toolName}"`)}
+    ${P(`Hi ${claimantName},`)}
+    ${P(`We received a request to claim the <strong style="color:#fff">${toolName}</strong> listing on ListmyAI. Since your email matches the tool's domain, we just need you to confirm by clicking the button below.`)}
+    ${BTN(verifyUrl, 'Verify & Claim Listing')}
+    ${P(`This link expires in <strong style="color:#fff">48 hours</strong>. If you didn't request this, you can safely ignore this email.`)}
+    <div style="margin:20px 0;padding:16px;background:rgba(255,255,255,0.03);border:1px solid #1e2a3a;border-radius:12px">
+      <p style="margin:0 0 4px;font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em">What happens next?</p>
+      <p style="margin:0;font-size:13px;color:#94a3b8;line-height:1.6">Once verified, your listing will be linked to your account. You'll be able to update the description, add promotional offers, view analytics, and more — all <strong style="color:#fff">free for 6 months</strong>.</p>
+    </div>
+    ${P(`If the button doesn't work, copy and paste this URL into your browser:`)}
+    <p style="margin:8px 0;font-size:12px;color:#64748b;word-break:break-all"><a href="${verifyUrl}" style="color:#e94560;text-decoration:none">${verifyUrl}</a></p>
+  `)
+}
+
 export function claimWelcomeEmail(toolName: string, appUrl: string) {
   return BASE(`
     ${H1(`You've claimed "${toolName}"`)}

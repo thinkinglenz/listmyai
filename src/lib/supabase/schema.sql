@@ -78,11 +78,23 @@ create table public.ai_tools (
   use_cases        text,
   alternatives     text[],
 
+  -- Contact / social
+  contact_email    text,
+  support_url      text,
+  twitter_url      text,
+  linkedin_url     text,
+  github_url       text,
+  discord_url      text,
+  youtube_url      text,
+
   -- Listing metadata
   status           text default 'auto' check (status in ('auto','claimed','verified','pending','rejected')),
   is_featured      boolean default false,
   is_sponsored     boolean default false,
   owner_id         uuid references auth.users(id),
+  claimed          boolean default false,
+  claimed_by       uuid references auth.users(id),
+  submitted_by     uuid references auth.users(id),
 
   -- Free trial period (the listing's own free listing period, not the AI tool's trial)
   listing_free_until  date,
@@ -177,6 +189,42 @@ create table public.dmca_requests (
   description text,
   status      text default 'pending' check (status in ('pending','resolved','rejected')),
   created_at  timestamptz default now()
+);
+
+-- ─── Claim Requests ─────────────────────────────────────────────────────────
+create table public.claim_requests (
+  id               uuid primary key default uuid_generate_v4(),
+  tool_id          uuid references public.ai_tools(id) on delete cascade,
+  claimant_email   text not null,
+  claimant_name    text not null,
+  claimant_user_id uuid references auth.users(id),
+  claim_type       text default 'manual' check (claim_type in ('domain-match', 'manual')),
+  status           text default 'pending' check (status in ('pending', 'pending_verification', 'approved', 'rejected', 'expired')),
+  verification_token text,
+  token_expires_at   timestamptz,
+  note             text,
+  created_at       timestamptz default now(),
+  updated_at       timestamptz default now()
+);
+
+create index claim_requests_tool on public.claim_requests(tool_id);
+create index claim_requests_status on public.claim_requests(status);
+
+-- ─── Comparison Logs ────────────────────────────────────────────────────────
+create table public.comparison_logs (
+  id             bigserial primary key,
+  tool_a_slug    text not null,
+  tool_b_slug    text not null,
+  tool_a_name    text,
+  tool_b_name    text,
+  ip_hash        text,
+  use_case       text,
+  cache_hit      boolean default false,
+  tokens_input   int default 0,
+  tokens_output  int default 0,
+  rate_limited   boolean default false,
+  model          text default 'data-driven',
+  created_at     timestamptz default now()
 );
 
 -- ─── Profiles (extends auth.users) ──────────────────────────────────────────

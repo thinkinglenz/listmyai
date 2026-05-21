@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "listmyai",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev"],
+      "port": 3002,
+      "autoPort": false
     }
   ]
 }

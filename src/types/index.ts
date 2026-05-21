@@ -42,6 +42,15 @@ export interface AiTool {
   hq_location?: string
   use_cases?: string
   alternatives?: string[]
+  // Contact / social
+  contact_email?: string
+  support_url?: string
+  twitter_url?: string
+  linkedin_url?: string
+  github_url?: string
+  discord_url?: string
+  youtube_url?: string
+
   status: ListingStatus
   is_featured: boolean
   is_sponsored: boolean

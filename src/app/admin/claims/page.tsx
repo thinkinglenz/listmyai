@@ -9,16 +9,18 @@ interface Claim {
   claimant_email: string
   claimant_name: string
   claim_type: 'domain-match' | 'manual'
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'pending_verification' | 'approved' | 'rejected' | 'expired'
   note?: string
   created_at: string
   ai_tools?: { name: string; slug: string; website: string }
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  pending:  { label: 'Pending',  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
-  approved: { label: 'Approved', color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
-  rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
+  pending:              { label: 'Pending',       color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+  pending_verification: { label: 'Awaiting Email', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)' },
+  approved:             { label: 'Approved',      color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  rejected:             { label: 'Rejected',      color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
+  expired:              { label: 'Expired',       color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
 }
 
 const TYPE_META: Record<string, { label: string; color: string }> = {
@@ -58,8 +60,8 @@ export default function AdminClaimsPage() {
     setActing(false)
   }
 
-  const pending  = claims.filter(c => c.status === 'pending')
-  const resolved = claims.filter(c => c.status !== 'pending')
+  const pending  = claims.filter(c => c.status === 'pending' || c.status === 'pending_verification')
+  const resolved = claims.filter(c => c.status !== 'pending' && c.status !== 'pending_verification')
   const active   = claims.find(c => c.id === activeId)
 
   return (

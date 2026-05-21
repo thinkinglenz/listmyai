@@ -13,7 +13,12 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(100)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    if (error.message.includes('Could not find') || error.message.includes('does not exist')) {
+      return NextResponse.json({ claims: [], table_missing: true })
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
   return NextResponse.json({ claims: data ?? [] })
 }
 
@@ -30,19 +35,47 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // If approving, mark the tool as claimed
+  // If approving, mark the tool as claimed and link to the user
   if (status === 'approved') {
     const { data: claim } = await supabase
       .from('claim_requests')
-      .select('tool_id')
+      .select('tool_id, claimant_user_id, claimant_email')
       .eq('id', id)
       .single()
 
     if (claim?.tool_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const updateData: Record<string, any> = {
+        claimed: true,
+        status: 'claimed',
+        updated_at: new Date().toISOString(),
+      }
+      if (claim.claimant_user_id) {
+        updateData.claimed_by = claim.claimant_user_id
+      }
+
       await supabase
         .from('ai_tools')
-        .update({ claimed: true, status: 'active' })
+        .update(updateData)
         .eq('id', claim.tool_id)
+
+      // Send welcome email (fire-and-forget)
+      if (claim.claimant_email) {
+        const { data: tool } = await supabase
+          .from('ai_tools')
+          .select('name')
+          .eq('id', claim.tool_id)
+          .single()
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        if (appUrl && tool) {
+          fetch(`${appUrl}/api/email/claim-welcome`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.IMPORT_SECRET}` },
+            body: JSON.stringify({ email: claim.claimant_email, tool_name: tool.name }),
+          }).catch(() => {})
+        }
+      }
     }
   }
 
