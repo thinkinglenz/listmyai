@@ -5,10 +5,6 @@ import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
 import { sendEmail, claimVerificationEmail } from '@/lib/email'
 
-// POST /api/claim — submit a claim request for a tool listing
-// Body: { tool_id: string, email: string, name: string }
-// Auth: Supabase session cookie (user must be logged in)
-
 function supabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,7 +20,6 @@ function getEmailDomain(email: string): string {
   return email.split('@')[1]?.toLowerCase() ?? ''
 }
 
-// Common free/consumer email providers — blocked for claims
 const FREE_DOMAINS = new Set([
   // 'gmail.com','googlemail.com', // TODO: re-enable after testing
   'yahoo.com','yahoo.co.uk','yahoo.fr','yahoo.de',
@@ -41,7 +36,6 @@ function generateToken(): string {
 }
 
 export async function POST(req: NextRequest) {
-  // ── Auth: get user from session cookie ──────────────────────────────────
   const cookieStore = await cookies()
   const supabaseUser = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -63,7 +57,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Please sign in to claim a listing' }, { status: 401 })
   }
 
-  // ── Parse body ──────────────────────────────────────────────────────────
   let body: { tool_id?: string; email?: string; name?: string }
   try {
     body = await req.json()
@@ -76,7 +69,6 @@ export async function POST(req: NextRequest) {
   if (!email || !email.includes('@')) return NextResponse.json({ error: 'Valid email is required' }, { status: 422 })
   if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 422 })
 
-  // ── Validate email domain ──────────────────────────────────────────────
   const emailDomain = getEmailDomain(email)
   if (FREE_DOMAINS.has(emailDomain)) {
     return NextResponse.json({ error: `${emailDomain} is a personal email provider. Please use your company email.` }, { status: 422 })
@@ -84,7 +76,6 @@ export async function POST(req: NextRequest) {
 
   const admin = supabaseAdmin()
 
-  // ── Check tool exists and is unclaimed ─────────────────────────────────
   const { data: tool, error: fetchError } = await admin
     .from('ai_tools')
     .select('id, name, slug, website, claimed_by, claimed, status')
@@ -99,7 +90,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'This listing is already claimed' }, { status: 409 })
   }
 
-  // ── Check for existing pending claim ───────────────────────────────────
+  // Check for existing pending claim
   const { data: existingClaim } = await admin
     .from('claim_requests')
     .select('id, status')
@@ -111,70 +102,73 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'A claim request is already pending for this tool' }, { status: 409 })
   }
 
-  // ── Determine claim type ───────────────────────────────────────────────
   const toolDomain = extractDomain(tool.website || '')
   const isDomainMatch = !!(toolDomain && (emailDomain === toolDomain || emailDomain.endsWith(`.${toolDomain}`)))
   const claimType = isDomainMatch ? 'domain-match' : 'manual'
 
-  // Generate verification token for domain-match claims
   const verificationToken = isDomainMatch ? generateToken() : null
-  // Token expires in 48 hours
   const tokenExpiry = isDomainMatch ? new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString() : null
-
-  // ── Create claim request ───────────────────────────────────────────────
-  // Domain-match → pending_verification (needs email click)
-  // Non-match → pending (needs admin manual review)
   const claimStatus = isDomainMatch ? 'pending_verification' : 'pending'
 
-  const { error: insertError } = await admin
-    .from('claim_requests')
-    .insert({
+  // ── Try progressively simpler inserts ─────────────────────────────────
+  // Attempt 1: full insert with all columns
+  const fullInsert = {
+    tool_id,
+    claimant_email: email,
+    claimant_name: name.trim(),
+    claimant_user_id: user.id,
+    claim_type: claimType,
+    status: claimStatus,
+    verification_token: verificationToken,
+    token_expires_at: tokenExpiry,
+  }
+
+  let inserted = false
+  const { error: err1 } = await admin.from('claim_requests').insert(fullInsert)
+
+  if (!err1) {
+    inserted = true
+  } else {
+    console.error('[claim] Full insert failed:', err1.message)
+
+    // Attempt 2: without verification columns
+    const { error: err2 } = await admin.from('claim_requests').insert({
       tool_id,
       claimant_email: email,
       claimant_name: name.trim(),
       claimant_user_id: user.id,
       claim_type: claimType,
-      status: claimStatus,
-      verification_token: verificationToken,
-      token_expires_at: tokenExpiry,
+      status: 'pending',
     })
 
-  if (insertError) {
-    // Table might not exist — fall back
-    if (insertError.message.includes('Could not find') || insertError.message.includes('does not exist') || insertError.message.includes('relation')) {
-      console.error('[claim] claim_requests table missing, falling back')
-      return NextResponse.json({ ok: true, tool_id, claim_type: claimType, message: 'Request noted. We will review manually.' })
-    }
+    if (!err2) {
+      inserted = true
+    } else {
+      console.error('[claim] Insert without token failed:', err2.message)
 
-    // Handle missing column gracefully (verification_token might not exist yet)
-    if (insertError.message.includes('verification_token') || insertError.message.includes('token_expires_at')) {
-      const { error: retryErr } = await admin
-        .from('claim_requests')
-        .insert({
-          tool_id,
-          claimant_email: email,
-          claimant_name: name.trim(),
-          claimant_user_id: user.id,
-          claim_type: claimType,
-          status: 'pending', // fall back to manual review if no token column
-        })
-      if (retryErr) {
-        return NextResponse.json({ error: retryErr.message }, { status: 500 })
-      }
-      // Without token column, all go to manual review
-      return NextResponse.json({
-        ok: true,
+      // Attempt 3: minimal insert (no user_id)
+      const { error: err3 } = await admin.from('claim_requests').insert({
         tool_id,
-        claim_type: 'manual',
-        message: 'Claim request submitted for manual review.',
+        claimant_email: email,
+        claimant_name: name.trim(),
+        claim_type: claimType,
+        status: 'pending',
       })
-    }
 
-    return NextResponse.json({ error: insertError.message }, { status: 500 })
+      if (!err3) {
+        inserted = true
+      } else {
+        console.error('[claim] Minimal insert failed:', err3.message)
+        return NextResponse.json({
+          error: 'Failed to save claim request: ' + err3.message,
+          debug: { err1: err1.message, err2: err2.message, err3: err3.message },
+        }, { status: 500 })
+      }
+    }
   }
 
   // ── Send verification email for domain-match claims ────────────────────
-  if (isDomainMatch && verificationToken) {
+  if (inserted && isDomainMatch && verificationToken) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://listmyai.com'
     const verifyUrl = `${appUrl}/api/claim/verify?token=${verificationToken}`
 
@@ -186,15 +180,15 @@ export async function POST(req: NextRequest) {
       })
     } catch (err) {
       console.error('[claim] Failed to send verification email:', err)
-      // Don't fail the whole request — claim is created, they can request resend
     }
   }
 
   return NextResponse.json({
     ok: true,
+    inserted,
     tool_id,
-    claim_type: claimType,
-    message: isDomainMatch
+    claim_type: inserted && isDomainMatch ? claimType : 'manual',
+    message: isDomainMatch && inserted
       ? 'Verification email sent. Please check your inbox to confirm ownership.'
       : 'Claim request submitted for manual review.',
   })
