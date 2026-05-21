@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, List, Shield, Users, FileWarning,
-  Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3,
+  Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3, Send,
 } from 'lucide-react'
 
 // ─── Admin password gate ────────────────────────────────────────────────────
@@ -85,6 +85,7 @@ const NAV_ITEMS = [
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/admin/dmca', label: 'DMCA Queue', icon: FileWarning, badgeKey: 'dmca' as const },
+  { href: '/admin/outreach', label: 'Outreach', icon: Send },
   { href: '/admin/compare-analytics', label: 'Compare Analytics', icon: BarChart3 },
   { href: '/admin/scraper', label: 'Scraper', icon: Bot },
 ]
