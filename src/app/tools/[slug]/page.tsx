@@ -23,14 +23,24 @@ function getSupabase() {
   return createClient(url, key)
 }
 
+// Strip markdown artifacts from scraped data
+function cleanText(s: string): string {
+  return s
+    .replace(/`#\w+`/g, '')             // `#free`, `#paid`, etc.
+    .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
+    .replace(/`([^`]+)`/g, '$1')        // `code` → code
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function shapeTool(t: any, cat?: Category): AiTool {
   return {
     id: String(t.id),
     slug: t.slug,
     name: t.name,
-    tagline: t.tagline ?? '',
-    description: t.description ?? '',
+    tagline: cleanText(t.tagline ?? ''),
+    description: cleanText(t.description ?? ''),
     website: t.website ?? '',
     pricing_url: t.pricing_url ?? undefined,
     category: cat,
@@ -96,7 +106,10 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactElement; c
 
 interface PageProps { params: Promise<{ slug: string }> }
 
-async function fetchTool(slug: string): Promise<AiTool | null> {
+// Extended return type that includes claim status from DB
+type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string }
+
+async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   const sb = getSupabase()
   if (!sb) return null
   const { data: t } = await sb
@@ -111,7 +124,11 @@ async function fetchTool(slug: string): Promise<AiTool | null> {
     id: catRaw.id, slug: catRaw.slug, name: catRaw.name,
     icon: catRaw.icon ?? 'Layers', color: catRaw.color ?? '#6366f1', count: 0,
   } : undefined
-  return shapeTool(t, cat)
+  const tool = shapeTool(t, cat) as AiToolWithClaim
+  // Carry over claim fields from raw DB row
+  tool._claimed = !!(t as Record<string, unknown>).claimed
+  tool._claimed_by = (t as Record<string, unknown>).claimed_by as string | undefined
+  return tool
 }
 
 async function fetchRelated(categoryId: string | null, excludeSlug: string): Promise<AiTool[]> {
@@ -282,7 +299,8 @@ export default async function ToolPage({ params }: PageProps) {
   const pricing = tool.pricing_model
   const faqs = buildFAQs(tool)
   const jsonLd = buildJsonLd(tool, faqs)
-  const isUnclaimed = tool.status === 'auto'
+  // Show claim banner if tool hasn't been claimed yet
+  const isUnclaimed = !tool._claimed && !tool._claimed_by && tool.status !== 'claimed' && tool.status !== 'verified'
 
   return (
     <>
