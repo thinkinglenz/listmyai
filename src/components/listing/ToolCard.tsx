@@ -18,7 +18,9 @@ const STATUS_BADGE: Record<string, { label: string; icon: React.ReactElement; cl
 
 export default function ToolCard({ tool, variant = 'grid' }: Props) {
   const pricing = tool.pricing_model
-  const badge = STATUS_BADGE[tool.status] ?? STATUS_BADGE.auto
+  // User-submitted or claimed tools show "Claimed" badge
+  const badgeKey = (tool.claimed || tool.submitted_by) ? 'claimed' : tool.status
+  const badge = STATUS_BADGE[badgeKey] ?? STATUS_BADGE.auto
   const hasPromo = !!(tool.promo_code || tool.promo_desc)
 
   if (variant === 'list') {

@@ -53,6 +53,9 @@ export interface AiTool {
   youtube_url?: string
 
   status: ListingStatus
+  claimed?: boolean
+  claimed_by?: string
+  submitted_by?: string
   is_featured: boolean
   is_sponsored: boolean
   owner_id?: string

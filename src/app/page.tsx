@@ -66,7 +66,7 @@ export default async function HomePage() {
     // Featured / top tools (by upvotes, then rating)
     const { data: featured } = await supabase
       .from('ai_tools')
-      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id')
+      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by')
       .eq('status', 'active')
       .order('upvotes', { ascending: false })
       .limit(6)
@@ -90,6 +90,8 @@ export default async function HomePage() {
         no_code: true,
         gdpr_compliant: false,
         status: t.status ?? 'active',
+        claimed: t.claimed ?? false,
+        submitted_by: t.submitted_by ?? undefined,
         is_featured: t.is_featured ?? false,
         is_sponsored: t.is_sponsored ?? false,
         upvotes: t.upvotes ?? 0,
@@ -108,7 +110,7 @@ export default async function HomePage() {
     // Recently added tools
     const { data: recent } = await supabase
       .from('ai_tools')
-      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id')
+      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(5)
@@ -132,6 +134,8 @@ export default async function HomePage() {
         no_code: true,
         gdpr_compliant: false,
         status: t.status ?? 'active',
+        claimed: t.claimed ?? false,
+        submitted_by: t.submitted_by ?? undefined,
         is_featured: t.is_featured ?? false,
         is_sponsored: t.is_sponsored ?? false,
         upvotes: t.upvotes ?? 0,

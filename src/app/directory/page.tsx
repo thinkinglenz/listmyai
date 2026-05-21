@@ -66,7 +66,7 @@ export default async function DirectoryPage({ searchParams }: Props) {
       upvotes, rating_avg, rating_count,
       view_count, click_count, category_id,
       platforms, promo_code, promo_desc,
-      created_at, updated_at
+      created_at, updated_at, claimed, submitted_by
     `)
     .eq('status', 'active')
 
@@ -119,6 +119,8 @@ export default async function DirectoryPage({ searchParams }: Props) {
       no_code: true,
       gdpr_compliant: false,
       status: t.status ?? 'active',
+      claimed: t.claimed ?? false,
+      submitted_by: t.submitted_by ?? undefined,
       is_featured: t.is_featured ?? false,
       is_sponsored: t.is_sponsored ?? false,
       upvotes: t.upvotes ?? 0,
