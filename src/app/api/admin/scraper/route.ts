@@ -465,6 +465,81 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result)
     }
 
+    // ── Cleanup: find & remove junk entries ───────────────────────────────────
+    if (action === 'findJunk') {
+      const { data, error } = await supabase
+        .from('ai_tools')
+        .select('id, name, slug, website, status, created_at')
+        .eq('is_auto_enrolled', true)
+        .order('created_at', { ascending: false })
+        .limit(2000)
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      const junk = (data ?? []).filter((t: Record<string, unknown>) => {
+        const n = ((t.name as string) || '').trim()
+        const w = ((t.website as string) || '').trim()
+
+        // 1. Name is a single generic word (image, photo, video, audio, file, icon, logo, etc.)
+        if (/^(image|img|photo|pic|video|audio|file|doc|icon|logo|banner|thumb|thumbnail|avatar|cover|hero|bg|background|button|badge|screenshot|preview|demo|test|sample|example|placeholder|untitled|undefined|null|none|n\/a)$/i.test(n)) return true
+
+        // 2. Name looks like a filename or asset path (has extensions)
+        if (/\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|mp4|mp3|css|js|json|xml|html|woff|ttf|eot)$/i.test(n)) return true
+
+        // 3. Name is just numbers or number-heavy slugs
+        if (/^\d+$/.test(n)) return true
+        if (/^[a-z]{1,6}[-_]\d{8,}/i.test(n)) return true  // e.g. "image-1779383919384"
+
+        // 4. Name is very short (1-2 chars) or empty
+        if (n.length <= 2) return true
+
+        // 5. Website points to CDN/asset URLs (not real tool websites)
+        if (/assets[-.]|cdn\.|cloudfront|amazonaws\.com\/|storage\.googleapis|\.s3\.|blob\.core|wp-content\/uploads|static\.|media\./i.test(w)) return true
+
+        // 6. Website is just a fragment or malformed
+        if (w && !w.startsWith('http')) return true
+        if (/\.(png|jpg|jpeg|gif|svg|webp|ico|pdf|mp4|css|js)(\?|$)/i.test(w)) return true
+
+        // 7. Name contains only special chars or is a hash
+        if (/^[^a-zA-Z]*$/.test(n)) return true
+        if (/^[a-f0-9]{16,}$/i.test(n)) return true  // hex hash
+
+        // 8. Name matches common junk patterns from scrapers
+        if (/^(p-\d+|hero-|cta-|nav-|footer-|header-|sidebar-|modal-|popup-)/i.test(n)) return true
+
+        return false
+      })
+
+      return NextResponse.json({
+        total: data?.length ?? 0,
+        junkCount: junk.length,
+        junk: junk.map((t: Record<string, unknown>) => ({
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          website: t.website,
+        })),
+      })
+    }
+
+    if (action === 'deleteJunk') {
+      const ids: number[] = body.ids
+      if (!Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json({ error: 'ids array required' }, { status: 400 })
+      }
+
+      // Safety: max 500 at a time, only delete auto-enrolled (scraped) tools
+      const batch = ids.slice(0, 500)
+      const { error, count } = await supabase
+        .from('ai_tools')
+        .delete({ count: 'exact' })
+        .in('id', batch)
+        .eq('is_auto_enrolled', true)  // safety: never delete user-submitted tools
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ deleted: count ?? 0, requested: batch.length })
+    }
+
     return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 })
   } catch (err) {
     // Always return JSON — never a bare 500

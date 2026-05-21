@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database, Sparkles, GitFork, Download, Eye, Link2 } from 'lucide-react'
+import { Bot, Play, RefreshCw, CheckCircle, XCircle, Clock, Plus, Trash2, Globe, AlertCircle, Database, Sparkles, GitFork, Download, Eye, Link2, Search, ShieldAlert } from 'lucide-react'
 
 interface Source {
   id: string
@@ -30,6 +30,159 @@ const DEFAULT_SOURCES: Source[] = [
   { id: 's6', name: 'AIcyclopedia', url: 'https://www.aicyclopedia.com/sitemap.xml', status: 'idle' },
   { id: 's7', name: 'AI Tools Directory', url: 'https://aitoolsdirectory.com/sitemap.xml', status: 'idle' },
 ]
+
+// ── Cleanup Junk Component ──
+interface JunkEntry { id: number; name: string; slug: string; website: string }
+
+function CleanupSection({ onCleaned }: { onCleaned: () => void }) {
+  const [scanning, setScanning] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [junkItems, setJunkItems] = useState<JunkEntry[]>([])
+  const [totalScanned, setTotalScanned] = useState(0)
+  const [deleteResult, setDeleteResult] = useState<{ deleted: number } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+
+  async function scanForJunk() {
+    setScanning(true)
+    setJunkItems([])
+    setDeleteResult(null)
+    try {
+      const res = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'findJunk' }),
+      })
+      const data = await res.json()
+      setJunkItems(data.junk ?? [])
+      setTotalScanned(data.total ?? 0)
+      setSelectedIds(new Set((data.junk ?? []).map((j: JunkEntry) => j.id)))
+    } catch (err) {
+      setJunkItems([])
+    }
+    setScanning(false)
+  }
+
+  async function deleteSelected() {
+    if (selectedIds.size === 0) return
+    setDeleting(true)
+    setDeleteResult(null)
+    try {
+      const res = await fetch('/api/admin/scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteJunk', ids: Array.from(selectedIds) }),
+      })
+      const data = await res.json()
+      setDeleteResult(data)
+      // Remove deleted items from the list
+      setJunkItems(prev => prev.filter(j => !selectedIds.has(j.id)))
+      setSelectedIds(new Set())
+      onCleaned()
+    } catch (err) {
+      setDeleteResult({ deleted: 0 })
+    }
+    setDeleting(false)
+  }
+
+  function toggleId(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    if (selectedIds.size === junkItems.length) setSelectedIds(new Set())
+    else setSelectedIds(new Set(junkItems.map(j => j.id)))
+  }
+
+  return (
+    <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: 'rgba(239,68,68,0.15)' }}>
+            <ShieldAlert className="h-5 w-5 text-red-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-white">Cleanup Junk Entries</h2>
+            <p className="text-xs text-slate-500">Find and remove garbage listings — images, CDN assets, empty names, hash slugs, etc.</p>
+          </div>
+        </div>
+        <button onClick={scanForJunk} disabled={scanning}
+          className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+          style={{ background: '#ef4444' }}>
+          {scanning ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {scanning ? 'Scanning…' : 'Scan for Junk'}
+        </button>
+      </div>
+
+      {/* Info */}
+      <div className="mb-4 rounded-xl p-3" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)' }}>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          <strong className="text-red-400">🛡 Safe:</strong> Only scans <strong className="text-slate-300">auto-enrolled</strong> (scraped) tools.
+          User-submitted tools are never touched. Review the list before deleting.
+        </p>
+      </div>
+
+      {/* Results */}
+      {junkItems.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-white">
+              Found <span className="text-red-400">{junkItems.length}</span> junk entries out of {totalScanned} scanned
+            </p>
+            <div className="flex items-center gap-2">
+              <button onClick={toggleAll}
+                className="text-xs text-slate-500 hover:text-white transition px-2 py-1 rounded-lg" style={{ border: '1px solid #1e2a3a' }}>
+                {selectedIds.size === junkItems.length ? 'Deselect All' : 'Select All'}
+              </button>
+              <button onClick={deleteSelected} disabled={deleting || selectedIds.size === 0}
+                className="flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ background: '#dc2626' }}>
+                {deleting ? <RefreshCw className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                Delete {selectedIds.size} Selected
+              </button>
+            </div>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto rounded-xl border divide-y" style={{ borderColor: '#1e2a3a' }}>
+            {junkItems.map((j, i) => (
+              <label key={j.id} className="flex items-center gap-3 px-4 py-2 text-xs cursor-pointer hover:bg-white/[0.02]"
+                style={{ background: i % 2 === 0 ? '#161b27' : '#0d1117' }}>
+                <input type="checkbox" checked={selectedIds.has(j.id)} onChange={() => toggleId(j.id)}
+                  className="rounded border-slate-600 accent-red-500" />
+                <span className="font-semibold text-white min-w-[120px] truncate">{j.name || '(empty)'}</span>
+                <span className="text-slate-600 truncate flex-1">{j.website}</span>
+                <a href={`/tools/${j.slug}`} target="_blank" rel="noopener"
+                  className="text-blue-400 hover:underline flex-shrink-0" onClick={e => e.stopPropagation()}>
+                  View →
+                </a>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {junkItems.length === 0 && totalScanned > 0 && !scanning && (
+        <div className="text-center py-6">
+          <CheckCircle className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-emerald-400">All clean! No junk entries found.</p>
+          <p className="text-xs text-slate-500 mt-1">Scanned {totalScanned} auto-enrolled tools</p>
+        </div>
+      )}
+
+      {deleteResult && (
+        <div className="mt-3 rounded-xl p-3" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+          <p className="text-sm font-semibold text-emerald-400">
+            ✅ Deleted {deleteResult.deleted} junk entries
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ── GitHub Awesome Lists Component ──
 interface GithubList { name: string; url: string }
@@ -587,6 +740,9 @@ export default function AdminScraperPage() {
 
       {/* ── GitHub Awesome Lists Section ── */}
       <GithubListsSection onImported={() => fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})} />
+
+      {/* ── Cleanup Junk Section ── */}
+      <CleanupSection onCleaned={() => fetch('/api/admin/scraper').then(r => r.json()).then(d => setStats(d)).catch(() => {})} />
 
       {/* ── Enrichment Section ── */}
       <div className="mt-8 rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
