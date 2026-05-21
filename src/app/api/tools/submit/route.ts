@@ -111,6 +111,9 @@ export async function POST(req: NextRequest) {
       const { data: { user } } = await supabaseUser.auth.getUser()
       if (user?.id) {
         row.submitted_by = user.id
+        // Auto-claim: user-submitted listings belong to the submitter
+        row.claimed = true
+        row.claimed_by = user.id
       }
     } catch { /* not logged in — that's fine */ }
 

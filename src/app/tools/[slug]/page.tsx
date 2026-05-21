@@ -110,7 +110,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactElement; c
 interface PageProps { params: Promise<{ slug: string }> }
 
 // Extended return type that includes claim status from DB
-type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string }
+type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string; _submitted_by?: string }
 
 async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   const sb = getSupabase()
@@ -131,6 +131,7 @@ async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   // Carry over claim fields from raw DB row
   tool._claimed = !!(t as Record<string, unknown>).claimed
   tool._claimed_by = (t as Record<string, unknown>).claimed_by as string | undefined
+  tool._submitted_by = (t as Record<string, unknown>).submitted_by as string | undefined
   return tool
 }
 
@@ -298,14 +299,16 @@ export default async function ToolPage({ params }: PageProps) {
 
   const related = await fetchRelated(tool.category ? String(tool.category.id) : null, slug)
 
-  const status = STATUS_CONFIG[tool.status] ?? STATUS_CONFIG.auto
+  // User-submitted or claimed tools show "Claimed" badge; scraped tools show their DB status
+  const statusKey = (tool._claimed || tool._submitted_by) ? 'claimed' : tool.status
+  const status = STATUS_CONFIG[statusKey] ?? STATUS_CONFIG.auto
   const promos: Promotion[] = []
   const useCases = tool.use_cases?.split('\n').filter(Boolean) ?? []
   const pricing = tool.pricing_model
   const faqs = buildFAQs(tool)
   const jsonLd = buildJsonLd(tool, faqs)
-  // Show claim banner if tool hasn't been claimed yet
-  const isUnclaimed = !tool._claimed && !tool._claimed_by && tool.status !== 'claimed' && tool.status !== 'verified'
+  // Show claim banner only for scraped/imported tools that nobody has claimed or submitted
+  const isUnclaimed = !tool._claimed && !tool._claimed_by && !tool._submitted_by && tool.status !== 'claimed' && tool.status !== 'verified'
 
   return (
     <>
