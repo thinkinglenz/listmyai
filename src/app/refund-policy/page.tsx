@@ -13,7 +13,7 @@ const SECTIONS = [
   },
   {
     title: '2. Free Listings',
-    body: `Basic (free) listings are provided at no charge and are therefore not eligible for refunds. If you wish to remove a free listing, please contact support@listmyai.com and we will process the removal within 2 business days.`,
+    body: `Basic (free) listings are provided at no charge and are therefore not eligible for refunds. If you wish to remove a free listing, please contact listmyai@gmail.com and we will process the removal within 2 business days.`,
   },
   {
     title: '3. Pro Listings ($19/month)',
@@ -37,7 +37,7 @@ const SECTIONS = [
   },
   {
     title: '8. How to Request a Refund',
-    body: `To request a refund, email support@listmyai.com with:\n• Your registered email address\n• The listing name or order ID\n• The reason for your refund request\n\nWe aim to respond to all refund requests within 2 business days. Approved refunds are processed within 5–10 business days depending on your bank or card issuer.`,
+    body: `To request a refund, email listmyai@gmail.com with:\n• Your registered email address\n• The listing name or order ID\n• The reason for your refund request\n\nWe aim to respond to all refund requests within 2 business days. Approved refunds are processed within 5–10 business days depending on your bank or card issuer.`,
   },
   {
     title: '9. Chargebacks',
@@ -49,7 +49,7 @@ const SECTIONS = [
   },
   {
     title: '11. Contact',
-    body: `Questions about refunds? Reach us at support@listmyai.com. We typically respond within 24 hours on business days.`,
+    body: `Questions about refunds? Reach us at listmyai@gmail.com. We typically respond within 24 hours on business days.`,
   },
 ]
 
@@ -71,7 +71,7 @@ export default function RefundPolicyPage() {
         <div className="mb-10 rounded-2xl border p-5"
           style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.05)' }}>
           <p className="text-sm leading-relaxed text-slate-300">
-            <strong className="text-white">Short version:</strong> You can get a full refund within <strong className="text-white">7 days</strong> of purchase for most paid plans. Rejected listings always get a full refund. If you have questions, email <a href="mailto:support@listmyai.com" className="underline" style={{ color: '#e94560' }}>support@listmyai.com</a>.
+            <strong className="text-white">Short version:</strong> You can get a full refund within <strong className="text-white">7 days</strong> of purchase for most paid plans. Rejected listings always get a full refund. If you have questions, email <a href="mailto:listmyai@gmail.com" className="underline" style={{ color: '#e94560' }}>listmyai@gmail.com</a>.
           </p>
         </div>
 

@@ -15,7 +15,7 @@ export default function PrivacyPolicyPage() {
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <h2 className="mb-3 text-lg font-bold text-white">1. Who We Are</h2>
           <p>ListmyAI operates an online directory of AI tools at listmyai.com. When we say &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;, we mean the ListmyAI platform. For GDPR purposes, ListmyAI is the data controller for personal data collected through this site.</p>
-          <p className="mt-3">Contact: <a href="mailto:privacy@listmyai.com" className="hover:underline" style={{ color: '#e94560' }}>privacy@listmyai.com</a></p>
+          <p className="mt-3">Contact: <a href="mailto:listmyai@gmail.com" className="hover:underline" style={{ color: '#e94560' }}>listmyai@gmail.com</a></p>
         </section>
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
@@ -87,7 +87,7 @@ export default function PrivacyPolicyPage() {
             <li>Data portability</li>
             <li>Withdraw consent at any time</li>
           </ul>
-          <p className="mt-3">To exercise any right, email <a href="mailto:privacy@listmyai.com" className="hover:underline" style={{ color: '#e94560' }}>privacy@listmyai.com</a>. We will respond within 30 days.</p>
+          <p className="mt-3">To exercise any right, email <a href="mailto:listmyai@gmail.com" className="hover:underline" style={{ color: '#e94560' }}>listmyai@gmail.com</a>. We will respond within 30 days.</p>
         </section>
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>

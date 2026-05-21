@@ -26,7 +26,7 @@ export default function DisclaimerPage() {
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <h2 className="mb-3 text-lg font-bold text-white">Auto-Enrolled Listings</h2>
           <p>Some listings on ListmyAI are automatically populated from publicly available information on the internet. These listings are clearly marked with an &ldquo;Auto-enrolled&rdquo; or &ldquo;Unclaimed&rdquo; label.</p>
-          <p className="mt-3">Auto-enrolled listings may contain information that is incomplete, outdated, or inaccurate. If you own or represent a listed tool and wish to claim, update, or remove your listing, please visit the listing page and click &ldquo;Claim this listing&rdquo;, or contact us at <a href="mailto:listings@listmyai.com" style={{ color: '#e94560' }} className="hover:underline">listings@listmyai.com</a>.</p>
+          <p className="mt-3">Auto-enrolled listings may contain information that is incomplete, outdated, or inaccurate. If you own or represent a listed tool and wish to claim, update, or remove your listing, please visit the listing page and click &ldquo;Claim this listing&rdquo;, or contact us at <a href="mailto:listmyai@gmail.com" style={{ color: '#e94560' }} className="hover:underline">listmyai@gmail.com</a>.</p>
         </section>
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
@@ -42,7 +42,7 @@ export default function DisclaimerPage() {
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <h2 className="mb-3 text-lg font-bold text-white">Promo Codes & Deals</h2>
-          <p>Promotional codes, discounts, and free trial offers listed on ListmyAI are provided by the respective tool vendors. We cannot guarantee their availability or validity at the time of use. Expired or invalid codes should be reported to us at <a href="mailto:deals@listmyai.com" style={{ color: '#e94560' }} className="hover:underline">deals@listmyai.com</a>.</p>
+          <p>Promotional codes, discounts, and free trial offers listed on ListmyAI are provided by the respective tool vendors. We cannot guarantee their availability or validity at the time of use. Expired or invalid codes should be reported to us at <a href="mailto:listmyai@gmail.com" style={{ color: '#e94560' }} className="hover:underline">listmyai@gmail.com</a>.</p>
         </section>
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>

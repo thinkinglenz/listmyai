@@ -226,7 +226,7 @@ export default function CoursesPage() {
           <div className="space-y-4">
             {[
               { q: 'Do I get lifetime access?', a: 'Yes — all purchases include lifetime access and any future updates to the course content.' },
-              { q: 'What if I\'m not happy?', a: 'We offer a full 30-day money-back guarantee, no questions asked. Just email us at hello@listmyai.com.' },
+              { q: 'What if I\'m not happy?', a: 'We offer a full 30-day money-back guarantee, no questions asked. Just email us at listmyai@gmail.com.' },
               { q: 'Are there prerequisites?', a: 'No coding or technical skills required for Beginner courses. Intermediate/Advanced courses assume basic familiarity with the tools.' },
               { q: 'How are courses delivered?', a: 'Courses are digital downloads + video lessons hosted on a private portal. You get instant access after purchase via Gumroad.' },
             ].map(faq => (

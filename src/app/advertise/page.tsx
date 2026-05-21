@@ -22,7 +22,7 @@ const PACKAGES = [
       'Performance report after send',
     ],
     cta: 'Get in touch',
-    href: 'mailto:ads@listmyai.com?subject=Newsletter Sponsorship',
+    href: 'mailto:listmyai@gmail.com?subject=Newsletter Sponsorship',
   },
   {
     name: 'Featured Listing',
@@ -40,7 +40,7 @@ const PACKAGES = [
       'Analytics dashboard access',
     ],
     cta: 'Claim your spot',
-    href: 'mailto:ads@listmyai.com?subject=Featured Listing',
+    href: 'mailto:listmyai@gmail.com?subject=Featured Listing',
   },
   {
     name: 'Homepage Banner',
@@ -57,7 +57,7 @@ const PACKAGES = [
       'Featured in homepage "Sponsored" section',
     ],
     cta: 'Reserve your banner',
-    href: 'mailto:ads@listmyai.com?subject=Homepage Banner',
+    href: 'mailto:listmyai@gmail.com?subject=Homepage Banner',
   },
 ]
 
@@ -90,7 +90,7 @@ export default function AdvertisePage() {
             ListmyAI is where founders, marketers, and developers discover their next AI tool.
             Put your product in front of a highly intent audience.
           </p>
-          <a href="mailto:ads@listmyai.com"
+          <a href="mailto:listmyai@gmail.com"
             className="mt-8 inline-flex items-center gap-2 rounded-2xl px-8 py-3.5 text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: '#e94560' }}>
             <Mail className="h-4 w-4" /> Email us to advertise
@@ -172,7 +172,7 @@ export default function AdvertisePage() {
           <p className="text-slate-500 text-sm mb-5 max-w-md mx-auto">
             We offer custom sponsorship bundles, affiliate partnerships, and white-label integrations for AI companies with larger budgets.
           </p>
-          <a href="mailto:ads@listmyai.com?subject=Custom Partnership"
+          <a href="mailto:listmyai@gmail.com?subject=Custom Partnership"
             className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-bold text-slate-300 transition hover:text-white hover:border-white/30"
             style={{ borderColor: '#2d3f55' }}>
             <Mail className="h-4 w-4" /> Contact us
@@ -201,10 +201,10 @@ export default function AdvertisePage() {
         {/* Final CTA */}
         <div className="mt-12 text-center">
           <p className="text-slate-500 text-sm mb-3">Questions? We respond within 24 hours.</p>
-          <a href="mailto:ads@listmyai.com"
+          <a href="mailto:listmyai@gmail.com"
             className="inline-flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
             style={{ color: '#e94560' }}>
-            <Mail className="h-4 w-4" /> ads@listmyai.com
+            <Mail className="h-4 w-4" /> listmyai@gmail.com
           </a>
         </div>
       </div>

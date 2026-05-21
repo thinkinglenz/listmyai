@@ -77,7 +77,7 @@ export default function DmcaPage() {
             <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0" style={{ color: '#e94560' }} />
             <div>
               <p className="font-semibold text-white">Prefer email?</p>
-              <p className="mt-1">Send your request directly to <a href="mailto:dmca@listmyai.com" className="hover:underline" style={{ color: '#e94560' }}>dmca@listmyai.com</a> with the subject line &ldquo;DMCA Takedown Request&rdquo;. Include all details listed in the form below.</p>
+              <p className="mt-1">Send your request directly to <a href="mailto:listmyai@gmail.com" className="hover:underline" style={{ color: '#e94560' }}>listmyai@gmail.com</a> with the subject line &ldquo;DMCA Takedown Request&rdquo;. Include all details listed in the form below.</p>
             </div>
           </div>
         </section>

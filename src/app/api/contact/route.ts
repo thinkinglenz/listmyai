@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     const toolContext = tool_name ? `<p style="color:#94a3b8;font-size:13px;">From listing: <strong>${tool_name}</strong> (/tools/${tool_slug})</p>` : ''
 
     await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'admin@listmyai.com',
+      to: process.env.ADMIN_EMAIL || 'listmyai@gmail.com',
       subject: `New Contact: ${name.trim()}${tool_name ? ` — re: ${tool_name}` : ''}`,
       html: `
         <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0d1117;color:#e2e8f0;border-radius:12px;">

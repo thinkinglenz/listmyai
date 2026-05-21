@@ -55,7 +55,7 @@ const PLANS = [
     desc: 'Maximum exposure for serious growth',
     color: '#f59e0b',
     cta: 'Contact Sales',
-    href: 'mailto:hello@listmyai.com',
+    href: 'mailto:listmyai@gmail.com',
     highlight: false,
     badge: 'Best Exposure',
     features: [

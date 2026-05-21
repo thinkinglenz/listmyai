@@ -73,7 +73,7 @@ export default function TermsPage() {
 
         <section className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <h2 className="mb-3 text-lg font-bold text-white">11. Contact</h2>
-          <p>Questions about these terms? Email us at <a href="mailto:legal@listmyai.com" className="hover:underline" style={{ color: '#e94560' }}>legal@listmyai.com</a>.</p>
+          <p>Questions about these terms? Email us at <a href="mailto:listmyai@gmail.com" className="hover:underline" style={{ color: '#e94560' }}>listmyai@gmail.com</a>.</p>
         </section>
 
       </div>
