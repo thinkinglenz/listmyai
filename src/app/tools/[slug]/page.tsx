@@ -287,6 +287,7 @@ function buildJsonLd(tool: AiTool, faqs: { q: string; a: string }[]) {
 
 import ClaimBanner from '@/components/listing/ClaimBanner'
 import ContactForm from '@/components/listing/ContactForm'
+import WebsitePreview from '@/components/listing/WebsitePreview'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -434,101 +435,69 @@ export default async function ToolPage({ params }: PageProps) {
               )}
             </div>
 
-            {/* Website Preview */}
-            <a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer"
-              className="block rounded-2xl border overflow-hidden group transition hover:border-slate-600" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
-              <div className="flex items-center justify-between px-4 py-3 border-b" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
-                <div className="flex items-center gap-2">
-                  <div className="flex gap-1.5">
-                    <span className="h-3 w-3 rounded-full" style={{background:'#ef4444'}} />
-                    <span className="h-3 w-3 rounded-full" style={{background:'#f59e0b'}} />
-                    <span className="h-3 w-3 rounded-full" style={{background:'#22c55e'}} />
-                  </div>
-                  <span className="text-xs text-slate-500 truncate ml-2">{tool.website}</span>
-                </div>
-                <span className="flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium text-slate-400 transition group-hover:text-white"
-                  style={{background:'rgba(255,255,255,0.05)',border:'1px solid #1e2a3a'}}>
-                  <ExternalLink className="h-3 w-3" /> Visit Site
-                </span>
-              </div>
-              <div className="relative overflow-hidden" style={{background:'#0a0e17'}}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://image.thum.io/get/width/1280/crop/720/noanimate/${tool.website}`}
-                  alt={`${tool.name} website screenshot`}
-                  className="w-full h-auto transition group-hover:scale-[1.02]"
-                  loading="lazy"
-                  style={{minHeight:'200px',objectFit:'cover'}}
-                />
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition"
-                  style={{background:'rgba(0,0,0,0.4)'}}>
-                  <span className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white"
-                    style={{background:'#e94560',boxShadow:'0 0 20px rgba(233,69,96,0.4)'}}>
-                    <ExternalLink className="h-4 w-4" /> Visit {tool.name}
-                  </span>
-                </div>
-              </div>
-            </a>
+            {/* Website Preview — clean, no browser chrome */}
+            <WebsitePreview website={tool.website} toolName={tool.name} outboundUrl={outbound(tool.website)} />
 
-            {/* Description */}
-            <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
-              <h2 className="mb-4 text-lg font-bold text-white">About {tool.name}</h2>
-              <div className="space-y-3 text-sm leading-relaxed text-slate-300">
-                {tool.description?.split('\n\n').map((para, i) => <p key={i}>{para}</p>)}
-              </div>
-            </div>
-
-            {/* About Solution Provider */}
+            {/* About — merged description + solution provider */}
             <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black text-white"
-                  style={{background:'rgba(99,102,241,0.12)',border:'1px solid rgba(99,102,241,0.25)'}}>
-                  {(tool.company_name || tool.name)[0]}
+                  style={{background:'rgba(233,69,96,0.12)',border:'1px solid rgba(233,69,96,0.25)'}}>
+                  {tool.name[0]}
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-white">About the Solution Provider</h2>
-                  <p className="text-sm text-slate-500">{tool.company_name || tool.name}</p>
+                  <h2 className="text-lg font-bold text-white">About {tool.name}</h2>
+                  {tool.company_name && <p className="text-sm text-slate-500">by {tool.company_name}</p>}
                 </div>
               </div>
 
-              {/* Company description */}
+              {/* Tool description */}
+              <div className="space-y-3 text-sm leading-relaxed text-slate-300">
+                {tool.description?.split('\n\n').map((para, i) => <p key={i}>{para}</p>)}
+              </div>
+
+              {/* Company description — richer about content */}
               {tool.company_description && (
-                <div className="mb-5 space-y-3 text-sm leading-relaxed text-slate-300">
+                <div className="mt-5 pt-5 space-y-3 text-sm leading-relaxed text-slate-300" style={{borderTop:'1px solid #1e2a3a'}}>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">About the Company</p>
                   {tool.company_description.split('\n\n').map((para, i) => <p key={i}>{para}</p>)}
                 </div>
               )}
 
-              <div className="grid gap-3 sm:grid-cols-2 mb-4">
-                {tool.company_name && (
+              {/* Company details grid */}
+              {(tool.company_name || tool.hq_location || tool.founded_year) && (
+                <div className="grid gap-3 sm:grid-cols-2 mt-5 pt-5" style={{borderTop:'1px solid #1e2a3a'}}>
+                  {tool.company_name && (
+                    <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
+                      <p className="text-xs text-slate-500 mb-0.5">Company</p>
+                      <p className="text-sm font-medium text-white">{tool.company_name}</p>
+                    </div>
+                  )}
+                  {tool.hq_location && (
+                    <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
+                      <p className="text-xs text-slate-500 mb-0.5">Headquarters</p>
+                      <p className="text-sm font-medium text-white">{tool.hq_location}</p>
+                    </div>
+                  )}
+                  {tool.founded_year && (
+                    <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
+                      <p className="text-xs text-slate-500 mb-0.5">Founded</p>
+                      <p className="text-sm font-medium text-white">{tool.founded_year}</p>
+                    </div>
+                  )}
                   <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
-                    <p className="text-xs text-slate-500 mb-0.5">Company</p>
-                    <p className="text-sm font-medium text-white">{tool.company_name}</p>
+                    <p className="text-xs text-slate-500 mb-0.5">Website</p>
+                    <a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer"
+                      className="text-sm font-medium hover:underline" style={{color:'#e94560'}}>
+                      {new URL(tool.website).hostname}
+                    </a>
                   </div>
-                )}
-                {tool.hq_location && (
-                  <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
-                    <p className="text-xs text-slate-500 mb-0.5">Headquarters</p>
-                    <p className="text-sm font-medium text-white">{tool.hq_location}</p>
-                  </div>
-                )}
-                {tool.founded_year && (
-                  <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
-                    <p className="text-xs text-slate-500 mb-0.5">Founded</p>
-                    <p className="text-sm font-medium text-white">{tool.founded_year}</p>
-                  </div>
-                )}
-                <div className="rounded-xl border px-4 py-3" style={{borderColor:'#1e2a3a',background:'rgba(255,255,255,0.02)'}}>
-                  <p className="text-xs text-slate-500 mb-0.5">Website</p>
-                  <a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer"
-                    className="text-sm font-medium hover:underline" style={{color:'#e94560'}}>
-                    {new URL(tool.website).hostname}
-                  </a>
                 </div>
-              </div>
+              )}
 
               {/* Provider contact links */}
               {(tool.contact_email || tool.twitter_url || tool.linkedin_url || tool.github_url || tool.support_url) && (
-                <div className="border-t pt-4 mt-4" style={{borderColor:'#1e2a3a'}}>
+                <div className="pt-4 mt-4" style={{borderTop:'1px solid #1e2a3a'}}>
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">Contact the Provider</p>
                   <div className="flex flex-wrap gap-2">
                     {tool.contact_email && (
