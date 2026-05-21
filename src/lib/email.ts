@@ -86,7 +86,7 @@ export function autoEnrollWelcomeEmail(toolName: string, website: string, claimU
     ${P(`If you own this product, claim it for free to manage the listing, add promotional offers, and view analytics.`)}
     ${P(`Listings are free for the first 6 months after claiming.`)}
     ${BTN(claimUrl, 'Claim This Listing')}
-    ${P(`If you don't want your product listed, <a href="${claimUrl}?action=remove" style="color:#e94560">request removal here</a>.`)}
+    ${P(`If you don't want your product listed, <a href="mailto:support@listmyai.com?subject=Remove listing: ${toolName}&body=Please remove ${toolName} (${website}) from ListmyAI." style="color:#e94560">request removal here</a>.`)}
   `)
 }
 
