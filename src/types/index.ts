@@ -38,6 +38,7 @@ export interface AiTool {
   platforms?: string[]
   gdpr_compliant: boolean
   company_name?: string
+  company_description?: string
   founded_year?: string
   hq_location?: string
   use_cases?: string

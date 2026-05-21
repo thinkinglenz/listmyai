@@ -140,6 +140,79 @@ function detectContact(html: string, websiteUrl: string): Record<string, string>
   return result
 }
 
+// Scrape company description from about/company page
+async function scrapeAboutPage(baseUrl: string, homepageHtml: string): Promise<string> {
+  try {
+    const base = new URL(baseUrl)
+
+    // Find about page link from homepage
+    const aboutLinkMatch = homepageHtml.match(/href=["']([^"']*(?:\/about|\/about-us|\/company|\/who-we-are|\/our-story)[^"']*)["']/i)
+    let aboutUrl: string | null = null
+
+    if (aboutLinkMatch) {
+      try {
+        aboutUrl = new URL(aboutLinkMatch[1], base.origin).toString()
+      } catch { /* ignore */ }
+    }
+
+    // Fallback: try common about page paths
+    if (!aboutUrl) {
+      const paths = ['/about', '/about-us', '/company']
+      for (const path of paths) {
+        try {
+          const testUrl = new URL(path, base.origin).toString()
+          const testRes = await fetch(testUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(6000) })
+          if (testRes.ok) { aboutUrl = testUrl; break }
+        } catch { /* continue */ }
+      }
+    }
+
+    if (!aboutUrl) return ''
+
+    const aboutRes = await fetch(aboutUrl, { headers: HEADERS, redirect: 'follow', signal: AbortSignal.timeout(8000) })
+    if (!aboutRes.ok) return ''
+
+    const aboutHtml = await aboutRes.text()
+
+    // Extract text from main content area
+    // Remove scripts, styles, nav, header, footer
+    const cleaned = aboutHtml
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+
+    // Try to find main content
+    const mainMatch = cleaned.match(/<(?:main|article|section)[^>]*class="[^"]*(?:about|content|main)[^"]*"[^>]*>([\s\S]*?)<\/(?:main|article|section)>/i)
+      || cleaned.match(/<main[^>]*>([\s\S]*?)<\/main>/i)
+      || cleaned.match(/<article[^>]*>([\s\S]*?)<\/article>/i)
+
+    const contentHtml = mainMatch ? mainMatch[1] : cleaned
+
+    // Extract paragraphs
+    const paragraphs: string[] = []
+    const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/gi
+    let pMatch
+    while ((pMatch = pRegex.exec(contentHtml)) !== null) {
+      const text = pMatch[1]
+        .replace(/<[^>]+>/g, '') // strip inner HTML tags
+        .replace(/&[a-z]+;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      // Only keep substantial paragraphs
+      if (text.length > 40 && text.length < 500 && !/cookie|privacy|subscribe|sign up|log in/i.test(text)) {
+        paragraphs.push(text)
+      }
+    }
+
+    // Take first 3-4 meaningful paragraphs
+    return paragraphs.slice(0, 4).join('\n\n')
+  } catch {
+    return ''
+  }
+}
+
 // Detect features from page
 function detectFeatures(html: string): { has_api: boolean; no_code: boolean; gdpr_compliant: boolean } {
   const text = html.toLowerCase()
@@ -178,6 +251,12 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
     const pricing = detectPricing(html)
     const features = detectFeatures(html)
     const contact = detectContact(html, url)
+
+    // Try to scrape company description from /about page
+    let companyDesc = ''
+    if (!tool.company_description) {
+      companyDesc = await scrapeAboutPage(url, html)
+    }
 
     // Build update object — only fill in missing/empty fields
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -253,6 +332,12 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       fields.push('gdpr_compliant')
     }
 
+    // Company description from about page
+    if (!tool.company_description && companyDesc.length > 50) {
+      updates.company_description = companyDesc.slice(0, 1500)
+      fields.push('company_description')
+    }
+
     // Contact / social — only fill in missing fields
     const contactFields = ['contact_email', 'support_url', 'twitter_url', 'linkedin_url', 'github_url', 'discord_url', 'youtube_url'] as const
     for (const field of contactFields) {
@@ -278,6 +363,7 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       if (error.message.includes('has_free_trial')) delete safeUpdates.has_free_trial
       if (error.message.includes('has_api')) delete safeUpdates.has_api
       // Strip contact fields if columns don't exist yet
+      if (error.message.includes('company_description')) delete safeUpdates.company_description
       for (const cf of ['contact_email','support_url','twitter_url','linkedin_url','github_url','discord_url','youtube_url']) {
         if (error.message.includes(cf)) delete safeUpdates[cf]
       }
@@ -318,7 +404,7 @@ export async function GET(req: NextRequest) {
   // Fetch tools that need enrichment (missing description, pricing, etc.)
   const { data: tools, error } = await supabase
     .from('ai_tools')
-    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url')
+    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, company_description, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url')
     .eq('status', 'active')
     .order('created_at', { ascending: true })
     .range(offset, offset + limit - 1)
