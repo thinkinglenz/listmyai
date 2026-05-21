@@ -3,14 +3,32 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { Sparkles, Mail, ArrowRight, ArrowLeft } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    setSent(true)
+    setSending(true)
+    setError('')
+    try {
+      const supabase = createClient()
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (resetErr) {
+        setError(resetErr.message)
+      } else {
+        setSent(true)
+      }
+    } catch {
+      setError('Something went wrong. Please try again.')
+    }
+    setSending(false)
   }
 
   if (sent) {
@@ -65,10 +83,13 @@ export default function ForgotPasswordPage() {
                   style={{ borderColor: '#1e2a3a', paddingLeft: '2.5rem' }} />
               </div>
             </div>
-            <button type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
+            {error && (
+              <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-xs text-red-400">{error}</p>
+            )}
+            <button type="submit" disabled={sending}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
               style={{ background: '#e94560', boxShadow: '0 0 20px rgba(233,69,96,0.2)' }}>
-              Send Reset Link <ArrowRight className="h-4 w-4" />
+              {sending ? 'Sending…' : 'Send Reset Link'} {!sending && <ArrowRight className="h-4 w-4" />}
             </button>
           </form>
         </div>
