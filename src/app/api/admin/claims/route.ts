@@ -54,10 +54,22 @@ export async function PATCH(req: NextRequest) {
         updateData.claimed_by = claim.claimant_user_id
       }
 
-      await supabase
+      const { error: updateErr } = await supabase
         .from('ai_tools')
         .update(updateData)
         .eq('id', claim.tool_id)
+
+      if (updateErr) {
+        console.error('[claims] Failed to update ai_tools:', updateErr.message)
+        // Try without 'claimed' column in case it doesn't exist
+        const { error: retryErr } = await supabase
+          .from('ai_tools')
+          .update({ status: 'claimed', updated_at: new Date().toISOString() })
+          .eq('id', claim.tool_id)
+        if (retryErr) {
+          console.error('[claims] Retry update also failed:', retryErr.message)
+        }
+      }
 
       // Send welcome email (fire-and-forget)
       if (claim.claimant_email) {
