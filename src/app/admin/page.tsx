@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import {
   BarChart3, Users, List, Shield, TrendingUp,
-  ArrowUpRight, Globe, Star, ThumbsUp, AlertCircle,
+  ArrowUpRight, Star, ThumbsUp, AlertCircle,
 } from 'lucide-react'
 
 interface StatCardProps {
@@ -12,10 +13,9 @@ interface StatCardProps {
   sub: string
   icon: React.ElementType
   color: string
-  trend?: string
 }
 
-function StatCard({ label, value, sub, icon: Icon, color, trend }: StatCardProps) {
+function StatCard({ label, value, sub, icon: Icon, color }: StatCardProps) {
   return (
     <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
       <div className="flex items-start justify-between">
@@ -29,41 +29,43 @@ function StatCard({ label, value, sub, icon: Icon, color, trend }: StatCardProps
           <Icon className="h-5 w-5" style={{ color }} />
         </div>
       </div>
-      {trend && (
-        <div className="mt-3 flex items-center gap-1 text-xs text-emerald-400">
-          <TrendingUp className="h-3 w-3" /> {trend}
-        </div>
-      )}
     </div>
   )
 }
 
-const RECENT_CLAIMS = [
-  { tool: 'AutoDraft AI', email: 'team@autodraft.ai', status: 'pending', ago: '2h ago' },
-  { tool: 'CodeWhiz Pro', email: 'hello@codewhiz.io', status: 'pending', ago: '5h ago' },
-  { tool: 'DataBot Pro', email: 'admin@databot.pro', status: 'approved', ago: '1d ago' },
-  { tool: 'SynthVoice', email: 'ops@synthvoice.com', status: 'manual', ago: '2d ago' },
-]
-
-const RECENT_TOOLS = [
-  { name: 'NeuralDraw', category: 'Image Generation', status: 'active', date: 'Today' },
-  { name: 'ScriptGenius', category: 'Writing', status: 'pending', date: 'Today' },
-  { name: 'DataForge AI', category: 'Analytics', status: 'active', date: 'Yesterday' },
-  { name: 'VoiceClone Pro', category: 'Audio', status: 'active', date: 'Yesterday' },
-  { name: 'ResumeBot', category: 'Productivity', status: 'rejected', date: '2d ago' },
-]
-
 const STATUS_COLOR: Record<string, string> = {
-  active: '#10b981', pending: '#f59e0b', rejected: '#ef4444', approved: '#10b981', manual: '#6366f1',
+  active: '#10b981', pending: '#f59e0b', rejected: '#ef4444', approved: '#10b981',
+  manual: '#6366f1', claimed: '#3b82f6', pending_verification: '#8b5cf6',
 }
 const STATUS_BG: Record<string, string> = {
   active: 'rgba(16,185,129,0.1)', pending: 'rgba(245,158,11,0.1)', rejected: 'rgba(239,68,68,0.1)',
-  approved: 'rgba(16,185,129,0.1)', manual: 'rgba(99,102,241,0.1)',
+  approved: 'rgba(16,185,129,0.1)', manual: 'rgba(99,102,241,0.1)', claimed: 'rgba(59,130,246,0.1)',
+  pending_verification: 'rgba(139,92,246,0.1)',
+}
+
+function timeAgo(dateStr: string): string {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
 }
 
 interface Stats {
-  totalTools: number; totalUsers: number; claimedTools: number
-  pendingTools: number; totalUpvotes: number; totalReviews: number; dmcaOpen: number
+  totalTools: number
+  totalUsers: number
+  claimedTools: number
+  pendingTools: number
+  totalUpvotes: number
+  pendingClaims: number
+  dmcaOpen: number
+  totalReviews: number
+  avgRating: number
+  recentClaims: { tool: string; email: string; status: string; created_at: string }[]
+  recentTools: { name: string; slug: string; category: string; status: string; created_at: string }[]
+  dailyCounts: number[]
 }
 
 export default function AdminOverviewPage() {
@@ -87,52 +89,30 @@ export default function AdminOverviewPage() {
 
       {/* Stats grid */}
       <div className="mb-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Listings" value={s ? s.totalTools.toLocaleString() : '—'} sub={s ? `${s.pendingTools} pending review` : 'Loading…'} icon={List} color="#e94560" />
-        <StatCard label="Registered Users" value={s ? s.totalUsers.toLocaleString() : '—'} sub="From Supabase Auth" icon={Users} color="#6366f1" />
-        <StatCard label="Claimed Listings" value={s ? s.claimedTools.toLocaleString() : '—'} sub={s && s.totalTools > 0 ? `${Math.round((s.claimedTools/s.totalTools)*100)}% claim rate` : '—'} icon={Shield} color="#10b981" />
-        <StatCard label="Total Upvotes" value={s ? s.totalUpvotes.toLocaleString() : '—'} sub="Across all tools" icon={ThumbsUp} color="#f59e0b" />
+        <StatCard label="Total Listings" value={s ? s.totalTools.toLocaleString() : '...'} sub={s ? `${s.pendingTools} pending review` : 'Loading...'} icon={List} color="#e94560" />
+        <StatCard label="Registered Users" value={s ? s.totalUsers.toLocaleString() : '...'} sub="From Supabase Auth" icon={Users} color="#6366f1" />
+        <StatCard label="Claimed Listings" value={s ? s.claimedTools.toLocaleString() : '...'} sub={s && s.totalTools > 0 ? `${Math.round((s.claimedTools / s.totalTools) * 100)}% claim rate` : '...'} icon={Shield} color="#10b981" />
+        <StatCard label="Total Upvotes" value={s ? s.totalUpvotes.toLocaleString() : '...'} sub="Across all tools" icon={ThumbsUp} color="#f59e0b" />
       </div>
 
-      {/* Secondary stats */}
-      <div className="mb-8 grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Globe className="h-4 w-4 text-slate-500" />
-            <p className="text-sm font-semibold text-white">Monthly Visitors</p>
-          </div>
-          <p className="text-2xl font-black text-white">42,100</p>
-          <div className="mt-3 space-y-2">
-            {[
-              { page: '/tools/github-copilot', views: '3,240' },
-              { page: '/tools/chatgpt', views: '2,890' },
-              { page: '/categories', views: '1,740' },
-            ].map(r => (
-              <div key={r.page} className="flex justify-between text-xs">
-                <span className="text-slate-500 truncate">{r.page}</span>
-                <span className="text-slate-300 ml-2">{r.views}</span>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Secondary stats — all real data */}
+      <div className="mb-8 grid gap-4 sm:grid-cols-2">
         <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <div className="flex items-center gap-2 mb-3">
             <Star className="h-4 w-4 text-slate-500" />
-            <p className="text-sm font-semibold text-white">Reviews</p>
+            <p className="text-sm font-semibold text-white">Reviews & Ratings</p>
           </div>
-          <p className="text-2xl font-black text-white">9,302</p>
-          <div className="mt-3 space-y-1">
-            {[
-              { label: 'Avg. rating', value: '4.3 ★' },
-              { label: '5-star reviews', value: '61%' },
-              { label: 'Flagged', value: '7' },
-            ].map(r => (
-              <div key={r.label} className="flex justify-between text-xs">
-                <span className="text-slate-500">{r.label}</span>
-                <span className="text-slate-300">{r.value}</span>
-              </div>
-            ))}
-          </div>
+          <p className="text-2xl font-black text-white">{s ? s.totalReviews.toLocaleString() : '...'}</p>
+          <p className="text-xs text-slate-500 mt-1">Total ratings across all tools</p>
+          {s && s.avgRating > 0 && (
+            <div className="mt-3 flex items-center gap-2 text-sm">
+              <span className="text-amber-400">{'★'.repeat(Math.round(s.avgRating))}</span>
+              <span className="text-white font-bold">{s.avgRating.toFixed(1)}</span>
+              <span className="text-slate-500 text-xs">avg rating</span>
+            </div>
+          )}
         </div>
+
         <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <div className="flex items-center gap-2 mb-3">
             <AlertCircle className="h-4 w-4 text-amber-400" />
@@ -140,86 +120,103 @@ export default function AdminOverviewPage() {
           </div>
           <div className="space-y-2.5">
             {[
-              { label: 'Pending claims', count: 3, href: '/admin/claims', color: '#f59e0b' },
-              { label: 'DMCA requests', count: 1, href: '/admin/dmca', color: '#e94560' },
-              { label: 'Pending listings', count: 8, href: '/admin/listings', color: '#6366f1' },
-              { label: 'Flagged reviews', count: 7, href: '/admin/listings', color: '#94a3b8' },
+              { label: 'Pending claims', count: s?.pendingClaims ?? 0, href: '/admin/claims', color: '#f59e0b' },
+              { label: 'DMCA requests', count: s?.dmcaOpen ?? 0, href: '/admin/dmca', color: '#e94560' },
+              { label: 'Pending listings', count: s?.pendingTools ?? 0, href: '/admin/listings', color: '#6366f1' },
             ].map(item => (
-              <a key={item.label} href={item.href}
+              <Link key={item.label} href={item.href}
                 className="flex items-center justify-between rounded-lg px-3 py-2 text-xs transition hover:opacity-80"
                 style={{ background: `${item.color}10` }}>
                 <span style={{ color: item.color }}>{item.label}</span>
                 <span className="flex items-center gap-1 font-bold" style={{ color: item.color }}>
                   {item.count} <ArrowUpRight className="h-3 w-3" />
                 </span>
-              </a>
+              </Link>
             ))}
           </div>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Recent claims */}
+        {/* Recent claims — real data */}
         <div className="rounded-2xl border" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: '#1e2a3a' }}>
             <h2 className="font-bold text-white">Recent Claim Requests</h2>
-            <a href="/admin/claims" className="text-xs hover:underline" style={{ color: '#e94560' }}>View all →</a>
+            <Link href="/admin/claims" className="text-xs hover:underline" style={{ color: '#e94560' }}>View all →</Link>
           </div>
           <div className="divide-y" style={{ borderColor: '#1e2a3a' }}>
-            {RECENT_CLAIMS.map(c => (
-              <div key={c.tool} className="flex items-center gap-3 px-5 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white truncate">{c.tool}</p>
-                  <p className="text-xs text-slate-500 truncate">{c.email}</p>
+            {s?.recentClaims && s.recentClaims.length > 0 ? (
+              s.recentClaims.map((c, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white truncate">{c.tool}</p>
+                    <p className="text-xs text-slate-500 truncate">{c.email}</p>
+                  </div>
+                  <span className="text-xs text-slate-600">{timeAgo(c.created_at)}</span>
+                  <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize"
+                    style={{ color: STATUS_COLOR[c.status] ?? '#94a3b8', background: STATUS_BG[c.status] ?? 'rgba(148,163,184,0.1)' }}>
+                    {c.status.replace('_', ' ')}
+                  </span>
                 </div>
-                <span className="text-xs text-slate-600">{c.ago}</span>
-                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize"
-                  style={{ color: STATUS_COLOR[c.status], background: STATUS_BG[c.status] }}>
-                  {c.status}
-                </span>
+              ))
+            ) : (
+              <div className="px-5 py-8 text-center text-sm text-slate-600">
+                {s ? 'No claim requests yet' : 'Loading...'}
               </div>
-            ))}
+            )}
           </div>
         </div>
 
-        {/* Recent listings */}
+        {/* Recent listings — real data */}
         <div className="rounded-2xl border" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: '#1e2a3a' }}>
             <h2 className="font-bold text-white">Recently Added Tools</h2>
-            <a href="/admin/listings" className="text-xs hover:underline" style={{ color: '#e94560' }}>View all →</a>
+            <Link href="/admin/listings" className="text-xs hover:underline" style={{ color: '#e94560' }}>View all →</Link>
           </div>
           <div className="divide-y" style={{ borderColor: '#1e2a3a' }}>
-            {RECENT_TOOLS.map(t => (
-              <div key={t.name} className="flex items-center gap-3 px-5 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-white">{t.name}</p>
-                  <p className="text-xs text-slate-500">{t.category}</p>
+            {s?.recentTools && s.recentTools.length > 0 ? (
+              s.recentTools.map((t, i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-white">{t.name}</p>
+                    <p className="text-xs text-slate-500">{t.category}</p>
+                  </div>
+                  <span className="text-xs text-slate-600">{timeAgo(t.created_at)}</span>
+                  <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize"
+                    style={{ color: STATUS_COLOR[t.status] ?? '#94a3b8', background: STATUS_BG[t.status] ?? 'rgba(148,163,184,0.1)' }}>
+                    {t.status}
+                  </span>
                 </div>
-                <span className="text-xs text-slate-600">{t.date}</span>
-                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize"
-                  style={{ color: STATUS_COLOR[t.status], background: STATUS_BG[t.status] }}>
-                  {t.status}
-                </span>
+              ))
+            ) : (
+              <div className="px-5 py-8 text-center text-sm text-slate-600">
+                {s ? 'No tools yet' : 'Loading...'}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
 
-      {/* Bar chart placeholder */}
+      {/* Real bar chart — last 30 days */}
       <div className="mt-6 rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
         <div className="mb-4 flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-slate-500" />
           <h2 className="font-bold text-white">New Listings — Last 30 Days</h2>
+          {s && <span className="ml-auto text-xs text-slate-500">{s.dailyCounts.reduce((a, b) => a + b, 0)} total</span>}
         </div>
         <div className="flex h-32 items-end gap-1">
-          {[4,7,5,9,12,8,6,14,10,7,11,9,13,15,8,12,16,10,9,14,11,13,18,15,12,16,20,17,14,19].map((v, i) => (
-            <div key={i} className="flex-1 rounded-t"
-              style={{ height: `${(v / 20) * 100}%`, background: i >= 27 ? '#e94560' : '#1e2a3a' }} />
-          ))}
+          {(s?.dailyCounts ?? new Array(30).fill(0)).map((v, i) => {
+            const max = Math.max(...(s?.dailyCounts ?? [1]), 1)
+            return (
+              <div key={i} className="flex-1 rounded-t transition-all"
+                title={`${v} tools`}
+                style={{ height: `${Math.max((v / max) * 100, 2)}%`, background: i >= 27 ? '#e94560' : v > 0 ? '#1e3a5f' : '#1e2a3a' }} />
+            )
+          })}
         </div>
         <div className="mt-2 flex justify-between text-xs text-slate-600">
-          <span>Apr 19</span><span>Apr 30</span><span>May 10</span><span>May 19</span>
+          <span>{new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+          <span>Today</span>
         </div>
       </div>
     </div>
