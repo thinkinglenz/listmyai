@@ -423,16 +423,41 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Filter to only tools that actually need enrichment
+  // Check which tools TRULY need enrichment (missing core metadata)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const needsWork = (rawTools || []).filter((t: any) =>
-    !t.description || t.description.length < 30 ||
-    !t.pricing_model ||
-    !t.tagline || t.tagline === t.name ||
-    !t.contact_email ||
-    (t.tagline && /`#\w+`/.test(t.tagline)) ||
-    (t.description && /`#\w+`/.test(t.description))
-  )
+  function toolNeedsWork(t: any): boolean {
+    // Core fields — if ANY of these are missing, the tool needs enrichment
+    const missingDesc = !t.description || t.description.length < 30
+    const missingPricing = !t.pricing_model
+    const missingTagline = !t.tagline || t.tagline === t.name
+    const hasDirtyText = (t.tagline && /`#\w+`/.test(t.tagline)) || (t.description && /`#\w+`/.test(t.description))
+
+    return missingDesc || missingPricing || missingTagline || hasDirtyText
+  }
+
+  // Separate: tools that need work vs tools that are already complete
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const needsWork: any[] = []
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const alreadyComplete: any[] = []
+  for (const t of (rawTools || [])) {
+    if (toolNeedsWork(t)) needsWork.push(t)
+    else alreadyComplete.push(t)
+  }
+
+  // Bulk-stamp already-complete tools so they're never fetched again
+  if (alreadyComplete.length > 0) {
+    const completeIds = alreadyComplete.map((t: { id: number }) => t.id)
+    // Stamp in chunks of 100
+    for (let i = 0; i < completeIds.length; i += 100) {
+      const chunk = completeIds.slice(i, i + 100)
+      try {
+        await supabase.from('ai_tools')
+          .update({ enrichment_tried_at: new Date().toISOString() })
+          .in('id', chunk)
+      } catch { /* column may not exist */ }
+    }
+  }
 
   // Take only `limit` tools that need work
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -441,6 +466,7 @@ export async function GET(req: NextRequest) {
   if (dryRun) {
     return NextResponse.json({
       total_tools: (rawTools || []).length,
+      already_complete_stamped: alreadyComplete.length,
       needs_enrichment: needsWork.length,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       samples: needsWork.slice(0, 10).map((t: any) => ({
@@ -451,15 +477,25 @@ export async function GET(req: NextRequest) {
           !t.description || t.description.length < 30 ? 'description' : null,
           !t.pricing_model ? 'pricing' : null,
           !t.tagline || t.tagline === t.name ? 'tagline' : null,
-          !t.contact_email ? 'contact_email' : null,
         ].filter(Boolean),
       })),
     })
   }
 
-  // Enrich tools in parallel batches
+  // Enrich tools in parallel batches — only tools that genuinely need work
   const results = []
   let enriched = 0, skipped = 0, errors = 0
+
+  if (tools.length === 0) {
+    return NextResponse.json({
+      enriched: 0,
+      skipped: alreadyComplete.length,
+      errors: 0,
+      total: 0,
+      details: [],
+      message: `${alreadyComplete.length} already-complete tools stamped. No tools need enrichment.`,
+    })
+  }
 
   for (let i = 0; i < tools.length; i += BATCH_SIZE) {
     const batch = tools.slice(i, i + BATCH_SIZE)
