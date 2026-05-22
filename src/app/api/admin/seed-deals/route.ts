@@ -101,14 +101,36 @@ export async function GET(req: NextRequest) {
 
       let existing = byName
       if (!existing && deal.website) {
-        // Also check by website domain
-        const domain = deal.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
+        // Also check by exact website URL
         const { data: byWeb } = await supabase
+          .from('ai_tools')
+          .select('id, name, promo_code, website')
+          .eq('website', deal.website)
+          .maybeSingle()
+        existing = byWeb
+      }
+      if (!existing && deal.website) {
+        // Also check by website domain (partial match)
+        const domain = deal.website.replace(/^https?:\/\/(www\.)?/, '').replace(/\/$/, '')
+        const { data: byDomain } = await supabase
           .from('ai_tools')
           .select('id, name, promo_code, website')
           .ilike('website', `%${domain}%`)
           .maybeSingle()
-        existing = byWeb
+        existing = byDomain
+      }
+      if (!existing) {
+        // Last resort: search by partial name match
+        const shortName = deal.name.split(/[\s.]/)[0]  // "TheLibrarian.io" → "TheLibrarian"
+        if (shortName.length >= 4) {
+          const { data: byPartial } = await supabase
+            .from('ai_tools')
+            .select('id, name, promo_code, website')
+            .ilike('name', `%${shortName}%`)
+            .limit(1)
+            .maybeSingle()
+          existing = byPartial
+        }
       }
 
       if (existing) {
@@ -121,6 +143,12 @@ export async function GET(req: NextRequest) {
         if (deal.has_free_trial) updates.has_free_trial = true
         if (deal.website && (!existing.website || existing.website === '')) updates.website = deal.website
         if (deal.description && deal.description.length > 30) updates.description = deal.description
+        // Fix ugly timestamp slugs
+        const existingName = (existing.name || '').toLowerCase()
+        const cleanSlug = slugify(existing.name || deal.name)
+        // If current name in DB contains timestamp pattern, update the slug
+        updates.slug = cleanSlug
+        updates.name = deal.name  // ensure proper casing
 
         if (Object.keys(updates).length > 0) {
           const { error: upErr } = await supabase.from('ai_tools').update(updates).eq('id', existing.id)

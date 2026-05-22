@@ -1,10 +1,22 @@
 import { Suspense } from 'react'
+import type { Metadata } from 'next'
 import SearchBar from '@/components/search/SearchBar'
 import FilterSidebar from '@/components/search/FilterSidebar'
 import ToolCard from '@/components/listing/ToolCard'
 import { AiTool, Category } from '@/types'
 import { LayoutGrid } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
+
+export const metadata: Metadata = {
+  title: 'Browse All AI Tools — Directory',
+  description: 'Browse and filter 800+ AI tools by category, pricing, and features. Find the perfect AI chatbot, image generator, code assistant, writing tool, or automation platform for your needs.',
+  openGraph: {
+    title: 'AI Tools Directory — Browse 800+ Tools by Category',
+    description: 'Filter AI tools by category, pricing model, and features. Compare chatbots, image generators, code assistants, and more.',
+    url: 'https://listmyai.com/directory',
+  },
+  alternates: { canonical: 'https://listmyai.com/directory' },
+}
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

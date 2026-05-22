@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List } from 'lucide-react'
 import SearchBar from '@/components/search/SearchBar'
 import CategoryGrid from '@/components/listing/CategoryGrid'
@@ -7,6 +8,17 @@ import { AiTool, Category } from '@/types'
 import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes in 2026',
+  description: 'Browse 800+ AI tools across 20+ categories. Compare AI chatbots, image generators, code assistants, writing tools & more. Find exclusive promo codes, free trials, and lifetime deals. Updated daily.',
+  openGraph: {
+    title: 'ListmyAI — The #1 AI Tools Directory with Deals & Promo Codes',
+    description: 'Discover, compare, and save on 800+ AI tools. Free trials, promo codes, and exclusive deals on the best AI software.',
+    url: 'https://listmyai.com',
+  },
+  alternates: { canonical: 'https://listmyai.com' },
+}
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -161,8 +173,38 @@ export default async function HomePage() {
     { value: '24h', label: 'New Tools Daily' },
   ]
 
+  // JSON-LD structured data for rich search results
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: 'ListmyAI',
+    url: 'https://listmyai.com',
+    description: 'The most comprehensive AI tools directory. Discover, compare, and save on 800+ AI tools with promo codes, free trials, and deals.',
+    potentialAction: {
+      '@type': 'SearchAction',
+      target: 'https://listmyai.com/directory?search={search_term_string}',
+      'query-input': 'required name=search_term_string',
+    },
+  }
+
+  const orgJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'ListmyAI',
+    url: 'https://listmyai.com',
+    logo: 'https://listmyai.com/logo.png',
+    sameAs: [],
+    contactPoint: {
+      '@type': 'ContactPoint',
+      email: 'listmyai@gmail.com',
+      contactType: 'customer service',
+    },
+  }
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       {/* Hero */}
       <section className="relative overflow-hidden" style={{background:'linear-gradient(135deg,#0f172a 0%,#0d1b2e 50%,#0f172a 100%)'}}>
         <div className="pointer-events-none absolute inset-0" style={{background:'radial-gradient(ellipse at 50% 0%,rgba(233,69,96,0.12) 0%,transparent 70%)'}} />

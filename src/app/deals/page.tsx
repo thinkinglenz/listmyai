@@ -1,9 +1,21 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Gift, Tag, Zap, Percent, BadgeCheck, ExternalLink, Sparkles } from 'lucide-react'
 import CopyCodeButton from '@/components/promo/CopyCodeButton'
 
 export const dynamic = 'force-dynamic'
+
+export const metadata: Metadata = {
+  title: 'AI Deals, Promo Codes & Free Trials',
+  description: 'Save money on AI tools with exclusive promo codes, free trials, lifetime deals, and free tiers. Verified discounts on the best AI software — up to 50% off.',
+  openGraph: {
+    title: 'AI Deals & Promo Codes — Save on the Best AI Tools',
+    description: 'Exclusive promo codes, free trials, and lifetime deals on AI tools. Up to 50% off on chatbots, image generators, video tools, and more.',
+    url: 'https://listmyai.com/deals',
+  },
+  alternates: { canonical: 'https://listmyai.com/deals' },
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
