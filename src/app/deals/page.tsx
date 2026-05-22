@@ -26,44 +26,50 @@ export default async function DealsPage({ searchParams }: Props) {
   const { type = 'all' } = await searchParams
   const activeType = type as DealType
 
-  // Build query — fetch tools that have deals (promo codes, free trials, free/freemium pricing)
-  let query = supabase
-    .from('ai_tools')
-    .select('id, name, slug, logo_url, website, tagline, pricing_model, starting_price, has_free_trial, trial_duration, promo_code, promo_desc, categories(name)')
-    .in('status', ['active', 'approved', 'claimed', 'verified'])
-    .order('upvotes', { ascending: false })
-    .limit(100)
-
-  if (activeType === 'promo_code') {
-    query = query.not('promo_code', 'is', null).neq('promo_code', '')
-  } else if (activeType === 'free_trial') {
-    query = query.eq('has_free_trial', true)
-  } else if (activeType === 'free') {
-    query = query.eq('pricing_model', 'free')
-  } else if (activeType === 'freemium') {
-    query = query.eq('pricing_model', 'freemium')
-  } else {
-    // "all" — tools that have at least one deal aspect
-    query = query.or('promo_code.neq.,has_free_trial.eq.true,pricing_model.eq.free,pricing_model.eq.freemium,pricing_model.eq.free_trial')
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: tools } = await query as any
-
-  const deals = (tools ?? []) as {
+  type DealTool = {
     id: string; name: string; slug: string; logo_url?: string; website?: string
     tagline?: string; pricing_model?: string; starting_price?: string
     has_free_trial: boolean; trial_duration?: string
     promo_code?: string; promo_desc?: string
     categories?: { name: string }
-  }[]
+  }
 
-  // Count stats
-  const allDeals = deals
-  const promoCount = deals.filter(t => t.promo_code).length
-  const trialCount = deals.filter(t => t.has_free_trial).length
-  const freeCount = deals.filter(t => t.pricing_model === 'free').length
-  const freemiumCount = deals.filter(t => t.pricing_model === 'freemium').length
+  const SELECT = 'id, name, slug, logo_url, website, tagline, pricing_model, starting_price, has_free_trial, trial_duration, promo_code, promo_desc, categories(name)'
+  const STATUSES = ['active', 'approved', 'claimed', 'verified']
+
+  // Query 1: ALL deals (for consistent stats across tabs)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: allToolsRaw } = await (supabase
+    .from('ai_tools')
+    .select(SELECT)
+    .in('status', STATUSES)
+    .or('promo_code.neq.,has_free_trial.eq.true,pricing_model.eq.free,pricing_model.eq.freemium,pricing_model.eq.free_trial')
+    .order('upvotes', { ascending: false })
+    .limit(200)) as any
+
+  const allDeals = (allToolsRaw ?? []) as DealTool[]
+
+  // Stats from ALL deals (never changes with tab)
+  const promoCount = allDeals.filter(t => t.promo_code).length
+  const trialCount = allDeals.filter(t => t.has_free_trial).length
+  const freeCount = allDeals.filter(t => t.pricing_model === 'free').length
+  const freemiumCount = allDeals.filter(t => t.pricing_model === 'freemium').length
+
+  // Query 2: filtered deals for display
+  let deals: DealTool[]
+  if (activeType === 'all') {
+    deals = allDeals
+  } else if (activeType === 'promo_code') {
+    deals = allDeals.filter(t => t.promo_code)
+  } else if (activeType === 'free_trial') {
+    deals = allDeals.filter(t => t.has_free_trial)
+  } else if (activeType === 'free') {
+    deals = allDeals.filter(t => t.pricing_model === 'free')
+  } else if (activeType === 'freemium') {
+    deals = allDeals.filter(t => t.pricing_model === 'freemium')
+  } else {
+    deals = allDeals
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
@@ -72,7 +78,7 @@ export default async function DealsPage({ searchParams }: Props) {
         <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm"
           style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.1)', color: '#e94560' }}>
           <Sparkles className="h-3.5 w-3.5" />
-          {allDeals.length} deals available
+          {allDeals.length} deals available{activeType !== 'all' ? ` · showing ${deals.length}` : ''}
         </div>
         <h1 className="text-4xl font-black text-white">AI Deals & Free Tools</h1>
         <p className="mx-auto mt-3 max-w-xl text-slate-400">
