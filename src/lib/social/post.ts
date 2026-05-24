@@ -29,8 +29,7 @@ export interface SocialPost {
 
 interface SocialResult {
   twitter?: { ok: boolean; id?: string; error?: string }
-  facebook?: { ok: boolean; id?: string; error?: string }
-  instagram?: { ok: boolean; id?: string; error?: string }
+  // facebook and instagram: add back when Meta verification is complete
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -255,19 +254,14 @@ export async function postToInstagram(post: SocialPost): Promise<{ ok: boolean; 
 }
 
 // ─── Master function ───────────────────────────────────────────────────────────
-// Instagram skipped — requires Meta Business Verification.
-// Re-enable postToInstagram() here once verification is approved.
+// Facebook + Instagram skipped — can be re-enabled when Meta Page/Business
+// verification is complete. Just add postToFacebook() and postToInstagram()
+// back into the Promise.allSettled() call and set the env vars in Vercel.
 
 export async function postToAllSocial(post: SocialPost): Promise<SocialResult> {
-  // Run Twitter + Facebook in parallel — failures are isolated
-  const [twitter, facebook] = await Promise.allSettled([
-    postToTwitter(post),
-    postToFacebook(post),
-  ])
+  const [twitter] = await Promise.allSettled([postToTwitter(post)])
 
   return {
-    twitter:  twitter.status  === 'fulfilled' ? twitter.value  : { ok: false, error: String(twitter.reason) },
-    facebook: facebook.status === 'fulfilled' ? facebook.value : { ok: false, error: String(facebook.reason) },
-    instagram: { ok: false, error: 'Pending Meta Business Verification' },
+    twitter: twitter.status === 'fulfilled' ? twitter.value : { ok: false, error: String(twitter.reason) },
   }
 }
