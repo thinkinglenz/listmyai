@@ -255,18 +255,19 @@ export async function postToInstagram(post: SocialPost): Promise<{ ok: boolean; 
 }
 
 // ─── Master function ───────────────────────────────────────────────────────────
+// Instagram skipped — requires Meta Business Verification.
+// Re-enable postToInstagram() here once verification is approved.
 
 export async function postToAllSocial(post: SocialPost): Promise<SocialResult> {
-  // Run all three in parallel — failures are isolated
-  const [twitter, facebook, instagram] = await Promise.allSettled([
+  // Run Twitter + Facebook in parallel — failures are isolated
+  const [twitter, facebook] = await Promise.allSettled([
     postToTwitter(post),
     postToFacebook(post),
-    postToInstagram(post),
   ])
 
   return {
-    twitter:   twitter.status   === 'fulfilled' ? twitter.value   : { ok: false, error: String(twitter.reason) },
-    facebook:  facebook.status  === 'fulfilled' ? facebook.value  : { ok: false, error: String(facebook.reason) },
-    instagram: instagram.status === 'fulfilled' ? instagram.value : { ok: false, error: String(instagram.reason) },
+    twitter:  twitter.status  === 'fulfilled' ? twitter.value  : { ok: false, error: String(twitter.reason) },
+    facebook: facebook.status === 'fulfilled' ? facebook.value : { ok: false, error: String(facebook.reason) },
+    instagram: { ok: false, error: 'Pending Meta Business Verification' },
   }
 }
