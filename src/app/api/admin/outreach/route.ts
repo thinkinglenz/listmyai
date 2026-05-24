@@ -80,6 +80,24 @@ export async function GET(req: NextRequest) {
   })
 }
 
+const sleep = (ms: number) => new Promise(res => setTimeout(res, ms))
+
+/** Send one email with a single 429-retry (waits retryAfter ms then tries once more) */
+async function sendWithRetry(opts: Parameters<typeof sendEmail>[0]) {
+  try {
+    await sendEmail(opts)
+  } catch (err) {
+    const msg = String(err)
+    if (msg.includes('429')) {
+      // Resend says max 2 req/s — back off 1 s then retry once
+      await sleep(1000)
+      await sendEmail(opts) // let this throw if it fails again
+    } else {
+      throw err
+    }
+  }
+}
+
 // POST — send outreach email(s)
 export async function POST(req: NextRequest) {
   const { toolIds } = await req.json()
@@ -122,7 +140,7 @@ export async function POST(req: NextRequest) {
     const html = autoEnrollWelcomeEmail(tool.name, tool.website, claimUrl)
 
     try {
-      await sendEmail({
+      await sendWithRetry({
         to: tool.contact_email,
         subject: `Your tool "${tool.name}" is now listed on ListmyAI`,
         html,
@@ -138,6 +156,9 @@ export async function POST(req: NextRequest) {
     } catch (err) {
       results.push({ id: tool.id, name: tool.name, email: tool.contact_email, sent: false, error: String(err) })
     }
+
+    // Resend free tier: max 2 req/s → wait 600 ms between sends to stay safely under the limit
+    await sleep(600)
   }
 
   const sent = results.filter(r => r.sent).length
