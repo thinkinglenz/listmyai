@@ -103,14 +103,35 @@ export default function AdminBlogPage() {
 
   // One-click social share — opens pre-filled intent in new tab
   function sharePost(p: Post, platform: 'twitter' | 'facebook' | 'linkedin') {
-    const url = encodeURIComponent(`https://listmyai.com/blog/${p.slug}`)
-    const text = encodeURIComponent(`${p.title} — via @ListMyai`)
+    const postUrl = `https://listmyai.com/blog/${p.slug}`
+    const url = encodeURIComponent(postUrl)
+
+    // Twitter: title + URL + hashtags
+    const hashtags = (p.tags ?? [])
+      .slice(0, 3)
+      .map(t => t.replace(/\s+/g, ''))
+      .join(',')
+    const tweetText = encodeURIComponent(`${p.title}\n\nvia @ListMyai`)
+    const twitterUrl = `https://twitter.com/intent/tweet?text=${tweetText}&url=${url}${hashtags ? `&hashtags=${hashtags}` : ''}`
+
+    // LinkedIn: richer shareArticle format — pre-fills title + summary in compose box
+    const liTitle = encodeURIComponent(p.title)
+    const liSummary = encodeURIComponent(
+      (p.excerpt ?? '').slice(0, 256) ||
+      'Discover the latest AI insights on ListmyAI — the #1 AI tools directory.'
+    )
+    const liSource = encodeURIComponent('ListmyAI')
+    const linkedinUrl = `https://www.linkedin.com/shareArticle?mini=true&url=${url}&title=${liTitle}&summary=${liSummary}&source=${liSource}`
+
+    // Facebook
+    const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${url}&quote=${encodeURIComponent(p.title)}`
+
     const links: Record<string, string> = {
-      twitter:  `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
-      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
-      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
+      twitter:  twitterUrl,
+      facebook: facebookUrl,
+      linkedin: linkedinUrl,
     }
-    window.open(links[platform], '_blank', 'width=600,height=500')
+    window.open(links[platform], '_blank', 'width=620,height=560,noopener,noreferrer')
   }
 
   // Archive post
