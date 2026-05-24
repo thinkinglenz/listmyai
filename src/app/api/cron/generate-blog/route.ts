@@ -2,6 +2,7 @@
 // Triggered by vercel.json schedule or manually with ?secret=<CRON_SECRET>
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { postToAllSocial } from '@/lib/social/post'
 
 export const maxDuration = 120 // allow up to 2 min for Claude generation
 
@@ -287,10 +288,22 @@ export async function GET(req: NextRequest) {
 
     if (error) throw new Error(`Supabase insert error: ${error.message}`)
 
+    // Post to social media in parallel — failures don't block the response
+    const social = await postToAllSocial({
+      title: generated.title,
+      excerpt: generated.excerpt,
+      slug: finalSlug,
+      tags: generated.tags ?? [],
+      heroImageUrl: heroImage.url,
+    })
+
+    console.log('[generate-blog] Social results:', JSON.stringify(social))
+
     return NextResponse.json({
       ok: true,
       topic,
       post: inserted,
+      social,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
