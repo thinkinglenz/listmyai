@@ -4,6 +4,7 @@ import Image from 'next/image'
 import { ExternalLink, Star, ThumbsUp, Zap, CheckCircle2, Shield } from 'lucide-react'
 import { AiTool } from '@/types'
 import { cn, PRICING_LABELS, PRICING_COLORS, formatCount } from '@/lib/utils'
+import ToolCardShareButton from './ToolCardShareButton'
 
 interface Props {
   tool: AiTool
@@ -56,6 +57,7 @@ export default function ToolCard({ tool, variant = 'grid' }: Props) {
           <span className="flex items-center gap-1 text-sm text-slate-500">
             <ThumbsUp className="h-3.5 w-3.5" />{formatCount(tool.upvotes)}
           </span>
+          <ToolCardShareButton slug={tool.slug} name={tool.name} tagline={tool.tagline ?? ''} />
         </div>
       </Link>
     )
@@ -146,9 +148,12 @@ export default function ToolCard({ tool, variant = 'grid' }: Props) {
               </span>
             )}
           </div>
-          <span className="flex items-center gap-1 text-xs text-slate-500 group-hover:text-brand-red transition-colors">
-            <ExternalLink className="h-3.5 w-3.5" /> Visit
-          </span>
+          <div className="flex items-center gap-2">
+            <ToolCardShareButton slug={tool.slug} name={tool.name} tagline={tool.tagline ?? ''} />
+            <span className="flex items-center gap-1 text-xs text-slate-500 group-hover:text-brand-red transition-colors">
+              <ExternalLink className="h-3.5 w-3.5" /> Visit
+            </span>
+          </div>
         </div>
       </div>
     </Link>
