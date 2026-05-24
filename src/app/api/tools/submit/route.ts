@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { sendEmail, submissionConfirmationEmail } from '@/lib/email'
+import { sendEmail, submissionConfirmationEmail, adminNewListingEmail } from '@/lib/email'
+
+const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL ?? 'listmyai@gmail.com'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -136,12 +138,27 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from('ai_tools').insert(row)
 
       if (!error) {
-        // ✅ Saved — send confirmation email (non-blocking)
+        // ✅ Saved — send confirmation to submitter (non-blocking)
         sendEmail({
           to: contact_email,
           subject: `✅ "${name}" has been submitted to ListmyAI`,
           html: submissionConfirmationEmail(contact_name ?? '', name, contact_email, APP_URL),
-        }).catch(err => console.error('[submit email]', err))
+        }).catch(err => console.error('[submit email - submitter]', err))
+
+        // ✅ Notify admin of new listing (non-blocking)
+        sendEmail({
+          to: ADMIN_EMAIL,
+          subject: `🆕 New listing submitted: "${name}"`,
+          html: adminNewListingEmail(
+            name,
+            body.website as string,
+            contact_name ?? '',
+            contact_email,
+            body.category as string,
+            (body.pricing_model as string) ?? 'unknown',
+            APP_URL,
+          ),
+        }).catch(err => console.error('[submit email - admin]', err))
 
         return NextResponse.json({ success: true })
       }

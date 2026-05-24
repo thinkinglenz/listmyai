@@ -129,6 +129,33 @@ export function submissionConfirmationEmail(
   `)
 }
 
+export function adminNewListingEmail(
+  toolName: string,
+  website: string,
+  contactName: string,
+  contactEmail: string,
+  category: string,
+  pricingModel: string,
+  appUrl: string,
+) {
+  return BASE(`
+    ${H1(`🆕 New listing submitted: "${toolName}"`)}
+    ${P(`A new AI tool has been submitted and is waiting for your review.`)}
+    <div style="margin:20px 0;padding:16px;background:rgba(255,255,255,0.03);border:1px solid #1e2a3a;border-radius:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:6px 0;color:#64748b;width:120px">Tool name</td><td style="color:#fff;font-weight:600">${toolName}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Website</td><td><a href="${website}" style="color:#e94560;text-decoration:none">${website}</a></td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Category</td><td style="color:#fff">${category}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Pricing</td><td style="color:#fff">${pricingModel}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Contact name</td><td style="color:#fff">${contactName || '—'}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Contact email</td><td><a href="mailto:${contactEmail}" style="color:#e94560;text-decoration:none">${contactEmail}</a></td></tr>
+      </table>
+    </div>
+    ${BTN(`${appUrl}/admin/listings`, 'Review in Admin Panel')}
+    ${P(`Approve or reject this listing from the admin panel.`)}
+  `)
+}
+
 export function welcomeEmail(name: string, appUrl: string) {
   return BASE(`
     ${H1(`Welcome to ListmyAI, ${name || 'there'}! 👋`)}
