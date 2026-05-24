@@ -2,7 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { Search, X, Check, ArrowRight, Loader2, Zap, Trophy, RefreshCw } from 'lucide-react'
+import Image from 'next/image'
+import {
+  Search, X, Check, ArrowRight, Loader2, RefreshCw, ExternalLink,
+  Sparkles, Crown, Minus,
+} from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
 function getSupabase() {
@@ -23,55 +27,41 @@ interface ToolOption {
   rating_avg?: number
   rating_count?: number
   website?: string
+  logo_url?: string
 }
 
-interface ScoreDimension {
-  a: number
-  b: number
+interface MatrixRow {
   label: string
+  a: string
+  b: string
+  highlight?: 'a' | 'b' | 'tie' | 'none'
+}
+
+interface DimensionWinner {
+  dimension: string
+  winner: 'a' | 'b' | 'tie'
+  reason: string
 }
 
 interface ComparisonResult {
-  winner: string
   summary: string
-  scores: Record<string, ScoreDimension>
+  matrix: MatrixRow[]
+  winners: DimensionWinner[]
   pros_a: string[]
   cons_a: string[]
   pros_b: string[]
   cons_b: string[]
   best_for_a: string
   best_for_b: string
-  verdict: string
+  tagline_a: string
+  tagline_b: string
+  description_a: string
+  description_b: string
 }
 
-// ─── Score Bar ────────────────────────────────────────────────────────────────
-function ScoreBar({ scoreA, scoreB, label, winnerSlug, slugA }: {
-  scoreA: number; scoreB: number; label: string; winnerSlug: string; slugA: string
-}) {
-  const aWins = scoreA > scoreB
-  const bWins = scoreB > scoreA
-  return (
-    <div className="py-3">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm text-slate-400">{label}</span>
-        <div className="flex items-center gap-3 text-xs font-bold">
-          <span style={{ color: aWins ? '#e94560' : '#64748b' }}>{scoreA}/10</span>
-          <span className="text-slate-700">vs</span>
-          <span style={{ color: bWins ? '#e94560' : '#64748b' }}>{scoreB}/10</span>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-1.5">
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1e2a3a' }}>
-          <div className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${scoreA * 10}%`, background: aWins ? '#e94560' : '#334155' }} />
-        </div>
-        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1e2a3a' }}>
-          <div className="h-full rounded-full transition-all duration-700"
-            style={{ width: `${scoreB * 10}%`, background: bWins ? '#e94560' : '#334155' }} />
-        </div>
-      </div>
-    </div>
-  )
+interface ToolDetails extends ToolOption {
+  logo_url?: string
+  description?: string
 }
 
 // ─── Tool Picker ──────────────────────────────────────────────────────────────
@@ -85,9 +75,9 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<ToolOption[]>([])
   const [searching, setSearching] = useState(false)
+  const [popular, setPopular] = useState<ToolOption[]>([])
   const ref = useRef<HTMLDivElement>(null)
 
-  // Click outside to close
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -96,39 +86,65 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Load popular tools on open
+  useEffect(() => {
+    if (!open || popular.length) return
+    ;(async () => {
+      const { data } = await getSupabase()
+        .from('ai_tools')
+        .select('slug, name, tagline, pricing_model, starting_price, logo_url')
+        .eq('status', 'active')
+        .order('upvotes', { ascending: false })
+        .limit(10)
+      setPopular((data ?? []) as ToolOption[])
+    })()
+  }, [open, popular.length])
+
   // Search Supabase
   useEffect(() => {
-    if (!query.trim()) { setResults([]); return }
+    const trimmed = query.trim()
+    if (!trimmed) {
+      // Clear results on next tick to avoid sync setState in effect.
+      const id = setTimeout(() => setResults([]), 0)
+      return () => clearTimeout(id)
+    }
+    let cancelled = false
     const t = setTimeout(async () => {
+      if (cancelled) return
       setSearching(true)
       const { data } = await getSupabase()
         .from('ai_tools')
-        .select('slug, name, tagline, pricing_model, starting_price, rating_avg, rating_count, website')
+        .select('slug, name, tagline, pricing_model, starting_price, rating_avg, rating_count, website, logo_url')
         .eq('status', 'active')
-        .ilike('name', `%${query}%`)
-        .limit(8)
-      setResults(data ?? [])
+        .ilike('name', `%${trimmed}%`)
+        .limit(10)
+      if (cancelled) return
+      setResults((data ?? []) as ToolOption[])
       setSearching(false)
-    }, 300)
-    return () => clearTimeout(t)
+    }, 250)
+    return () => { cancelled = true; clearTimeout(t) }
   }, [query])
 
   return (
     <div ref={ref} className="relative">
       {selected ? (
-        <div className="rounded-2xl border p-4" style={{ borderColor: 'rgba(233,69,96,0.35)', background: '#161b27' }}>
-          <div className="flex items-start justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">{label}</p>
-              <p className="font-bold text-white">{selected.name}</p>
-              {selected.tagline && <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{selected.tagline}</p>}
-              {(selected.pricing_model || selected.starting_price) && (
-                <p className="text-xs text-slate-600 mt-1">
-                  {selected.pricing_model}{selected.starting_price ? ` · from ${selected.starting_price}` : ''}
-                </p>
+        <div className="rounded-2xl border-2 p-5 transition" style={{ borderColor: 'rgba(233,69,96,0.5)', background: 'linear-gradient(135deg, #1a1f2e 0%, #161b27 100%)' }}>
+          <div className="flex items-start gap-3">
+            {selected.logo_url ? (
+              <Image src={selected.logo_url} alt={selected.name} width={48} height={48} className="rounded-xl object-contain bg-white/5 p-1" unoptimized />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/5 text-lg font-black text-slate-500">
+                {selected.name[0]}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+              <p className="truncate text-lg font-black text-white">{selected.name}</p>
+              {selected.tagline && (
+                <p className="mt-0.5 line-clamp-1 text-xs text-slate-400">{selected.tagline}</p>
               )}
             </div>
-            <button onClick={onClear} className="text-slate-600 hover:text-slate-300 transition p-1">
+            <button onClick={onClear} className="rounded-lg p-1.5 text-slate-500 transition hover:bg-white/5 hover:text-white">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -136,10 +152,10 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="w-full rounded-2xl border p-4 text-left transition hover:border-red-500/30"
-          style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-2">{label}</p>
-          <div className="flex items-center gap-2 text-slate-500">
+          className="w-full rounded-2xl border-2 border-dashed p-5 text-left transition hover:border-red-500/40 hover:bg-white/5"
+          style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">{label}</p>
+          <div className="mt-2 flex items-center gap-2 text-slate-400">
             <Search className="h-4 w-4" />
             <span className="text-sm">Search for a tool…</span>
           </div>
@@ -147,11 +163,11 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
       )}
 
       {!selected && open && (
-        <div className="absolute z-40 w-full mt-2 rounded-2xl border shadow-2xl overflow-hidden"
+        <div className="absolute z-40 mt-2 w-full overflow-hidden rounded-2xl border shadow-2xl"
           style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-          <div className="p-2 border-b" style={{ borderColor: '#1e2a3a' }}>
+          <div className="border-b p-2" style={{ borderColor: '#1e2a3a' }}>
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
               <input
                 autoFocus
                 value={query}
@@ -162,30 +178,67 @@ function ToolPicker({ label, selected, onSelect, onClear }: {
               />
             </div>
           </div>
-          <div className="max-h-60 overflow-y-auto">
+          <div className="max-h-72 overflow-y-auto">
             {searching && (
               <div className="flex items-center justify-center py-6">
                 <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
               </div>
             )}
+            {!searching && !query && popular.length > 0 && (
+              <>
+                <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">Popular</p>
+                {popular.map(t => (
+                  <button key={t.slug} onClick={() => { onSelect(t); setOpen(false); setQuery('') }}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-white/5">
+                    {t.logo_url ? (
+                      <Image src={t.logo_url} alt="" width={28} height={28} className="rounded-md object-contain bg-white/5" unoptimized />
+                    ) : (
+                      <div className="h-7 w-7 rounded-md bg-white/5" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-white">{t.name}</p>
+                      {t.tagline && <p className="truncate text-xs text-slate-500">{t.tagline}</p>}
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
             {!searching && results.map(t => (
               <button key={t.slug} onClick={() => { onSelect(t); setOpen(false); setQuery('') }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/5">
-                <div>
-                  <p className="font-semibold text-white">{t.name}</p>
-                  {t.tagline && <p className="text-xs text-slate-500 line-clamp-1">{t.tagline}</p>}
+                className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-white/5">
+                {t.logo_url ? (
+                  <Image src={t.logo_url} alt="" width={28} height={28} className="rounded-md object-contain bg-white/5" unoptimized />
+                ) : (
+                  <div className="h-7 w-7 rounded-md bg-white/5" />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate font-semibold text-white">{t.name}</p>
+                  {t.tagline && <p className="truncate text-xs text-slate-500">{t.tagline}</p>}
                 </div>
               </button>
             ))}
             {!searching && query && results.length === 0 && (
               <p className="py-6 text-center text-xs text-slate-500">No tools found. Try a different name.</p>
             )}
-            {!query && (
-              <p className="py-6 text-center text-xs text-slate-500">Start typing to search…</p>
-            )}
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Cell renderer ────────────────────────────────────────────────────────────
+function MatrixCell({ value, isHighlighted, side }: { value: string; isHighlighted: boolean; side: 'a' | 'b' }) {
+  return (
+    <div className="px-4 py-3 text-sm" style={{
+      background: isHighlighted ? (side === 'a' ? 'rgba(233,69,96,0.08)' : 'rgba(99,102,241,0.08)') : 'transparent',
+    }}>
+      <div className="flex items-center gap-2">
+        {isHighlighted && (
+          <Crown className="h-3.5 w-3.5 shrink-0" style={{ color: side === 'a' ? '#e94560' : '#818cf8' }} />
+        )}
+        <span className={isHighlighted ? 'font-bold text-white' : 'text-slate-300'}>{value}</span>
+      </div>
     </div>
   )
 }
@@ -197,6 +250,8 @@ export default function ComparePage() {
   const [useCase, setUseCase] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ComparisonResult | null>(null)
+  const [fullA, setFullA] = useState<ToolDetails | null>(null)
+  const [fullB, setFullB] = useState<ToolDetails | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function runComparison() {
@@ -215,6 +270,8 @@ export default function ComparePage() {
         setError(json.error ?? 'Comparison failed. Please try again.')
       } else {
         setResult(json.comparison)
+        setFullA(json.tool_a)
+        setFullB(json.tool_b)
       }
     } catch {
       setError('Network error. Please try again.')
@@ -224,39 +281,36 @@ export default function ComparePage() {
   }
 
   function reset() {
-    setToolA(null)
-    setToolB(null)
-    setUseCase('')
-    setResult(null)
-    setError(null)
+    setToolA(null); setToolB(null); setUseCase('')
+    setResult(null); setFullA(null); setFullB(null); setError(null)
   }
 
   const canCompare = toolA && toolB && toolA.slug !== toolB.slug
 
+  // Score totals (one point per dimension winner, half for ties)
+  const aWins = result?.winners.filter(w => w.winner === 'a').length ?? 0
+  const bWins = result?.winners.filter(w => w.winner === 'b').length ?? 0
+  const ties = result?.winners.filter(w => w.winner === 'tie').length ?? 0
+
   return (
     <div className="min-h-screen" style={{ background: '#0d1117' }}>
-      {/* Nav */}
-      <div className="border-b" style={{ borderColor: '#1e2a3a' }}>
-        <nav className="mx-auto max-w-5xl px-4 py-4 flex items-center justify-between">
-          <Link href="/" className="text-sm font-bold" style={{ color: '#e94560' }}>← ListmyAI</Link>
-          <Link href="/directory" className="text-sm text-slate-500 hover:text-white transition">Browse all tools</Link>
-        </nav>
-      </div>
-
-      <div className="mx-auto max-w-4xl px-4 py-12">
+      <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 sm:py-14">
         {/* Header */}
         <div className="mb-10 text-center">
           <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium"
             style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.08)', color: '#e94560' }}>
-            <Zap className="h-3.5 w-3.5" /> Data-Driven Comparison
+            <Sparkles className="h-3.5 w-3.5" /> Side-by-side comparison
           </div>
-          <h1 className="text-4xl font-black text-white">Compare AI Tools</h1>
-          <p className="mt-2 text-slate-500">Pick two tools — get an instant, data-driven comparison based on real community data</p>
+          <h1 className="text-4xl font-black text-white sm:text-5xl">Compare AI Tools</h1>
+          <p className="mx-auto mt-3 max-w-xl text-slate-400">
+            Pick any two tools — get a fact-based side-by-side breakdown of pricing,
+            features, and what each is actually best for. No fake scores.
+          </p>
         </div>
 
         {/* Tool pickers */}
-        <div className="relative grid grid-cols-2 gap-4 mb-4">
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex justify-center pointer-events-none z-10">
+        <div className="relative mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 hidden -translate-y-1/2 justify-center sm:flex">
             <span className="rounded-full border px-3 py-1 text-xs font-black text-slate-400"
               style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
               VS
@@ -268,15 +322,13 @@ export default function ComparePage() {
 
         {/* Optional use case */}
         {canCompare && !result && (
-          <div className="mb-4">
-            <input
-              value={useCase}
-              onChange={e => setUseCase(e.target.value)}
-              placeholder="Optional: describe your use case (e.g. 'write blog posts for my SaaS')"
-              className="w-full rounded-xl border px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition focus:border-red-500/40"
-              style={{ borderColor: '#1e2a3a', background: '#161b27' }}
-            />
-          </div>
+          <input
+            value={useCase}
+            onChange={e => setUseCase(e.target.value)}
+            placeholder="Optional: what do you need this for? (e.g. 'writing SEO blog posts')"
+            className="mb-4 w-full rounded-xl border px-4 py-3 text-sm text-white placeholder-slate-600 outline-none transition focus:border-red-500/40"
+            style={{ borderColor: '#1e2a3a', background: '#161b27' }}
+          />
         )}
 
         {/* CTA */}
@@ -284,136 +336,217 @@ export default function ComparePage() {
           <button
             onClick={runComparison}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
             style={{ background: '#e94560' }}>
             {loading ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Comparing…</>
+              <><Loader2 className="h-4 w-4 animate-spin" /> Building comparison…</>
             ) : (
-              <><Zap className="h-4 w-4" /> Compare Now</>
+              <><Sparkles className="h-4 w-4" /> Compare Now</>
             )}
           </button>
         )}
 
-        {/* Loading state */}
+        {/* Loading */}
         {loading && (
           <div className="mt-8 rounded-2xl border p-10 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" style={{ color: '#e94560' }} />
-            <p className="text-white font-semibold mb-1">Comparing both tools…</p>
-            <p className="text-slate-500 text-sm">Analysing community data, features, and pricing</p>
+            <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin" style={{ color: '#e94560' }} />
+            <p className="font-semibold text-white">Building comparison…</p>
           </div>
         )}
 
         {/* Error */}
         {error && (
           <div className="mt-6 rounded-2xl border p-6 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <p className="text-red-400 mb-3">{error}</p>
+            <p className="mb-3 text-red-400">{error}</p>
             <button onClick={() => setError(null)}
-              className="text-sm text-slate-500 hover:text-white transition flex items-center gap-1.5 mx-auto">
+              className="mx-auto flex items-center gap-1.5 text-sm text-slate-500 transition hover:text-white">
               <RefreshCw className="h-3.5 w-3.5" /> Try again
             </button>
           </div>
         )}
 
         {/* Results */}
-        {result && toolA && toolB && (
-          <div className="mt-8 space-y-5">
-            {/* Winner banner */}
-            <div className="rounded-2xl border p-5"
-              style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.06)' }}>
-              <div className="flex items-center gap-3 mb-3">
-                <Trophy className="h-5 w-5" style={{ color: '#e94560' }} />
-                <p className="font-bold text-white">
-                  {result.winner === 'tie'
-                    ? "It's a tie!"
-                    : `Winner: ${result.winner === toolA.slug ? toolA.name : toolB.name}`}
-                </p>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">{result.summary}</p>
+        {result && toolA && toolB && fullA && fullB && (
+          <div className="mt-10 space-y-6">
+            {/* Hero comparison */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto_1fr]">
+              {[
+                { tool: fullA, accent: '#e94560', side: 'a' as const, wins: aWins },
+                null,
+                { tool: fullB, accent: '#818cf8', side: 'b' as const, wins: bWins },
+              ].map((item, i) => {
+                if (!item) {
+                  return (
+                    <div key={i} className="hidden flex-col items-center justify-center px-4 sm:flex">
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-600">{ties > 0 ? `${ties} tied` : ''}</div>
+                      <div className="my-2 text-2xl font-black text-slate-700">VS</div>
+                    </div>
+                  )
+                }
+                const { tool, accent, side, wins } = item
+                return (
+                  <div key={tool.slug} className="rounded-2xl border-2 p-5"
+                    style={{ borderColor: `${accent}55`, background: '#161b27' }}>
+                    <div className="flex items-start gap-3">
+                      {tool.logo_url ? (
+                        <Image src={tool.logo_url} alt={tool.name} width={56} height={56} className="rounded-xl bg-white/5 p-1 object-contain" unoptimized />
+                      ) : (
+                        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-white/5 text-2xl font-black" style={{ color: accent }}>
+                          {tool.name[0]}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <Link href={`/tools/${tool.slug}`} className="line-clamp-1 text-lg font-black text-white transition hover:text-red-400">
+                          {tool.name}
+                        </Link>
+                        {(side === 'a' ? result.tagline_a : result.tagline_b) && (
+                          <p className="line-clamp-2 text-xs text-slate-400">
+                            {side === 'a' ? result.tagline_a : result.tagline_b}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {(aWins + bWins) > 0 && (
+                      <div className="mt-4 flex items-center justify-between rounded-xl px-3 py-2"
+                        style={{ background: `${accent}10` }}>
+                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: accent }}>
+                          Wins
+                        </span>
+                        <span className="text-2xl font-black" style={{ color: accent }}>{wins}</span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
-            {/* Score table */}
-            <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-              <div className="grid grid-cols-3 mb-4 text-xs font-bold uppercase tracking-wide">
-                <span className="text-slate-600">Dimension</span>
-                <span className="text-center" style={{ color: '#e94560' }}>{toolA.name}</span>
-                <span className="text-center text-slate-400">{toolB.name}</span>
+            {/* Quick take */}
+            {result.summary && (
+              <div className="rounded-2xl border p-5"
+                style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.04)' }}>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wider" style={{ color: '#e94560' }}>Quick take</p>
+                <p className="leading-relaxed text-slate-200">{result.summary}</p>
               </div>
-              <div className="divide-y" style={{ borderColor: '#1e2a3a' }}>
-                {Object.entries(result.scores).map(([key, dim]) => (
-                  <ScoreBar
-                    key={key}
-                    label={dim.label}
-                    scoreA={dim.a}
-                    scoreB={dim.b}
-                    winnerSlug={result.winner}
-                    slugA={toolA.slug}
-                  />
-                ))}
+            )}
+
+            {/* Feature matrix */}
+            <div className="overflow-hidden rounded-2xl border" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+              <div className="grid grid-cols-[160px_1fr_1fr] border-b text-xs font-bold uppercase tracking-wider"
+                style={{ borderColor: '#1e2a3a' }}>
+                <div className="px-4 py-3 text-slate-500">Feature</div>
+                <div className="border-l px-4 py-3 text-center" style={{ borderColor: '#1e2a3a', color: '#e94560' }}>{toolA.name}</div>
+                <div className="border-l px-4 py-3 text-center" style={{ borderColor: '#1e2a3a', color: '#818cf8' }}>{toolB.name}</div>
               </div>
+              {result.matrix.map((row, i) => (
+                <div key={i} className="grid grid-cols-[160px_1fr_1fr] border-b last:border-b-0"
+                  style={{ borderColor: '#1e2a3a' }}>
+                  <div className="bg-white/[0.02] px-4 py-3 text-sm font-medium text-slate-400">{row.label}</div>
+                  <div className="border-l" style={{ borderColor: '#1e2a3a' }}>
+                    <MatrixCell value={row.a} isHighlighted={row.highlight === 'a'} side="a" />
+                  </div>
+                  <div className="border-l" style={{ borderColor: '#1e2a3a' }}>
+                    <MatrixCell value={row.b} isHighlighted={row.highlight === 'b'} side="b" />
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Dimension winners */}
+            {result.winners.length > 0 && (
+              <div className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+                <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Who wins where</p>
+                <div className="space-y-3">
+                  {result.winners.map((w, i) => {
+                    const winnerName = w.winner === 'tie' ? 'Tie' : (w.winner === 'a' ? toolA.name : toolB.name)
+                    const accent = w.winner === 'a' ? '#e94560' : w.winner === 'b' ? '#818cf8' : '#64748b'
+                    return (
+                      <div key={i} className="flex items-start gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                          style={{ background: `${accent}15` }}>
+                          {w.winner === 'tie'
+                            ? <Minus className="h-4 w-4" style={{ color: accent }} />
+                            : <Crown className="h-4 w-4" style={{ color: accent }} />
+                          }
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-white">
+                            {w.dimension}: <span style={{ color: accent }}>{winnerName}</span>
+                          </p>
+                          <p className="text-xs text-slate-400">{w.reason}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Pros & cons */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {([
-                { tool: toolA, pros: result.pros_a, cons: result.cons_a },
-                { tool: toolB, pros: result.pros_b, cons: result.cons_b },
-              ] as const).map(({ tool, pros, cons }) => (
-                <div key={tool.slug} className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                  <h4 className="font-bold text-white mb-4">{tool.name}</h4>
-                  <div className="mb-4">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-2">Pros</p>
-                    <ul className="space-y-2">
-                      {pros.map((p, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                          <Check className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-emerald-400" /> {p}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                { tool: toolA, side: 'a' as const, accent: '#e94560', pros: result.pros_a, cons: result.cons_a, best: result.best_for_a, desc: result.description_a },
+                { tool: toolB, side: 'b' as const, accent: '#818cf8', pros: result.pros_b, cons: result.cons_b, best: result.best_for_b, desc: result.description_b },
+              ]).map(({ tool, accent, pros, cons, best, desc }) => (
+                <div key={tool.slug} className="flex flex-col gap-4 rounded-2xl border p-5"
+                  style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-red-400 mb-2">Cons</p>
-                    <ul className="space-y-2">
-                      {cons.map((c, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-slate-400">
-                          <X className="h-3.5 w-3.5 flex-shrink-0 mt-0.5 text-red-400" /> {c}
-                        </li>
-                      ))}
-                    </ul>
+                    <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>
+                      {tool.name}
+                    </p>
+                    {desc && <p className="mt-2 line-clamp-4 text-xs leading-relaxed text-slate-400">{desc}</p>}
+                  </div>
+
+                  {pros.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-400">Strengths</p>
+                      <ul className="space-y-1.5">
+                        {pros.map((p, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-400" /> {p}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {cons.length > 0 && (
+                    <div>
+                      <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-amber-400">Limitations</p>
+                      <ul className="space-y-1.5">
+                        {cons.map((c, i) => (
+                          <li key={i} className="flex items-start gap-2 text-xs text-slate-300">
+                            <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-400" /> {c}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="mt-auto rounded-xl border-t pt-3" style={{ borderColor: '#1e2a3a' }}>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Best for</p>
+                    <p className="text-xs leading-relaxed text-slate-300">{best}</p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Link href={`/tools/${tool.slug}`}
+                      className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold text-white transition hover:bg-white/5"
+                      style={{ borderColor: '#1e2a3a' }}>
+                      View profile <ArrowRight className="h-3 w-3" />
+                    </Link>
+                    {tool.website && (
+                      <a href={tool.website} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-white transition hover:opacity-90"
+                        style={{ background: accent }}>
+                        Visit <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* Best for */}
-            <div className="grid grid-cols-2 gap-4">
-              {([
-                { tool: toolA, best: result.best_for_a },
-                { tool: toolB, best: result.best_for_b },
-              ] as const).map(({ tool, best }) => (
-                <div key={tool.slug} className="rounded-2xl border p-4" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Best for</p>
-                  <p className="text-sm text-slate-300">{best}</p>
-                  <Link href={`/tools/${tool.slug}`}
-                    className="mt-3 flex items-center gap-1 text-xs font-semibold transition hover:opacity-80"
-                    style={{ color: '#e94560' }}>
-                    View {tool.name} <ArrowRight className="h-3 w-3" />
-                  </Link>
-                </div>
-              ))}
-            </div>
-
-            {/* Final verdict */}
-            <div className="rounded-2xl border p-6" style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.04)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Zap className="h-4 w-4" style={{ color: '#e94560' }} />
-                <p className="font-bold text-white">Verdict</p>
-                <span className="text-xs text-slate-600 ml-auto">Based on community data</span>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">{result.verdict}</p>
             </div>
 
             {/* Reset */}
-            <div className="text-center pt-2">
+            <div className="pt-2 text-center">
               <button onClick={reset}
                 className="inline-flex items-center gap-2 text-sm text-slate-500 transition hover:text-white">
                 <RefreshCw className="h-4 w-4" /> Compare different tools
@@ -426,8 +559,8 @@ export default function ComparePage() {
         {!canCompare && !loading && !result && (
           <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border py-16 text-center"
             style={{ borderColor: '#1e2a3a', background: '#161b27', borderStyle: 'dashed' }}>
-            <p className="text-slate-500 text-sm mb-1">Select two tools above to get an AI-powered comparison</p>
-            <Link href="/directory" className="text-xs hover:underline mt-2" style={{ color: '#e94560' }}>
+            <p className="mb-2 text-sm text-slate-400">Pick two tools above to see how they stack up</p>
+            <Link href="/directory" className="mt-2 text-xs hover:underline" style={{ color: '#e94560' }}>
               Browse all tools in the directory →
             </Link>
           </div>

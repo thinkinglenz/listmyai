@@ -10,6 +10,7 @@ const SESSION_KEY = 'lmai_admin_auth'
 
 const NAV_LINKS = [
   { href: '/directory',   label: 'Browse AI Tools' },
+  { href: '/compare',     label: 'Compare' },
   { href: '/deals',       label: '🔥 Deals' },
   { href: '/categories',  label: 'Categories' },
 ]
