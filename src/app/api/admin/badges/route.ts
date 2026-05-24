@@ -35,5 +35,13 @@ export async function GET() {
     badges.listings = pendingListings ?? 0
   } catch {}
 
+  try {
+    const { count: blogComments } = await supabase
+      .from('blog_comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    badges.blog_comments = blogComments ?? 0
+  } catch {}
+
   return NextResponse.json(badges)
 }

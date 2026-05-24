@@ -1,132 +1,167 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
-
-import { Calendar, Clock, ArrowRight, BookOpen } from 'lucide-react'
+import { ArrowRight, Calendar, Tag, BookOpen, Sparkles } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
+export const revalidate = 600
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) return null
-  return createClient(url, key)
+export const metadata: Metadata = {
+  title: 'AI Blog — Latest News, Tutorials & Tool Deep-Dives',
+  description: 'Daily blog covering the latest AI news, tool deep-dives, comparisons, tutorials, and prompt engineering tips. Fresh AI content published every day.',
+  openGraph: {
+    title: 'ListmyAI Blog — Latest AI News & Tool Deep-Dives',
+    description: 'Fresh AI news, deep-dives, and tutorials — published daily.',
+    url: 'https://listmyai.com/blog',
+  },
+  alternates: { canonical: 'https://listmyai.com/blog' },
 }
 
-interface Article {
-  id: number
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
+
+type Post = {
+  id: string
   slug: string
   title: string
   excerpt: string | null
-  cover_image: string | null
-  published_at: string | null
-  reading_time: number | null
-  category: string | null
-  author: string | null
+  hero_image_url: string | null
+  hero_image_alt: string | null
+  tags: string[] | null
+  published_at: string
+  is_auto_generated: boolean
 }
 
-function formatDate(iso: string) {
+function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-export default async function BlogPage() {
-  const supabase = getSupabase()
+export default async function BlogIndex() {
+  const { data: postsRaw } = await supabase
+    .from('blog_posts')
+    .select('id, slug, title, excerpt, hero_image_url, hero_image_alt, tags, published_at, is_auto_generated')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .limit(60)
 
-  let posts: Article[] = []
-  let error: { message: string } | null = null
+  const posts = (postsRaw ?? []) as Post[]
+  const [hero, ...rest] = posts
 
-  if (supabase) {
-    const res = await supabase
-      .from('seo_articles')
-      .select('id, slug, title, excerpt, cover_image, published_at, reading_time, category, author')
-      .eq('status', 'published')
-      .order('published_at', { ascending: false })
-      .limit(50)
-    posts = res.data ?? []
-    error = res.error
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'ListmyAI Blog',
+    url: 'https://listmyai.com/blog',
+    description: 'Daily AI news, tool deep-dives, and tutorials from the ListmyAI directory.',
+    blogPost: posts.slice(0, 10).map(p => ({
+      '@type': 'BlogPosting',
+      headline: p.title,
+      url: `https://listmyai.com/blog/${p.slug}`,
+      datePublished: p.published_at,
+    })),
   }
 
   return (
-    <div className="min-h-screen" style={{ background: '#0d1117' }}>
-      {/* Hero */}
-      <div className="border-b" style={{ borderColor: '#1e2a3a', background: 'linear-gradient(135deg,#0f172a 0%,#0d1b2e 100%)' }}>
-        <div className="mx-auto max-w-5xl px-4 py-14 text-center">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium"
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+        <div className="mb-10 text-center">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium"
             style={{ borderColor: 'rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.08)', color: '#e94560' }}>
-            <BookOpen className="h-3.5 w-3.5" /> AI Insights & Guides
+            <BookOpen className="h-3.5 w-3.5" /> AI is constantly evolving
           </div>
-          <h1 className="text-4xl font-black text-white sm:text-5xl">ListmyAI Blog</h1>
-          <p className="mx-auto mt-4 max-w-lg text-lg text-slate-400">
-            In-depth guides, comparisons, and news about the best AI tools — curated for builders and creators.
+          <h1 className="text-4xl font-black text-white sm:text-5xl">Latest Blogs</h1>
+          <p className="mx-auto mt-3 max-w-xl text-slate-400">
+            Daily AI news, tool deep-dives, tutorials, and comparisons — covering the most important
+            developments in the AI ecosystem.
           </p>
         </div>
-      </div>
 
-      <div className="mx-auto max-w-5xl px-4 py-12">
-        {error && (
-          <div className="mb-8 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
-            Could not load articles: {error.message}
+        {posts.length === 0 && (
+          <div className="rounded-2xl border py-20 text-center"
+            style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
+            <p className="text-4xl">📝</p>
+            <p className="mt-3 font-semibold text-white">No posts yet</p>
+            <p className="mt-1 text-sm text-slate-500">The first post will land soon. Check back tomorrow.</p>
           </div>
         )}
 
-        {posts.length === 0 && !error && (
-          <div className="rounded-2xl border p-16 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-            <p className="text-3xl mb-3">✍️</p>
-            <p className="font-bold text-white text-lg">Blog coming soon</p>
-            <p className="mt-2 text-sm text-slate-500">
-              We&apos;re working on in-depth AI tool guides and comparisons. Check back soon!
-            </p>
-            <Link href="/directory"
-              className="mt-6 inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
-              style={{ background: '#e94560' }}>
-              Browse AI Tools <ArrowRight className="h-4 w-4" />
-            </Link>
-          </div>
-        )}
-
-        {posts.length > 0 && (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {posts.map((post, i) => (
-              <Link key={post.id} href={`/blog/${post.slug}`}
-                className="group rounded-2xl border overflow-hidden transition hover:border-red-500/30"
-                style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
-                {/* Cover image */}
-                {post.cover_image ? (
-                  <div className="aspect-video overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={post.cover_image} alt={post.title}
-                      className="h-full w-full object-cover transition group-hover:scale-105 duration-500" />
-                  </div>
+        {hero && (
+          <Link href={`/blog/${hero.slug}`}
+            className="group mb-10 block overflow-hidden rounded-3xl border transition hover:border-red-500/40"
+            style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
+            <div className="grid grid-cols-1 md:grid-cols-2">
+              <div className="relative h-64 md:h-auto">
+                {hero.hero_image_url ? (
+                  <Image src={hero.hero_image_url} alt={hero.hero_image_alt || hero.title}
+                    fill className="object-cover" unoptimized />
                 ) : (
-                  <div className="aspect-video flex items-center justify-center"
-                    style={{ background: `linear-gradient(135deg, ${i % 2 === 0 ? '#1e2a3a,#0f172a' : '#0f172a,#1e2a3a'})` }}>
-                    <BookOpen className="h-10 w-10 text-slate-700" />
+                  <div className="flex h-full items-center justify-center"
+                    style={{ background: 'linear-gradient(135deg,#1f2937,#0d1117)' }}>
+                    <Sparkles className="h-16 w-16 text-slate-700" />
                   </div>
                 )}
-
-                <div className="p-5">
-                  {post.category && (
-                    <span className="mb-2 inline-block rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-                      style={{ background: 'rgba(233,69,96,0.1)', color: '#e94560' }}>
-                      {post.category}
-                    </span>
-                  )}
-                  <h2 className="font-bold text-white leading-snug mb-2 group-hover:text-red-400 transition line-clamp-2">
-                    {post.title}
+                <div className="absolute left-4 top-4 inline-flex items-center gap-1 rounded-full bg-black/60 px-3 py-1 text-xs font-bold text-white backdrop-blur">
+                  <Sparkles className="h-3 w-3" style={{ color: '#e94560' }} /> Latest
+                </div>
+              </div>
+              <div className="flex flex-col justify-between p-6 sm:p-8">
+                <div>
+                  <div className="mb-3 flex items-center gap-3 text-xs text-slate-500">
+                    <span className="inline-flex items-center gap-1"><Calendar className="h-3 w-3" /> {fmtDate(hero.published_at)}</span>
+                    {hero.tags && hero.tags.length > 0 && (
+                      <span className="inline-flex items-center gap-1">
+                        <Tag className="h-3 w-3" /> {hero.tags.slice(0, 2).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="text-2xl font-black text-white transition-colors group-hover:text-red-400 sm:text-3xl">
+                    {hero.title}
                   </h2>
-                  {post.excerpt && (
-                    <p className="text-sm text-slate-500 line-clamp-2 mb-4">{post.excerpt}</p>
+                  {hero.excerpt && (
+                    <p className="mt-3 line-clamp-4 text-sm leading-relaxed text-slate-400">{hero.excerpt}</p>
                   )}
-                  <div className="flex items-center gap-3 text-xs text-slate-600">
-                    {post.published_at && (
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" /> {formatDate(post.published_at)}
-                      </span>
-                    )}
-                    {post.reading_time && (
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {post.reading_time} min read
-                      </span>
-                    )}
+                </div>
+                <div className="mt-6 inline-flex items-center gap-1 text-sm font-bold transition group-hover:gap-2" style={{ color: '#e94560' }}>
+                  Read article <ArrowRight className="h-4 w-4" />
+                </div>
+              </div>
+            </div>
+          </Link>
+        )}
+
+        {rest.length > 0 && (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {rest.map(p => (
+              <Link key={p.id} href={`/blog/${p.slug}`}
+                className="group flex flex-col overflow-hidden rounded-2xl border transition hover:border-red-500/40"
+                style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
+                <div className="relative h-44">
+                  {p.hero_image_url ? (
+                    <Image src={p.hero_image_url} alt={p.hero_image_alt || p.title}
+                      fill className="object-cover" unoptimized />
+                  ) : (
+                    <div className="flex h-full items-center justify-center"
+                      style={{ background: 'linear-gradient(135deg,#1e2a3a,#0d1117)' }}>
+                      <Sparkles className="h-10 w-10 text-slate-700" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-1 flex-col p-5">
+                  <div className="mb-2 flex items-center gap-2 text-[11px] text-slate-500">
+                    <Calendar className="h-3 w-3" /> {fmtDate(p.published_at)}
+                  </div>
+                  <h3 className="line-clamp-2 font-bold text-white transition-colors group-hover:text-red-400">
+                    {p.title}
+                  </h3>
+                  {p.excerpt && (
+                    <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-400">{p.excerpt}</p>
+                  )}
+                  <div className="mt-auto pt-3 text-xs font-semibold transition group-hover:underline" style={{ color: '#e94560' }}>
+                    Read more →
                   </div>
                 </div>
               </Link>
@@ -134,6 +169,6 @@ export default async function BlogPage() {
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }

@@ -1,12 +1,22 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import type { Metadata } from 'next'
-import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame } from 'lucide-react'
+import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar } from 'lucide-react'
 import SearchBar from '@/components/search/SearchBar'
 import CategoryGrid from '@/components/listing/CategoryGrid'
 import ToolCard from '@/components/listing/ToolCard'
 import TrendingList, { type TrendingTool } from '@/components/listing/TrendingList'
 import { AiTool, Category } from '@/types'
 import { createClient } from '@supabase/supabase-js'
+
+type BlogPost = {
+  slug: string
+  title: string
+  excerpt: string | null
+  hero_image_url: string | null
+  tags: string[] | null
+  published_at: string
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +46,7 @@ export default async function HomePage() {
   let featuredTools: AiTool[] = []
   let recentTools: AiTool[] = []
   let trendingTools: TrendingTool[] = []
+  let latestPosts: BlogPost[] = []
   let totalCount = 0
 
   if (supabase) {
@@ -133,6 +144,15 @@ export default async function HomePage() {
 
     trendingTools = (trending ?? []) as TrendingTool[]
 
+    // Latest blog posts for homepage section
+    const { data: posts } = await supabase
+      .from('blog_posts')
+      .select('slug, title, excerpt, hero_image_url, tags, published_at')
+      .eq('status', 'published')
+      .order('published_at', { ascending: false })
+      .limit(3)
+    latestPosts = (posts ?? []) as BlogPost[]
+
     // Recently added tools
     const { data: recent } = await supabase
       .from('ai_tools')
@@ -215,6 +235,22 @@ export default async function HomePage() {
     },
   }
 
+  // Blog JSON-LD — eligible for Google carousel / AI search attribution
+  const blogJsonLd = latestPosts.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'Blog',
+    name: 'ListmyAI Blog',
+    url: 'https://listmyai.com/blog',
+    description: 'Daily AI news, tool deep-dives, and tutorials.',
+    blogPost: latestPosts.map(p => ({
+      '@type': 'BlogPosting',
+      headline: p.title,
+      url: `https://listmyai.com/blog/${p.slug}`,
+      datePublished: p.published_at,
+      image: p.hero_image_url ?? undefined,
+    })),
+  } : null
+
   // ItemList schema for the trending leaderboard — eligible for Google rich
   // results (carousel / list).
   const trendingJsonLd = trendingTools.length > 0 ? {
@@ -238,6 +274,9 @@ export default async function HomePage() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       {trendingJsonLd && (
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(trendingJsonLd) }} />
+      )}
+      {blogJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(blogJsonLd) }} />
       )}
       {/* Hero */}
       <section className="relative overflow-hidden" style={{background:'linear-gradient(135deg,#0f172a 0%,#0d1b2e 50%,#0f172a 100%)'}}>
@@ -405,6 +444,73 @@ export default async function HomePage() {
                 className="inline-flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
                 style={{ color: '#e94560' }}>
                 View all 100 trending tools <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </section>
+        )}
+
+        {/* Latest from the Blog */}
+        {latestPosts.length > 0 && (
+          <section className="py-10" aria-labelledby="latest-blog-heading">
+            <div className="mb-6 flex items-end justify-between">
+              <div>
+                <div className="mb-1 flex items-center gap-2 text-sm" style={{ color: '#e94560' }}>
+                  <BookOpen className="h-4 w-4" /> AI is constantly evolving
+                </div>
+                <h2 id="latest-blog-heading" className="text-2xl font-bold text-white sm:text-3xl">
+                  Latest Blogs
+                </h2>
+                <p className="mt-1 max-w-xl text-sm" style={{ color: '#64748b' }}>
+                  Daily AI news, tool deep-dives, and tutorials — fresh content every day.
+                </p>
+              </div>
+              <Link href="/blog"
+                className="flex shrink-0 items-center gap-1 text-sm hover:underline"
+                style={{ color: '#e94560' }}>
+                All articles <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+              {latestPosts.map(p => (
+                <Link key={p.slug} href={`/blog/${p.slug}`}
+                  className="group flex flex-col overflow-hidden rounded-2xl border transition hover:border-red-500/40"
+                  style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
+                  <div className="relative h-40">
+                    {p.hero_image_url ? (
+                      <Image src={p.hero_image_url} alt={p.title} fill
+                        className="object-cover" unoptimized />
+                    ) : (
+                      <div className="flex h-full items-center justify-center"
+                        style={{ background: 'linear-gradient(135deg,#1e2a3a,#0d1117)' }}>
+                        <Sparkles className="h-10 w-10 text-slate-700" />
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <div className="mb-2 flex items-center gap-1.5 text-[11px] text-slate-600">
+                      <Calendar className="h-3 w-3" />
+                      {new Date(p.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <h3 className="line-clamp-2 text-sm font-bold text-white transition-colors group-hover:text-red-400">
+                      {p.title}
+                    </h3>
+                    {p.excerpt && (
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500">{p.excerpt}</p>
+                    )}
+                    <div className="mt-auto pt-3 text-xs font-semibold transition group-hover:underline" style={{ color: '#e94560' }}>
+                      Read more →
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-5 text-center">
+              <Link href="/blog"
+                className="inline-flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
+                style={{ color: '#e94560' }}>
+                View all blog posts <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </section>

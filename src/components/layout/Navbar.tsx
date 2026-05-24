@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/trending',    label: '📈 Trending' },
   { href: '/compare',     label: 'Compare' },
   { href: '/deals',       label: '🔥 Deals' },
+  { href: '/blog',        label: '📝 Blog' },
   { href: '/categories',  label: 'Categories' },
   { href: '/advertise',   label: '📣 Advertise' },
 ]
