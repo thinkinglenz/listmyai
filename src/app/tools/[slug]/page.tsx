@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import {
   ExternalLink, Globe, CheckCircle2, Shield, AlertCircle,
   Star, Code2, Smartphone, Monitor,
-  ArrowLeft, Share2, Flag, Zap, Building2, MapPin, Calendar, Copy, Mail,
+  ArrowLeft, Flag, Zap, Building2, MapPin, Calendar, Copy, Mail,
 } from 'lucide-react'
 import PromoCard from '@/components/promo/PromoCard'
 import ToolCard from '@/components/listing/ToolCard'
@@ -289,6 +289,7 @@ function buildJsonLd(tool: AiTool, faqs: { q: string; a: string }[]) {
 import ClaimBanner from '@/components/listing/ClaimBanner'
 import ContactForm from '@/components/listing/ContactForm'
 import WebsitePreview from '@/components/listing/WebsitePreview'
+import ToolShareButtons from '@/components/listing/ToolShareButtons'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -417,10 +418,7 @@ export default async function ToolPage({ params }: PageProps) {
                   </a>
                 )}
                 <UpvoteButton toolId={tool.id} toolName={tool.name} initialCount={tool.upvotes} />
-                <button className="ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm text-slate-500 transition hover:text-slate-300"
-                  style={{borderColor:'#1e2a3a',background:'transparent'}}>
-                  <Share2 className="h-4 w-4" />
-                </button>
+                <ToolShareButtons slug={tool.slug} name={tool.name} tagline={tool.tagline ?? ''} />
               </div>
 
               {/* Rating summary */}
