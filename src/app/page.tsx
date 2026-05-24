@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List } from 'lucide-react'
+import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame } from 'lucide-react'
 import SearchBar from '@/components/search/SearchBar'
 import CategoryGrid from '@/components/listing/CategoryGrid'
 import ToolCard from '@/components/listing/ToolCard'
+import TrendingList, { type TrendingTool } from '@/components/listing/TrendingList'
 import { AiTool, Category } from '@/types'
 import { createClient } from '@supabase/supabase-js'
 
@@ -34,6 +35,7 @@ export default async function HomePage() {
   let categories: Category[] = []
   let featuredTools: AiTool[] = []
   let recentTools: AiTool[] = []
+  let trendingTools: TrendingTool[] = []
   let totalCount = 0
 
   if (supabase) {
@@ -119,6 +121,18 @@ export default async function HomePage() {
       }))
     }
 
+    // Top trending — leaderboard shown on the home page
+    const { data: trending } = await supabase
+      .from('ai_tools')
+      .select('id, slug, name, tagline, website, logo_url, pricing_model, starting_price, has_free_trial, promo_code, upvotes, rating_avg, rating_count, is_featured, categories(name)')
+      .in('status', ['active', 'approved', 'claimed', 'verified'])
+      .order('is_featured', { ascending: false })
+      .order('upvotes', { ascending: false })
+      .order('rating_avg', { ascending: false })
+      .limit(20)
+
+    trendingTools = (trending ?? []) as TrendingTool[]
+
     // Recently added tools
     const { data: recent } = await supabase
       .from('ai_tools')
@@ -201,10 +215,30 @@ export default async function HomePage() {
     },
   }
 
+  // ItemList schema for the trending leaderboard — eligible for Google rich
+  // results (carousel / list).
+  const trendingJsonLd = trendingTools.length > 0 ? {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: 'Top Trending AI Tools in 2026',
+    description: 'A transparent leaderboard of the most popular AI tools right now, ranked by community signal.',
+    numberOfItems: trendingTools.length,
+    itemListOrder: 'https://schema.org/ItemListOrderDescending',
+    itemListElement: trendingTools.slice(0, 20).map((t, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `https://listmyai.com/tools/${t.slug}`,
+      name: t.name,
+    })),
+  } : null
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
+      {trendingJsonLd && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(trendingJsonLd) }} />
+      )}
       {/* Hero */}
       <section className="relative overflow-hidden" style={{background:'linear-gradient(135deg,#0f172a 0%,#0d1b2e 50%,#0f172a 100%)'}}>
         <div className="pointer-events-none absolute inset-0" style={{background:'radial-gradient(ellipse at 50% 0%,rgba(233,69,96,0.12) 0%,transparent 70%)'}} />
@@ -336,6 +370,42 @@ export default async function HomePage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {featuredTools.map(tool => <ToolCard key={tool.id} tool={tool} />)}
+            </div>
+          </section>
+        )}
+
+        {/* Top Trending — simple transparent leaderboard */}
+        {trendingTools.length > 0 && (
+          <section className="py-10" aria-labelledby="top-trending-heading">
+            <div className="mb-6 flex items-end justify-between">
+              <div>
+                <div className="mb-1 flex items-center gap-2 text-sm" style={{ color: '#f59e0b' }}>
+                  <Flame className="h-4 w-4" /> Trending Now
+                </div>
+                <h2 id="top-trending-heading"
+                  className="text-2xl font-bold text-white sm:text-3xl">
+                  Top Trending AI Tools in 2026
+                </h2>
+                <p className="mt-1 max-w-xl text-sm" style={{ color: '#64748b' }}>
+                  A transparent leaderboard of the most popular AI tools right now — ranked by
+                  community signal, with pricing, category, and direct links. Updated weekly.
+                </p>
+              </div>
+              <Link href="/trending"
+                className="flex shrink-0 items-center gap-1 text-sm hover:underline"
+                style={{ color: '#e94560' }}>
+                See full ranking <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <TrendingList tools={trendingTools} />
+
+            <div className="mt-4 text-center">
+              <Link href="/trending"
+                className="inline-flex items-center gap-2 text-sm font-semibold transition hover:opacity-80"
+                style={{ color: '#e94560' }}>
+                View all 100 trending tools <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </section>
         )}
