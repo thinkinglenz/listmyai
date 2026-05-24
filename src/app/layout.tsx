@@ -5,6 +5,7 @@ import './globals.css'
 import AuthProvider from '@/components/AuthProvider'
 import Navbar from '@/components/layout/Navbar'
 import Footer from '@/components/layout/Footer'
+import AdvertiseTopBar from '@/components/layout/AdvertiseTopBar'
 
 const GA_ID = 'G-DHPH8TWB2E'
 
@@ -69,6 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           `}
         </Script>
         <AuthProvider>
+          <AdvertiseTopBar />
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />

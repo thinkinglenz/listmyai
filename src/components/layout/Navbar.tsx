@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: '/compare',     label: 'Compare' },
   { href: '/deals',       label: '🔥 Deals' },
   { href: '/categories',  label: 'Categories' },
+  { href: '/advertise',   label: '📣 Advertise' },
 ]
 
 export default function Navbar() {
