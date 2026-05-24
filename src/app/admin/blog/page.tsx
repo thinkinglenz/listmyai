@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   FileText, MessageSquare, Check, X, Trash2, RefreshCw,
-  ExternalLink, Sparkles, Clock, Eye, ChevronDown, ChevronUp, Zap
+  ExternalLink, Sparkles, Clock, Eye, ChevronDown, ChevronUp, Zap, Share2
 } from 'lucide-react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -99,6 +99,18 @@ export default function AdminBlogPage() {
       body: JSON.stringify({ id, status }),
     })
     loadPosts()
+  }
+
+  // One-click social share — opens pre-filled intent in new tab
+  function sharePost(p: Post, platform: 'twitter' | 'facebook' | 'linkedin') {
+    const url = encodeURIComponent(`https://listmyai.com/blog/${p.slug}`)
+    const text = encodeURIComponent(`${p.title} — via @ListMyai`)
+    const links: Record<string, string> = {
+      twitter:  `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
+      facebook: `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
+    }
+    window.open(links[platform], '_blank', 'width=600,height=500')
   }
 
   // Archive post
@@ -298,12 +310,48 @@ export default function AdminBlogPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
+                  <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+                    {/* View */}
                     <Link href={`/blog/${p.slug}`} target="_blank"
                       className="rounded-lg border p-1.5 text-slate-500 transition hover:text-white"
-                      style={{ borderColor: '#1e2a3a' }}>
+                      style={{ borderColor: '#1e2a3a' }} title="View post">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
+
+                    {/* Share buttons — free intent URLs, no API needed */}
+                    {p.status === 'published' && (
+                      <div className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 text-[10px] text-slate-600">
+                          <Share2 className="h-3 w-3" /> Share:
+                        </span>
+                        {/* X / Twitter */}
+                        <button
+                          onClick={() => sharePost(p, 'twitter')}
+                          title="Share on X / Twitter"
+                          className="rounded-lg border px-2 py-1 text-[11px] font-bold transition hover:bg-white/5"
+                          style={{ borderColor: '#1e2a3a', color: '#e2e8f0' }}>
+                          𝕏
+                        </button>
+                        {/* Facebook */}
+                        <button
+                          onClick={() => sharePost(p, 'facebook')}
+                          title="Share on Facebook"
+                          className="rounded-lg border px-2 py-1 text-[11px] font-bold transition hover:bg-blue-500/10"
+                          style={{ borderColor: '#1e2a3a', color: '#1877f2' }}>
+                          f
+                        </button>
+                        {/* LinkedIn */}
+                        <button
+                          onClick={() => sharePost(p, 'linkedin')}
+                          title="Share on LinkedIn"
+                          className="rounded-lg border px-2 py-1 text-[11px] font-bold transition hover:bg-blue-700/10"
+                          style={{ borderColor: '#1e2a3a', color: '#0a66c2' }}>
+                          in
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Publish / Unpublish */}
                     {p.status === 'published' && (
                       <button onClick={() => changePostStatus(p.id, 'draft')}
                         className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/10"
