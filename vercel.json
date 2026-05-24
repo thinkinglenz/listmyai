@@ -7,6 +7,10 @@
     {
       "path": "/api/email/trial-reminder",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/sync-listmyai",
+      "schedule": "0 6 * * 1"
     }
   ]
 }
