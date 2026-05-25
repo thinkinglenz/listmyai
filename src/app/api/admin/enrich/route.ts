@@ -395,11 +395,10 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
       ? `${err.name}: ${err.message}`
       : String(err)
     // Stamp attempted so we don't keep retrying unreachable sites
-    try {
-      await getSupabase().from('ai_tools')
-        .update({ enrichment_tried_at: new Date().toISOString() })
-        .eq('id', tool.id)
-    } catch { /* column may not exist */ }
+    // NOTE: Supabase returns errors in { error }, NOT thrown — must destructure
+    await getSupabase().from('ai_tools')
+      .update({ enrichment_tried_at: new Date().toISOString() })
+      .eq('id', tool.id)
     return { slug: tool.slug, updated: false, fields: [], error: msg }
   }
 }
@@ -416,76 +415,50 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabase()
 
-  // Fetch tools that actually NEED enrichment — skip already-complete tools
-  // A tool needs enrichment if it's missing description, pricing, tagline, or contact info
-  // Also skip tools where enrichment was already attempted (enrichment_tried_at is set)
-  let query = supabase
+  // ── Column existence check ──────────────────────────────────────────────
+  // Test that enrichment_tried_at exists. If not, return migration SQL.
+  const { error: colCheck } = await supabase
     .from('ai_tools')
-    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, company_description, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url, enrichment_tried_at')
-    .eq('status', 'active')
-    .order('created_at', { ascending: true })
-    .limit(limit * 3)  // fetch more to filter, then take `limit`
+    .select('enrichment_tried_at')
+    .limit(1)
+  if (colCheck?.message?.includes('enrichment_tried_at')) {
+    return NextResponse.json({
+      error: 'Column missing. Run this SQL in Supabase:\n\nALTER TABLE ai_tools ADD COLUMN IF NOT EXISTS enrichment_tried_at timestamptz;',
+      needsMigration: true,
+    }, { status: 500 })
+  }
 
-  // Skip already-attempted tools unless forced
   const force = req.nextUrl.searchParams.get('force') === '1'
+
+  // ── DB-level filter: only fetch tools with MISSING data ─────────────────
+  // This avoids JS-side filtering and prevents "Already complete" tools from
+  // wasting batch slots. Tools that have been attempted (enrichment_tried_at
+  // is set) are skipped unless force=1.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let query: any = supabase
+    .from('ai_tools')
+    .select('id, slug, name, website, tagline, description, pricing_model, starting_price, has_free_trial, has_api, no_code, gdpr_compliant, logo_url, status, company_description, contact_email, support_url, twitter_url, linkedin_url, github_url, discord_url, youtube_url')
+    .eq('status', 'active')
+    // Only tools actually missing one or more core fields
+    .or('description.is.null,pricing_model.is.null,tagline.is.null,logo_url.is.null')
+    .order('created_at', { ascending: true })
+    .limit(limit)
+
   if (!force) {
     query = query.is('enrichment_tried_at', null)
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data: rawTools, error } = await query as any
+  const { data: tools, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  // Check which tools TRULY need enrichment (missing core metadata)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function toolNeedsWork(t: any): boolean {
-    // Core fields — if ANY of these are missing, the tool needs enrichment
-    const missingDesc = !t.description || t.description.length < 30
-    const missingPricing = !t.pricing_model
-    const missingTagline = !t.tagline || t.tagline === t.name
-    const hasDirtyText = (t.tagline && /`#\w+`/.test(t.tagline)) || (t.description && /`#\w+`/.test(t.description))
-
-    return missingDesc || missingPricing || missingTagline || hasDirtyText
-  }
-
-  // Separate: tools that need work vs tools that are already complete
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const needsWork: any[] = []
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const alreadyComplete: any[] = []
-  for (const t of (rawTools || [])) {
-    if (toolNeedsWork(t)) needsWork.push(t)
-    else alreadyComplete.push(t)
-  }
-
-  // Bulk-stamp already-complete tools so they're never fetched again
-  if (alreadyComplete.length > 0) {
-    const completeIds = alreadyComplete.map((t: { id: number }) => t.id)
-    // Stamp in chunks of 100
-    for (let i = 0; i < completeIds.length; i += 100) {
-      const chunk = completeIds.slice(i, i + 100)
-      try {
-        await supabase.from('ai_tools')
-          .update({ enrichment_tried_at: new Date().toISOString() })
-          .in('id', chunk)
-      } catch { /* column may not exist */ }
-    }
-  }
-
-  // Take only `limit` tools that need work
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tools = needsWork.slice(0, limit) as any[]
-
   if (dryRun) {
     return NextResponse.json({
-      total_tools: (rawTools || []).length,
-      already_complete_stamped: alreadyComplete.length,
-      needs_enrichment: needsWork.length,
+      needs_enrichment: (tools || []).length,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      samples: needsWork.slice(0, 10).map((t: any) => ({
+      samples: (tools || []).slice(0, 10).map((t: any) => ({
         slug: t.slug,
         name: t.name,
         website: t.website,
@@ -493,41 +466,41 @@ export async function GET(req: NextRequest) {
           !t.description || t.description.length < 30 ? 'description' : null,
           !t.pricing_model ? 'pricing' : null,
           !t.tagline || t.tagline === t.name ? 'tagline' : null,
+          !t.logo_url ? 'logo_url' : null,
         ].filter(Boolean),
       })),
     })
   }
 
-  // Enrich tools in parallel batches — only tools that genuinely need work
-  const results = []
-  let enriched = 0, skipped = 0, errors = 0
-
-  if (tools.length === 0) {
+  if (!tools || tools.length === 0) {
     return NextResponse.json({
-      enriched: 0,
-      skipped: alreadyComplete.length,
-      errors: 0,
-      total: 0,
-      details: [],
-      message: `${alreadyComplete.length} already-complete tools stamped. No tools need enrichment.`,
+      enriched: 0, skipped: 0, errors: 0, total: 0, details: [],
+      message: 'All tools are enriched — nothing to do!',
     })
   }
 
+  // ── Enrich in parallel batches ───────────────────────────────────────────
+  const results = []
+  let enriched = 0, skipped = 0, errors = 0
+
   for (let i = 0; i < tools.length; i += BATCH_SIZE) {
     const batch = tools.slice(i, i + BATCH_SIZE)
-    const batchResults = await Promise.all(batch.map(tool => enrichTool(tool)))
+    const batchResults = await Promise.all(batch.map(enrichTool))
     for (const result of batchResults) {
       results.push(result)
       if (result.updated) enriched++
       else if (result.error) errors++
       else skipped++
 
-      // Mark enrichment as attempted so we don't re-process this tool
-      try {
-        await supabase.from('ai_tools')
-          .update({ enrichment_tried_at: new Date().toISOString() })
-          .eq('slug', result.slug)
-      } catch { /* column may not exist yet */ }
+      // Stamp attempted — use destructured { error } not try/catch
+      // Supabase never throws; errors come back in the response object
+      const { error: stampErr } = await supabase
+        .from('ai_tools')
+        .update({ enrichment_tried_at: new Date().toISOString() })
+        .eq('slug', result.slug)
+      if (stampErr) {
+        console.error('[enrich] stamp failed for', result.slug, stampErr.message)
+      }
     }
   }
 
