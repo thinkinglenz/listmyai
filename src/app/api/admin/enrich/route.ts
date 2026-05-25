@@ -243,6 +243,13 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
     })
 
     if (!res.ok) {
+      // 403 = bot-blocked, 404 = dead URL, 5xx = site error
+      // Mark as attempted so we don't keep retrying blocked sites
+      try {
+        await getSupabase().from('ai_tools')
+          .update({ enrichment_tried_at: new Date().toISOString() })
+          .eq('id', tool.id)
+      } catch { /* column may not exist */ }
       return { slug: tool.slug, updated: false, fields: [], error: `HTTP ${res.status}` }
     }
 
@@ -383,7 +390,16 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
 
     return { slug: tool.slug, updated: true, fields }
   } catch (err) {
-    const msg = err instanceof Error ? err.name : String(err)
+    // Return the actual message, not just the error class name
+    const msg = err instanceof Error
+      ? `${err.name}: ${err.message}`
+      : String(err)
+    // Stamp attempted so we don't keep retrying unreachable sites
+    try {
+      await getSupabase().from('ai_tools')
+        .update({ enrichment_tried_at: new Date().toISOString() })
+        .eq('id', tool.id)
+    } catch { /* column may not exist */ }
     return { slug: tool.slug, updated: false, fields: [], error: msg }
   }
 }
