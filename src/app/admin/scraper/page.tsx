@@ -787,7 +787,7 @@ export default function AdminScraperPage() {
             <span className="text-xs text-slate-500">Force re-enrich (include already attempted)</span>
           </label>
           <span className="text-xs text-slate-600 ml-auto">
-            Auto-skips already enriched tools · only processes tools with missing data
+            Only fetches tools with missing data · sites that block scrapers or reveal no data are stamped and skipped next time
           </span>
         </div>
 
@@ -801,7 +801,7 @@ export default function AdminScraperPage() {
               </div>
               <div className="text-center">
                 <p className="text-xl font-black text-slate-500">{enrichResult.skipped}</p>
-                <p className="text-[10px] text-slate-500">Skipped</p>
+                <p className="text-[10px] text-slate-500">Nothing found</p>
               </div>
               <div className="text-center">
                 <p className="text-xl font-black text-red-400">{enrichResult.errors}</p>
@@ -830,7 +830,7 @@ export default function AdminScraperPage() {
                     <span className="text-red-400 truncate">{d.error}</span>
                   )}
                   {!d.updated && !d.error && (
-                    <span className="text-slate-600">Already complete</span>
+                    <span className="text-slate-600">No data found on site</span>
                   )}
                 </div>
               ))}
