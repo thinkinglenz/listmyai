@@ -110,12 +110,24 @@ export default function AdminListingsPage() {
     await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'rejected' }) })
   }
   async function deactivate(id: string) {
-    setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'inactive' } : t))
-    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'inactive' }) })
+    const prev = tools.find(t => t.id === id)?.status ?? 'active'
+    setTools(prev2 => prev2.map(t => t.id === id ? { ...t, status: 'inactive' } : t))
+    const res = await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'inactive' }) })
+    const data = await res.json()
+    if (!res.ok || data.error) {
+      // Revert optimistic update and show error
+      setTools(prev2 => prev2.map(t => t.id === id ? { ...t, status: prev as Tool['status'] } : t))
+      alert(`Failed to deactivate: ${data.error ?? 'Unknown error'}\n\nRun this SQL in Supabase:\nALTER TABLE ai_tools DROP CONSTRAINT IF EXISTS ai_tools_status_check;\nALTER TABLE ai_tools ADD CONSTRAINT ai_tools_status_check CHECK (status IN ('active','pending','rejected','inactive','archived'));`)
+    }
   }
   async function reactivate(id: string) {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'active' } : t))
-    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'active' }) })
+    const res = await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'active' }) })
+    const data = await res.json()
+    if (!res.ok || data.error) {
+      setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'inactive' } : t))
+      alert(`Failed to reactivate: ${data.error ?? 'Unknown error'}`)
+    }
   }
   async function remove(id: string) {
     if (!confirm('Delete this tool permanently?')) return
