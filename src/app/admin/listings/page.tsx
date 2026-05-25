@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database } from 'lucide-react'
+import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw } from 'lucide-react'
 
 interface Tool {
   id: string
@@ -9,7 +9,7 @@ interface Tool {
   slug: string
   category: string
   website: string
-  status: 'active' | 'pending' | 'rejected'
+  status: 'active' | 'pending' | 'rejected' | 'inactive'
   claimed: boolean
   upvotes: number
   rating: number
@@ -20,6 +20,7 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
   active:   { label: 'Active',   color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
   pending:  { label: 'Pending',  color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.1)'  },
+  inactive: { label: 'Inactive', color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
 }
 
 export default function AdminListingsPage() {
@@ -108,6 +109,14 @@ export default function AdminListingsPage() {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'rejected' } : t))
     await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'rejected' }) })
   }
+  async function deactivate(id: string) {
+    setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'inactive' } : t))
+    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'inactive' }) })
+  }
+  async function reactivate(id: string) {
+    setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'active' } : t))
+    await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'active' }) })
+  }
   async function remove(id: string) {
     if (!confirm('Delete this tool permanently?')) return
     setTools(prev => prev.filter(t => t.id !== id))
@@ -173,6 +182,7 @@ export default function AdminListingsPage() {
             style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
             <option value="all">All statuses</option>
             <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
             <option value="pending">Pending</option>
             <option value="rejected">Rejected</option>
           </select>
@@ -274,7 +284,19 @@ export default function AdminListingsPage() {
                               </button>
                             </>
                           )}
-                          <button onClick={() => remove(tool.id)} title="Delete"
+                          {tool.status === 'active' && (
+                            <button onClick={() => deactivate(tool.id)} title="Deactivate (hide from directory)"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-500/10 hover:text-slate-300">
+                              <EyeOff className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {tool.status === 'inactive' && (
+                            <button onClick={() => reactivate(tool.id)} title="Reactivate"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-500/10">
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          <button onClick={() => remove(tool.id)} title="Delete permanently"
                             className="flex h-7 w-7 items-center justify-center rounded-lg text-red-500 transition hover:bg-red-500/10">
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
