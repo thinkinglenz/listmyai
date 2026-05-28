@@ -463,10 +463,10 @@ export default async function BlogPostPage({ params }: Props) {
               {/* Advertise CTA */}
               <div className="rounded-2xl border p-5 text-center" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                 <p className="text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">Want to sponsor a post?</p>
-                <a href="mailto:advertise@listmyai.com?subject=Sponsored+Blog+Post"
+                <a href="mailto:listmyai@gmail.com?subject=Sponsored+Blog+Post"
                   className="inline-flex items-center gap-1.5 text-xs font-semibold transition hover:underline"
                   style={{ color: '#e94560' }}>
-                  advertise@listmyai.com →
+                  listmyai@gmail.com →
                 </a>
               </div>
             </aside>

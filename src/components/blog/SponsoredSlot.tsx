@@ -104,8 +104,8 @@ export function SponsoredPlaceholder() {
       <p className="text-xs font-bold uppercase tracking-wider text-slate-600">Sponsored Content Slot</p>
       <p className="mt-1 text-xs text-slate-700">
         Supports: logo · image · video · CTA link · blurb. Contact{' '}
-        <a href="mailto:advertise@listmyai.com" className="underline" style={{ color: '#e94560' }}>
-          advertise@listmyai.com
+        <a href="mailto:listmyai@gmail.com" className="underline" style={{ color: '#e94560' }}>
+          listmyai@gmail.com
         </a>
       </p>
     </div>
