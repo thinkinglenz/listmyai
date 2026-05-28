@@ -50,6 +50,9 @@ export const metadata: Metadata = {
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION ?? undefined,
   },
+  other: {
+    'google-adsense-account': 'ca-pub-5210860252235896',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -59,7 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Google AdSense */}
         <Script
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5210860252235896"
-          strategy="afterInteractive"
+          strategy="beforeInteractive"
           crossOrigin="anonymous"
         />
         {/* Google Analytics */}
