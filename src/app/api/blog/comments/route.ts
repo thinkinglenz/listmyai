@@ -53,6 +53,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'You must be signed in to comment.' }, { status: 401 })
   }
 
+  // Require email verification before posting
+  const { data: { user } } = await ssrClient.auth.getUser()
+  if (!user?.email_confirmed_at) {
+    return NextResponse.json(
+      { error: 'Please verify your email address before posting a comment.' },
+      { status: 403 }
+    )
+  }
+
   const body = await req.json()
   const { post_id, body: commentBody } = body
 

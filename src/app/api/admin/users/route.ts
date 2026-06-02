@@ -8,18 +8,15 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    // Get profiles (joined with auth user data via service role)
-    // Get auth users first (service role only) — this is the source of truth
     const { data: authData } = await supabase.auth.admin.listUsers()
     const authUsers = authData?.users ?? []
 
-    // Try profiles table — fall back gracefully if columns don't exist
     let profiles: Record<string, Record<string, unknown>> = {}
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(200)
 
     if (profileData) {
       for (const p of profileData) {
@@ -36,6 +33,8 @@ export async function GET() {
         role: (p.role ?? 'user') as string,
         plan: (p.plan ?? 'free') as string,
         joined: u.created_at,
+        email_verified: !!u.email_confirmed_at,
+        banned: !!u.banned_until && new Date(u.banned_until) > new Date(),
       }
     })
 
@@ -46,8 +45,33 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const { id, role } = await req.json()
+  const { id, role, action } = await req.json()
+
+  if (action === 'ban') {
+    const { error } = await supabase.auth.admin.updateUserById(id, {
+      ban_duration: '87600h', // ~10 years = effectively permanent
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  if (action === 'unban') {
+    const { error } = await supabase.auth.admin.updateUserById(id, {
+      ban_duration: 'none',
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ success: true })
+  }
+
+  // Default: update role in profiles table
   const { error } = await supabase.from('profiles').update({ role }).eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ success: true })
+}
+
+export async function DELETE(req: NextRequest) {
+  const { id } = await req.json()
+  const { error } = await supabase.auth.admin.deleteUser(id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ success: true })
 }
