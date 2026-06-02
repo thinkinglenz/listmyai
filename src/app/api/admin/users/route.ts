@@ -47,6 +47,18 @@ export async function GET() {
 export async function PATCH(req: NextRequest) {
   const { id, role, action } = await req.json()
 
+  if (action === 'resend_verification') {
+    // Generate a fresh confirmation link and send via Supabase's own mailer
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase.auth.admin.generateLink as any)({
+      type: 'signup',
+      email: id, // for this action, id carries the email
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    // Supabase sends the email automatically when generateLink is called with type=signup
+    return NextResponse.json({ success: true, link: data?.properties?.action_link })
+  }
+
   if (action === 'ban') {
     const { error } = await supabase.auth.admin.updateUserById(id, {
       ban_duration: '87600h', // ~10 years = effectively permanent

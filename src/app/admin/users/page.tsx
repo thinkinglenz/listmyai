@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Search, Shield, Mail, ChevronDown, User, CheckCircle, XCircle, Ban, Trash2, RotateCcw } from 'lucide-react'
+import { Search, Shield, Mail, ChevronDown, User, CheckCircle, XCircle, Ban, Trash2, RotateCcw, SendHorizonal } from 'lucide-react'
 
 interface AppUser {
   id: string
@@ -27,6 +27,8 @@ export default function AdminUsersPage() {
   const [filterRole, setFilterRole] = useState('all')
   const [filterPlan, setFilterPlan] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all') // all | verified | unverified | banned
+  const [toast, setToast]           = useState<{ msg: string; ok: boolean } | null>(null)
+  const [sending, setSending]       = useState<string | null>(null) // user id being emailed
 
   useEffect(() => {
     fetch('/api/admin/users')
@@ -72,6 +74,27 @@ export default function AdminUsersPage() {
     if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, banned: !banned } : u))
   }
 
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  async function sendVerification(userId: string, email: string) {
+    setSending(userId)
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: email, action: 'resend_verification' }),
+    })
+    const data = await res.json()
+    setSending(null)
+    if (res.ok) {
+      showToast(`Verification email sent to ${email}`)
+    } else {
+      showToast(data.error ?? 'Failed to send email', false)
+    }
+  }
+
   async function deleteUser(id: string, email: string) {
     if (!confirm(`Permanently delete user ${email}? This cannot be undone.`)) return
     const res = await fetch('/api/admin/users', {
@@ -91,6 +114,16 @@ export default function AdminUsersPage() {
 
   return (
     <div>
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold shadow-xl transition-all ${
+          toast.ok ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.ok ? <CheckCircle className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+          {toast.msg}
+        </div>
+      )}
+
       <div className="mb-6">
         <h1 className="text-2xl font-black text-white">Users</h1>
         <p className="text-sm text-slate-500">
@@ -220,7 +253,18 @@ export default function AdminUsersPage() {
 
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          {user.email !== '—' && (
+                          {user.email !== '—' && !user.email_verified && (
+                            <button
+                              onClick={() => sendVerification(user.id, user.email)}
+                              disabled={sending === user.id}
+                              title="Send verification email"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-400 transition hover:bg-amber-500/10 disabled:opacity-40">
+                              {sending === user.id
+                                ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
+                                : <SendHorizonal className="h-3.5 w-3.5" />}
+                            </button>
+                          )}
+                          {user.email !== '—' && user.email_verified && (
                             <a href={`mailto:${user.email}`} title="Send email"
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/10 hover:text-white">
                               <Mail className="h-3.5 w-3.5" />
