@@ -462,15 +462,16 @@ export default function AdminBlogPage() {
                       <div className="flex items-start gap-3">
                         <img src={p.hero_image_url} alt="Hero" className="h-16 w-24 rounded-lg object-cover flex-shrink-0" />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                          <p className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1">
                             <ImageIcon className="h-3.5 w-3.5" /> Attach this image to your LinkedIn post
                           </p>
-                          <a href={p.hero_image_url} target="_blank" rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
-                            style={{ background: '#1e2a3a' }}>
-                            <ExternalLink className="h-3 w-3" /> Open image
+                          <a
+                            href={`/api/image/download-png?url=${encodeURIComponent(p.hero_image_url)}`}
+                            download="listmyai-hero.png"
+                            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                            style={{ background: '#0a66c2' }}>
+                            <ImageIcon className="h-3 w-3" /> Download PNG
                           </a>
-                          <p className="mt-1 text-[10px] text-slate-600 truncate">{p.hero_image_url}</p>
                         </div>
                       </div>
                     )}
