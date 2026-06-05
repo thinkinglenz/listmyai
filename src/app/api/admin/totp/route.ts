@@ -42,7 +42,7 @@ function verifyTOTP(secret: string, code: string): boolean {
   return [-1, 0, 1].some(w => totp(secret, w) === code)
 }
 
-const SECRET = process.env.ADMIN_TOTP_SECRET ?? '56N56OEHAZZUCV2VKA4K'
+const SECRET = process.env.ADMIN_TOTP_SECRET ?? 'DNB2RF2MPEYGBGGBMKMY'
 
 // GET — return QR code URL for initial setup
 export async function GET() {
