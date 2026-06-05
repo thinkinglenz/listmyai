@@ -4,8 +4,15 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import {
   FileText, MessageSquare, Check, X, Trash2, RefreshCw,
-  ExternalLink, Sparkles, Clock, Eye, ChevronDown, ChevronUp, Zap, Share2
+  ExternalLink, Sparkles, Clock, Eye, ChevronDown, ChevronUp, Zap, Share2,
+  Copy, CheckCheck, Image as ImageIcon
 } from 'lucide-react'
+
+const LinkedInIcon = () => (
+  <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+  </svg>
+)
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -19,6 +26,7 @@ interface Post {
   view_count: number
   tags: string[] | null
   excerpt: string | null
+  hero_image_url: string | null
 }
 
 interface Comment {
@@ -59,6 +67,10 @@ export default function AdminBlogPage() {
   const [generating, setGenerating] = useState(false)
   const [generateMsg, setGenerateMsg] = useState('')
   const [customTopic, setCustomTopic] = useState('')
+
+  // Snippet panel
+  const [snippetPostId, setSnippetPostId] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // Load posts
   const loadPosts = useCallback(async () => {
@@ -132,6 +144,23 @@ export default function AdminBlogPage() {
       linkedin: linkedinUrl,
     }
     window.open(links[platform], '_blank', 'width=620,height=560,noopener,noreferrer')
+  }
+
+  // Build ready-to-paste LinkedIn caption
+  function buildLinkedInCaption(p: Post): string {
+    const url = `https://listmyai.com/blog/${p.slug}`
+    const hashtagLine = (p.tags ?? [])
+      .slice(0, 5)
+      .map(t => `#${t.replace(/\s+/g, '')}`)
+      .join(' ')
+    const extra = '#AI #ArtificialIntelligence #ListmyAI'
+    return `${p.title}\n\n${p.excerpt ?? ''}\n\n🔗 ${url}\n\n${hashtagLine} ${extra}`.trim()
+  }
+
+  async function copySnippet(p: Post) {
+    await navigator.clipboard.writeText(buildLinkedInCaption(p))
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   // Archive post
@@ -306,7 +335,8 @@ export default function AdminBlogPage() {
             <div className="divide-y overflow-hidden rounded-2xl border"
               style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
               {posts.map(p => (
-                <div key={p.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
+                <div key={p.id} className="flex flex-col">
+                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start">
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -338,6 +368,15 @@ export default function AdminBlogPage() {
                       style={{ borderColor: '#1e2a3a' }} title="View post">
                       <ExternalLink className="h-3.5 w-3.5" />
                     </Link>
+
+                    {/* LinkedIn Snippet */}
+                    <button
+                      onClick={() => setSnippetPostId(snippetPostId === p.id ? null : p.id)}
+                      title="Copy LinkedIn post snippet"
+                      className="flex items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold transition hover:bg-blue-700/10"
+                      style={{ borderColor: '#1e2a3a', color: snippetPostId === p.id ? '#0a66c2' : '#64748b' }}>
+                      <LinkedInIcon /> Snippet
+                    </button>
 
                     {/* Share buttons — free intent URLs, no API needed */}
                     {p.status === 'published' && (
@@ -395,6 +434,52 @@ export default function AdminBlogPage() {
                       </button>
                     )}
                   </div>
+                </div>
+                {/* ── LinkedIn Snippet Panel ── */}
+                {snippetPostId === p.id && (
+                  <div className="mt-3 rounded-xl border p-4 space-y-3"
+                    style={{ borderColor: 'rgba(10,102,194,0.25)', background: 'rgba(10,102,194,0.05)' }}>
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-blue-400">
+                        <LinkedInIcon /> Ready-to-post LinkedIn caption
+                      </span>
+                      <button
+                        onClick={() => copySnippet(p)}
+                        className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                        style={{ background: copied ? '#10b981' : '#0a66c2' }}>
+                        {copied ? <><CheckCheck className="h-3.5 w-3.5" /> Copied!</> : <><Copy className="h-3.5 w-3.5" /> Copy all</>}
+                      </button>
+                    </div>
+
+                    {/* Caption text */}
+                    <pre className="whitespace-pre-wrap rounded-lg p-3 text-xs text-slate-300 leading-relaxed select-all"
+                      style={{ background: '#0d1117', border: '1px solid #1e2a3a', fontFamily: 'inherit' }}>
+                      {buildLinkedInCaption(p)}
+                    </pre>
+
+                    {/* Hero image */}
+                    {p.hero_image_url && (
+                      <div className="flex items-start gap-3">
+                        <img src={p.hero_image_url} alt="Hero" className="h-16 w-24 rounded-lg object-cover flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold text-slate-400 mb-1 flex items-center gap-1">
+                            <ImageIcon className="h-3.5 w-3.5" /> Attach this image to your LinkedIn post
+                          </p>
+                          <a href={p.hero_image_url} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+                            style={{ background: '#1e2a3a' }}>
+                            <ExternalLink className="h-3 w-3" /> Open image
+                          </a>
+                          <p className="mt-1 text-[10px] text-slate-600 truncate">{p.hero_image_url}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-[10px] text-slate-600">
+                      Tip: open LinkedIn → Start a post → paste the caption → attach the image → publish
+                    </p>
+                  </div>
+                )}
                 </div>
               ))}
             </div>
