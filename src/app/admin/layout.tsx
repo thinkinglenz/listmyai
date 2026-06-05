@@ -135,13 +135,14 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
         {/* Step 2a — First-time QR setup */}
         {step === 'setup' && (
           <div className="space-y-4">
+            {/* Instructions */}
             <div className="rounded-xl p-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }}>
+              <p className="text-xs font-semibold text-white mb-1">Option A — Scan QR code</p>
               <p className="text-xs text-slate-400 leading-relaxed">
-                1. Install <strong className="text-white">Google Authenticator</strong> on your phone<br />
-                2. Tap <strong className="text-white">+</strong> → <strong className="text-white">Scan QR code</strong><br />
-                3. Scan the code below, then enter the 6-digit code
+                Open Google Authenticator → tap <strong className="text-white">+</strong> → <strong className="text-white">Scan QR code</strong> → point at the code below (use a second device)
               </p>
             </div>
+
             {qrUrl && (
               <div className="flex justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -149,6 +150,28 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
                   width={180} height={180} />
               </div>
             )}
+
+            {/* Manual entry key — for when scanning isn't possible */}
+            <div className="rounded-xl p-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }}>
+              <p className="text-xs font-semibold text-white mb-1">Option B — Enter key manually</p>
+              <p className="text-xs text-slate-400 mb-2">
+                Open Google Authenticator → tap <strong className="text-white">+</strong> → <strong className="text-white">Enter a setup key</strong> → use these details:
+              </p>
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
+                  <span className="text-slate-500">Account name</span>
+                  <span className="font-mono font-bold text-white">ListmyAI Admin</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
+                  <span className="text-slate-500">Key</span>
+                  <span className="font-mono font-bold text-green-400 tracking-wider select-all">56N56OEHAZZUCV2VKA4K</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
+                  <span className="text-slate-500">Type</span>
+                  <span className="font-mono text-white">Time-based</span>
+                </div>
+              </div>
+            </div>
             <form onSubmit={submitCode} className="space-y-3">
               <input type="text" inputMode="numeric" maxLength={6}
                 value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError('') }}
