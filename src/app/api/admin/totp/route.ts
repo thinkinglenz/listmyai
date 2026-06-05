@@ -46,10 +46,12 @@ const SECRET = process.env.ADMIN_TOTP_SECRET ?? '56N56OEHAZZUCV2VKA4K'
 
 // GET — return QR code URL for initial setup
 export async function GET() {
-  const label = encodeURIComponent('ListmyAI Admin')
+  const label = encodeURIComponent('ListmyAI:Admin')
   const issuer = encodeURIComponent('ListmyAI')
-  const otpauth = `otpauth://totp/${label}?secret=${SECRET}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`
-  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(otpauth)}`
+  // Keep the otpauth URL minimal — shorter URL = less dense QR = easier to scan
+  const otpauth = `otpauth://totp/${label}?secret=${SECRET}&issuer=${issuer}`
+  // Use a larger size (400px) and lowest error correction (L) for maximum scannability
+  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&ecc=L&margin=10&data=${encodeURIComponent(otpauth)}`
   return NextResponse.json({ qr, secret: SECRET })
 }
 

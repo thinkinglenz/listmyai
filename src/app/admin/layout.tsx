@@ -147,7 +147,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
               <div className="flex justify-center">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={qrUrl} alt="TOTP QR Code" className="rounded-xl"
-                  width={180} height={180} />
+                  width={260} height={260} />
               </div>
             )}
 
