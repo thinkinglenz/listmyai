@@ -8,70 +8,159 @@ import {
   Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3, Send, BookOpen,
 } from 'lucide-react'
 
-// ─── Admin password gate ────────────────────────────────────────────────────
+// ─── Admin password + 2FA gate ──────────────────────────────────────────────
 const ADMIN_PASSWORD = 'lmai@admin2026'
 const SESSION_KEY = 'lmai_admin_auth'
 
 function PasswordGate({ onAuth }: { onAuth: () => void }) {
-  const [pw, setPw] = useState('')
-  const [show, setShow] = useState(false)
-  const [error, setError] = useState(false)
+  const [step, setStep]   = useState<'password' | 'otp'>('password')
+  const [pw, setPw]       = useState('')
+  const [otp, setOtp]     = useState('')
+  const [show, setShow]   = useState(false)
+  const [error, setError] = useState('')
   const [shake, setShake] = useState(false)
+  const [sending, setSending] = useState(false)
 
-  function attempt(e: React.FormEvent) {
+  function triggerShake() {
+    setShake(true)
+    setTimeout(() => setShake(false), 500)
+  }
+
+  async function submitPassword(e: React.FormEvent) {
     e.preventDefault()
-    if (pw === ADMIN_PASSWORD) {
+    if (pw !== ADMIN_PASSWORD) {
+      setError('Incorrect password. Try again.')
+      setPw('')
+      triggerShake()
+      return
+    }
+    // Password correct → send OTP
+    setSending(true)
+    setError('')
+    try {
+      const res = await fetch('/api/admin/otp', { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to send code')
+      setStep('otp')
+    } catch {
+      setError('Could not send verification code. Check your email config.')
+    }
+    setSending(false)
+  }
+
+  async function submitOtp(e: React.FormEvent) {
+    e.preventDefault()
+    const res = await fetch('/api/admin/otp', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: otp.trim() }),
+    })
+    const data = await res.json()
+    if (data.verified) {
       sessionStorage.setItem(SESSION_KEY, '1')
       onAuth()
     } else {
-      setError(true)
-      setShake(true)
-      setPw('')
-      setTimeout(() => setShake(false), 500)
+      setError(data.error ?? 'Incorrect code.')
+      setOtp('')
+      triggerShake()
     }
+  }
+
+  async function resendOtp() {
+    setSending(true)
+    setError('')
+    await fetch('/api/admin/otp', { method: 'POST' })
+    setSending(false)
+    setError('New code sent!')
   }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4"
       style={{ background: '#0d1117' }}>
-      <div className={`w-full max-w-sm rounded-2xl border p-8 ${shake ? 'animate-pulse' : ''}`}
+      <div className={`w-full max-w-sm rounded-2xl border p-8 transition-all ${shake ? 'animate-pulse' : ''}`}
         style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{ background: '#e94560' }}>
+            style={{ background: step === 'otp' ? '#6366f1' : '#e94560' }}>
             <Lock className="h-6 w-6 text-white" />
           </div>
-          <h1 className="text-xl font-black text-white">Admin Access</h1>
-          <p className="mt-1 text-sm text-slate-500">Enter the admin password to continue</p>
+          <h1 className="text-xl font-black text-white">
+            {step === 'password' ? 'Admin Access' : 'Verify Your Identity'}
+          </h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {step === 'password'
+              ? 'Enter the admin password to continue'
+              : 'Enter the 6-digit code sent to your email'}
+          </p>
         </div>
-        <form onSubmit={attempt} className="space-y-4">
-          <div className="relative">
-            <input
-              type={show ? 'text' : 'password'}
-              value={pw}
-              onChange={e => { setPw(e.target.value); setError(false) }}
-              placeholder="Admin password"
-              autoFocus
-              className="w-full rounded-xl border py-3 pl-4 pr-10 text-sm text-white placeholder-slate-600 outline-none"
-              style={{
-                borderColor: error ? '#ef4444' : '#1e2a3a',
-                background: '#0d1117',
-              }}
-            />
-            <button type="button" onClick={() => setShow(s => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 transition hover:text-white">
-              {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+
+        {/* Step 1 — Password */}
+        {step === 'password' && (
+          <form onSubmit={submitPassword} className="space-y-4">
+            <div className="relative">
+              <input
+                type={show ? 'text' : 'password'}
+                value={pw}
+                onChange={e => { setPw(e.target.value); setError('') }}
+                placeholder="Admin password"
+                autoFocus
+                className="w-full rounded-xl border py-3 pl-4 pr-10 text-sm text-white placeholder-slate-600 outline-none"
+                style={{ borderColor: error ? '#ef4444' : '#1e2a3a', background: '#0d1117' }}
+              />
+              <button type="button" onClick={() => setShow(s => !s)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
+                {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <button type="submit" disabled={sending}
+              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+              style={{ background: '#e94560' }}>
+              {sending ? 'Sending code…' : 'Continue →'}
             </button>
-          </div>
-          {error && <p className="text-xs text-red-400">Incorrect password. Try again.</p>}
-          <button type="submit"
-            className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-            style={{ background: '#e94560' }}>
-            Enter Admin Panel
-          </button>
-        </form>
+          </form>
+        )}
+
+        {/* Step 2 — OTP */}
+        {step === 'otp' && (
+          <form onSubmit={submitOtp} className="space-y-4">
+            <div className="rounded-xl p-3 text-center text-xs text-slate-400"
+              style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
+              📧 Code sent to <strong className="text-white">listmyai@gmail.com</strong>
+            </div>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={otp}
+              onChange={e => { setOtp(e.target.value.replace(/\D/g, '')); setError('') }}
+              placeholder="000000"
+              autoFocus
+              className="w-full rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.5em] text-white placeholder-slate-700 outline-none"
+              style={{ borderColor: error && error !== 'New code sent!' ? '#ef4444' : '#1e2a3a', background: '#0d1117' }}
+            />
+            {error && (
+              <p className={`text-xs ${error === 'New code sent!' ? 'text-emerald-400' : 'text-red-400'}`}>{error}</p>
+            )}
+            <button type="submit"
+              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
+              style={{ background: '#6366f1' }}>
+              Verify & Enter Admin Panel
+            </button>
+            <div className="flex items-center justify-between text-xs text-slate-600">
+              <button type="button" onClick={() => { setStep('password'); setOtp(''); setError('') }}
+                className="hover:text-slate-400 transition">← Back</button>
+              <button type="button" onClick={resendOtp} disabled={sending}
+                className="hover:text-slate-400 transition disabled:opacity-40">
+                {sending ? 'Sending…' : 'Resend code'}
+              </button>
+            </div>
+          </form>
+        )}
+
         <p className="mt-4 text-center text-xs text-slate-600">
-          Not an admin? <Link href="/" className="hover:underline" style={{ color: '#e94560' }}>Go back to site</Link>
+          Not an admin?{' '}
+          <Link href="/" className="hover:underline" style={{ color: '#e94560' }}>Go back to site</Link>
         </p>
       </div>
     </div>
