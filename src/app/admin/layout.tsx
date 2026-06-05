@@ -8,70 +8,84 @@ import {
   Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3, Send, BookOpen,
 } from 'lucide-react'
 
-// ─── Admin password + 2FA gate ──────────────────────────────────────────────
+// ─── Admin password + Google Authenticator 2FA gate ─────────────────────────
 const ADMIN_PASSWORD = 'lmai@admin2026'
-const SESSION_KEY = 'lmai_admin_auth'
+const SESSION_KEY    = 'lmai_admin_auth'
+const REMEMBER_KEY   = 'lmai_admin_remember'
+const SETUP_KEY      = 'lmai_totp_setup_done'
+const REMEMBER_DAYS  = 30
+
+function isTrustedBrowser(): boolean {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY)
+    if (!raw) return false
+    const { token, expiresAt } = JSON.parse(raw)
+    return !!token && Date.now() < expiresAt
+  } catch { return false }
+}
+
+function trustBrowser() {
+  const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
+  localStorage.setItem(REMEMBER_KEY, JSON.stringify({
+    token,
+    expiresAt: Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000,
+  }))
+}
 
 function PasswordGate({ onAuth }: { onAuth: () => void }) {
-  const [step, setStep]   = useState<'password' | 'otp'>('password')
-  const [pw, setPw]       = useState('')
-  const [otp, setOtp]     = useState('')
-  const [show, setShow]   = useState(false)
-  const [error, setError] = useState('')
-  const [shake, setShake] = useState(false)
-  const [sending, setSending] = useState(false)
+  const [step, setStep]       = useState<'password' | 'totp' | 'setup'>('password')
+  const [pw, setPw]           = useState('')
+  const [code, setCode]       = useState('')
+  const [show, setShow]       = useState(false)
+  const [error, setError]     = useState('')
+  const [shake, setShake]     = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [remember, setRemember] = useState(true)
+  const [qrUrl, setQrUrl]     = useState('')
 
   function triggerShake() {
-    setShake(true)
-    setTimeout(() => setShake(false), 500)
+    setShake(true); setTimeout(() => setShake(false), 500)
   }
 
-  async function submitPassword(e: React.FormEvent) {
+  function submitPassword(e: React.FormEvent) {
     e.preventDefault()
     if (pw !== ADMIN_PASSWORD) {
-      setError('Incorrect password. Try again.')
-      setPw('')
-      triggerShake()
-      return
+      setError('Incorrect password.'); setPw(''); triggerShake(); return
     }
-    // Password correct → send OTP
-    setSending(true)
     setError('')
-    try {
-      const res = await fetch('/api/admin/otp', { method: 'POST' })
-      if (!res.ok) throw new Error('Failed to send code')
-      setStep('otp')
-    } catch {
-      setError('Could not send verification code. Check your email config.')
+    // Check if TOTP has been set up in this browser before
+    const setupDone = localStorage.getItem(SETUP_KEY) === '1'
+    if (!setupDone) {
+      // First time — show QR code setup
+      fetch('/api/admin/totp')
+        .then(r => r.json())
+        .then(d => { setQrUrl(d.qr); setStep('setup') })
+    } else {
+      setStep('totp')
     }
-    setSending(false)
   }
 
-  async function submitOtp(e: React.FormEvent) {
+  async function submitCode(e: React.FormEvent) {
     e.preventDefault()
-    const res = await fetch('/api/admin/otp', {
-      method: 'PUT',
+    setLoading(true); setError('')
+    const res = await fetch('/api/admin/totp', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: otp.trim() }),
+      body: JSON.stringify({ code: code.trim() }),
     })
     const data = await res.json()
+    setLoading(false)
     if (data.verified) {
+      localStorage.setItem(SETUP_KEY, '1')
+      if (remember) trustBrowser()
       sessionStorage.setItem(SESSION_KEY, '1')
       onAuth()
     } else {
-      setError(data.error ?? 'Incorrect code.')
-      setOtp('')
-      triggerShake()
+      setError(data.error ?? 'Incorrect code.'); setCode(''); triggerShake()
     }
   }
 
-  async function resendOtp() {
-    setSending(true)
-    setError('')
-    await fetch('/api/admin/otp', { method: 'POST' })
-    setSending(false)
-    setError('New code sent!')
-  }
+  const stepColor = step === 'password' ? '#e94560' : '#16a34a'
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4"
@@ -79,18 +93,19 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
       <div className={`w-full max-w-sm rounded-2xl border p-8 transition-all ${shake ? 'animate-pulse' : ''}`}
         style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
 
+        {/* Header */}
         <div className="mb-6 flex flex-col items-center text-center">
           <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl"
-            style={{ background: step === 'otp' ? '#6366f1' : '#e94560' }}>
+            style={{ background: stepColor }}>
             <Lock className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-xl font-black text-white">
-            {step === 'password' ? 'Admin Access' : 'Verify Your Identity'}
+            {step === 'password' ? 'Admin Access' : step === 'setup' ? 'Set Up 2FA' : 'Two-Factor Auth'}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {step === 'password'
-              ? 'Enter the admin password to continue'
-              : 'Enter the 6-digit code sent to your email'}
+            {step === 'password' && 'Enter the admin password to continue'}
+            {step === 'setup'    && 'Scan the QR code with Google Authenticator'}
+            {step === 'totp'     && 'Open Google Authenticator and enter the code'}
           </p>
         </div>
 
@@ -98,63 +113,96 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
         {step === 'password' && (
           <form onSubmit={submitPassword} className="space-y-4">
             <div className="relative">
-              <input
-                type={show ? 'text' : 'password'}
-                value={pw}
+              <input type={show ? 'text' : 'password'} value={pw}
                 onChange={e => { setPw(e.target.value); setError('') }}
-                placeholder="Admin password"
-                autoFocus
+                placeholder="Admin password" autoFocus
                 className="w-full rounded-xl border py-3 pl-4 pr-10 text-sm text-white placeholder-slate-600 outline-none"
-                style={{ borderColor: error ? '#ef4444' : '#1e2a3a', background: '#0d1117' }}
-              />
+                style={{ borderColor: error ? '#ef4444' : '#1e2a3a', background: '#0d1117' }} />
               <button type="button" onClick={() => setShow(s => !s)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-white">
                 {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {error && <p className="text-xs text-red-400">{error}</p>}
-            <button type="submit" disabled={sending}
-              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+            <button type="submit"
+              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
               style={{ background: '#e94560' }}>
-              {sending ? 'Sending code…' : 'Continue →'}
+              Continue →
             </button>
           </form>
         )}
 
-        {/* Step 2 — OTP */}
-        {step === 'otp' && (
-          <form onSubmit={submitOtp} className="space-y-4">
-            <div className="rounded-xl p-3 text-center text-xs text-slate-400"
-              style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-              📧 Code sent to <strong className="text-white">listmyai@gmail.com</strong>
+        {/* Step 2a — First-time QR setup */}
+        {step === 'setup' && (
+          <div className="space-y-4">
+            <div className="rounded-xl p-3" style={{ background: 'rgba(22,163,74,0.08)', border: '1px solid rgba(22,163,74,0.2)' }}>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                1. Install <strong className="text-white">Google Authenticator</strong> on your phone<br />
+                2. Tap <strong className="text-white">+</strong> → <strong className="text-white">Scan QR code</strong><br />
+                3. Scan the code below, then enter the 6-digit code
+              </p>
             </div>
-            <input
-              type="text"
-              inputMode="numeric"
-              maxLength={6}
-              value={otp}
-              onChange={e => { setOtp(e.target.value.replace(/\D/g, '')); setError('') }}
-              placeholder="000000"
-              autoFocus
-              className="w-full rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.5em] text-white placeholder-slate-700 outline-none"
-              style={{ borderColor: error && error !== 'New code sent!' ? '#ef4444' : '#1e2a3a', background: '#0d1117' }}
-            />
-            {error && (
-              <p className={`text-xs ${error === 'New code sent!' ? 'text-emerald-400' : 'text-red-400'}`}>{error}</p>
+            {qrUrl && (
+              <div className="flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={qrUrl} alt="TOTP QR Code" className="rounded-xl"
+                  width={180} height={180} />
+              </div>
             )}
-            <button type="submit"
-              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90"
-              style={{ background: '#6366f1' }}>
-              Verify & Enter Admin Panel
-            </button>
-            <div className="flex items-center justify-between text-xs text-slate-600">
-              <button type="button" onClick={() => { setStep('password'); setOtp(''); setError('') }}
-                className="hover:text-slate-400 transition">← Back</button>
-              <button type="button" onClick={resendOtp} disabled={sending}
-                className="hover:text-slate-400 transition disabled:opacity-40">
-                {sending ? 'Sending…' : 'Resend code'}
+            <form onSubmit={submitCode} className="space-y-3">
+              <input type="text" inputMode="numeric" maxLength={6}
+                value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError('') }}
+                placeholder="Enter code to confirm setup" autoFocus
+                className="w-full rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.5em] text-white placeholder-slate-700 outline-none"
+                style={{ borderColor: error ? '#ef4444' : '#1e2a3a', background: '#0d1117' }} />
+              {error && <p className="text-xs text-red-400">{error}</p>}
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-500">
+                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                  className="rounded accent-green-500" />
+                Remember this browser for {REMEMBER_DAYS} days
+              </label>
+              <button type="submit" disabled={loading || code.length !== 6}
+                className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#16a34a' }}>
+                {loading ? 'Verifying…' : 'Confirm Setup & Enter'}
               </button>
+            </form>
+          </div>
+        )}
+
+        {/* Step 2b — TOTP code entry */}
+        {step === 'totp' && (
+          <form onSubmit={submitCode} className="space-y-4">
+            <div className="flex flex-col items-center gap-3 rounded-xl p-4"
+              style={{ background: '#0d1117', border: '1px solid #1e2a3a' }}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full"
+                style={{ background: 'rgba(22,163,74,0.15)' }}>
+                <span className="text-xl">🔐</span>
+              </div>
+              <p className="text-xs text-slate-500 text-center">
+                Open <strong className="text-white">Google Authenticator</strong> and enter<br />the code for <strong className="text-white">ListmyAI Admin</strong>
+              </p>
             </div>
+            <input type="text" inputMode="numeric" maxLength={6}
+              value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, '')); setError('') }}
+              placeholder="000000" autoFocus
+              className="w-full rounded-xl border py-3 text-center text-2xl font-bold tracking-[0.5em] text-white placeholder-slate-700 outline-none"
+              style={{ borderColor: error ? '#ef4444' : '#1e2a3a', background: '#0d1117' }} />
+            {error && <p className="text-xs text-red-400">{error}</p>}
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-500">
+              <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                className="rounded accent-green-500" />
+              Remember this browser for {REMEMBER_DAYS} days
+            </label>
+            <button type="submit" disabled={loading || code.length !== 6}
+              className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+              style={{ background: '#16a34a' }}>
+              {loading ? 'Verifying…' : 'Verify & Enter Admin Panel'}
+            </button>
+            <button type="button" onClick={() => { setStep('password'); setCode(''); setError('') }}
+              className="w-full text-xs text-slate-600 hover:text-slate-400 transition">
+              ← Back
+            </button>
           </form>
         )}
 
@@ -187,7 +235,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
 
   useEffect(() => {
-    if (sessionStorage.getItem(SESSION_KEY) === '1') setAuthed(true)
+    // Already authed this session OR browser is trusted for 30 days
+    if (sessionStorage.getItem(SESSION_KEY) === '1' || isTrustedBrowser()) {
+      sessionStorage.setItem(SESSION_KEY, '1')
+      setAuthed(true)
+    }
   }, [])
 
   // Fetch live badge counts
