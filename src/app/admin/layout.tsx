@@ -164,7 +164,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
                 </div>
                 <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
                   <span className="text-slate-500">Key</span>
-                  <span className="font-mono font-bold text-green-400 tracking-wider select-all">DNB2RF2MPEYGBGGBMKMY</span>
+                  <span className="font-mono font-bold text-green-400 tracking-wider select-all">MAFYPQUPNCCVYHJJ</span>
                 </div>
                 <div className="flex items-center justify-between rounded-lg px-3 py-2" style={{ background: '#0d1117' }}>
                   <span className="text-slate-500">Type</span>
