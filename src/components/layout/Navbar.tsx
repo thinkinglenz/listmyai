@@ -92,8 +92,8 @@ export default function Navbar() {
             </>
           )}
 
-          {/* Auth-aware user section */}
-          {!loading && (
+          {/* Auth-aware user section — hide Log in when admin session is active */}
+          {!loading && !isAdmin && (
             user ? (
               /* Logged in: show avatar + dropdown */
               <div className="relative">
@@ -183,8 +183,8 @@ export default function Navbar() {
               </>
             )}
 
-            {/* Mobile auth section */}
-            {!loading && (
+            {/* Mobile auth section — hide Log in when admin session is active */}
+            {!loading && !isAdmin && (
               user ? (
                 <>
                   <div className="flex items-center gap-3 px-3 py-2.5">
