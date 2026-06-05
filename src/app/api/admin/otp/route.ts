@@ -5,7 +5,7 @@ import { sendEmail } from '@/lib/email'
 // Resets on each Vercel cold start (acceptable for admin 2FA)
 let stored: { code: string; expiresAt: number } | null = null
 
-const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL ?? 'listmyai@gmail.com'
+const ADMIN_EMAIL = 'edudruv@gmail.com'
 
 // POST /api/admin/otp — generate and send OTP
 export async function POST() {
