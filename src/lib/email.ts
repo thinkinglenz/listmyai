@@ -165,6 +165,25 @@ export function welcomeEmail(name: string, appUrl: string) {
   `)
 }
 
+export function adminNewUserEmail(
+  userName: string,
+  userEmail: string,
+  appUrl: string,
+) {
+  return BASE(`
+    ${H1(`👤 New user registered`)}
+    ${P(`A new user has just signed up on ListmyAI.`)}
+    <div style="margin:20px 0;padding:16px;background:rgba(255,255,255,0.03);border:1px solid #1e2a3a;border-radius:12px">
+      <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr><td style="padding:6px 0;color:#64748b;width:120px">Name</td><td style="color:#fff;font-weight:600">${userName || '—'}</td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Email</td><td><a href="mailto:${userEmail}" style="color:#e94560;text-decoration:none">${userEmail}</a></td></tr>
+        <tr><td style="padding:6px 0;color:#64748b">Time</td><td style="color:#fff">${new Date().toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</td></tr>
+      </table>
+    </div>
+    ${BTN(`${appUrl}/admin/users`, 'View in Admin Panel')}
+  `)
+}
+
 export function passwordResetEmail(resetUrl: string) {
   return BASE(`
     ${H1(`Reset your password`)}

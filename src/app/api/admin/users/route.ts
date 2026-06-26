@@ -8,15 +8,25 @@ const supabase = createClient(
 
 export async function GET() {
   try {
-    const { data: authData } = await supabase.auth.admin.listUsers()
-    const authUsers = authData?.users ?? []
+    // Paginate through ALL auth users (Supabase returns max 1000 per page)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allAuthUsers: any[] = []
+    let page = 1
+    const perPage = 1000
+    while (true) {
+      const { data: authData } = await supabase.auth.admin.listUsers({ page, perPage })
+      const batch = authData?.users ?? []
+      allAuthUsers.push(...batch)
+      if (batch.length < perPage) break
+      page++
+    }
 
     let profiles: Record<string, Record<string, unknown>> = {}
     const { data: profileData } = await supabase
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(200)
+      .limit(5000)
 
     if (profileData) {
       for (const p of profileData) {
@@ -24,7 +34,7 @@ export async function GET() {
       }
     }
 
-    const users = authUsers.map(u => {
+    const users = allAuthUsers.map(u => {
       const p = profiles[u.id] || {}
       return {
         id: u.id,

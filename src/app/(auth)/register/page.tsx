@@ -1,11 +1,24 @@
 'use client'
 
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (el: HTMLElement, opts: Record<string, unknown>) => string
+      reset: (widgetId: string) => void
+      remove: (widgetId: string) => void
+    }
+  }
+}
+
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Mail, Lock, User, ArrowRight, Eye, EyeOff, Check, CheckCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/components/AuthProvider'
+import Script from 'next/script'
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
 export default function RegisterPage() {
   const router = useRouter()
@@ -18,6 +31,21 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [emailSent, setEmailSent] = useState(false)
+  const [turnstileToken, setTurnstileToken] = useState('')
+  const turnstileRef = useRef<HTMLDivElement>(null)
+  const widgetIdRef = useRef<string | null>(null)
+
+  const renderTurnstile = useCallback(() => {
+    if (!turnstileRef.current || !window.turnstile || !TURNSTILE_SITE_KEY) return
+    if (widgetIdRef.current) return
+    widgetIdRef.current = window.turnstile.render(turnstileRef.current, {
+      sitekey: TURNSTILE_SITE_KEY,
+      theme: 'dark',
+      callback: (token: string) => setTurnstileToken(token),
+      'expired-callback': () => setTurnstileToken(''),
+      'error-callback': () => setTurnstileToken(''),
+    })
+  }, [])
 
   // Redirect if already logged in
   useEffect(() => {
@@ -38,6 +66,34 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
 
+    // Verify Turnstile token server-side
+    if (TURNSTILE_SITE_KEY) {
+      if (!turnstileToken) {
+        setError('Please complete the security check.')
+        setLoading(false)
+        return
+      }
+      try {
+        const vRes = await fetch('/api/auth/verify-turnstile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: turnstileToken }),
+        })
+        const vData = await vRes.json()
+        if (!vData.success) {
+          setError('Security check failed. Please try again.')
+          setTurnstileToken('')
+          if (window.turnstile && widgetIdRef.current) window.turnstile.reset(widgetIdRef.current)
+          setLoading(false)
+          return
+        }
+      } catch {
+        setError('Security verification failed. Please try again.')
+        setLoading(false)
+        return
+      }
+    }
+
     const supabase = createClient()
     const { data, error: authError } = await supabase.auth.signUp({
       email,
@@ -53,6 +109,13 @@ export default function RegisterPage() {
       setLoading(false)
       return
     }
+
+    // Notify admin + send welcome email (fire-and-forget)
+    fetch('/api/auth/notify-registration', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email }),
+    }).catch(() => {})
 
     // If session exists, email confirmation is off → auto-login
     if (data.session) {
@@ -186,13 +249,18 @@ export default function RegisterPage() {
               </span>
             </label>
 
+            {/* Turnstile widget */}
+            {TURNSTILE_SITE_KEY && (
+              <div ref={turnstileRef} className="flex justify-center" />
+            )}
+
             {error && (
               <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-400">
                 {error}
               </p>
             )}
 
-            <button type="submit" disabled={!agreed || loading}
+            <button type="submit" disabled={!agreed || loading || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
               className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               style={{ background: '#e94560', boxShadow: '0 0 20px rgba(233,69,96,0.2)' }}>
               {loading ? 'Creating account…' : <><span>Create Account</span><ArrowRight className="h-4 w-4" /></>}
@@ -204,6 +272,14 @@ export default function RegisterPage() {
           Already have an account?{' '}
           <Link href="/login" className="font-semibold hover:underline" style={{ color: '#e94560' }}>Log in</Link>
         </p>
+
+        {TURNSTILE_SITE_KEY && (
+          <Script
+            src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad"
+            strategy="afterInteractive"
+            onReady={() => renderTurnstile()}
+          />
+        )}
       </div>
     </div>
   )
