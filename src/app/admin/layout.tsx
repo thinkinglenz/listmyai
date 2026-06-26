@@ -10,7 +10,6 @@ import {
 
 // ─── Admin password + Email OTP gate ────────────────────────────────────────
 const ADMIN_PASSWORD = 'lmai@admin2026'
-const ADMIN_EMAIL    = 'edudruv@gmail.com'
 const SESSION_KEY    = 'lmai_admin_auth'
 const REMEMBER_KEY   = 'lmai_admin_remember'
 const REMEMBER_DAYS  = 30
@@ -53,8 +52,12 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
     setSending(true); setError('')
     try {
       const res = await fetch('/api/admin/otp', { method: 'POST' })
-      if (!res.ok) throw new Error()
-      setStep('otp')
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error ?? 'Failed to send code. Check Resend config.')
+      } else {
+        setStep('otp')
+      }
     } catch {
       setError('Failed to send code. Check Resend config.')
     }
@@ -102,7 +105,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
             {step === 'password' ? 'Admin Access' : 'Check Your Email'}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            {step === 'password' ? 'Enter the admin password to continue' : `Code sent to ${ADMIN_EMAIL}`}
+            {step === 'password' ? 'Enter the admin password to continue' : 'A verification code has been sent to your email'}
           </p>
         </div>
 
@@ -134,7 +137,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
           <form onSubmit={submitOtp} className="space-y-4">
             <div className="rounded-xl p-3 text-center text-xs"
               style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-              📧 6-digit code sent to <strong className="text-white">{ADMIN_EMAIL}</strong>
+              📧 Verification code sent to your email
               <br /><span className="text-slate-600">Expires in 10 minutes</span>
             </div>
             <input type="text" inputMode="numeric" maxLength={6}
@@ -211,7 +214,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .catch(() => {})
   }, [authed, pathname])
 
-  if (!authed) return <PasswordGate onAuth={() => setAuthed(true)} />
+  if (!authed) return (
+    <>
+      <meta name="robots" content="noindex, nofollow" />
+      <PasswordGate onAuth={() => setAuthed(true)} />
+    </>
+  )
 
   function isActive(item: typeof NAV_ITEMS[0]) {
     const p = pathname?.replace(/\/$/, '') || ''
@@ -220,6 +228,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex min-h-screen" style={{ background: '#0d1117', color: '#e2e8f0' }}>
+      <meta name="robots" content="noindex, nofollow" />
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-20 bg-black/60 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -278,7 +287,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               style={{ background: '#e94560' }}>A</div>
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-white">Super Admin</p>
-              <p className="truncate text-xs text-slate-500">edudruv@gmail.com</p>
+              <p className="truncate text-xs text-slate-500">Administrator</p>
             </div>
           </div>
           <Link href="/" className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-500 transition hover:text-white">
