@@ -7,35 +7,20 @@ import { Megaphone, X, ArrowRight } from 'lucide-react'
 const DISMISS_KEY = 'lmai_ads_top_bar_v1'
 
 export default function AdvertiseTopBar() {
-  // Default hidden until we know whether the user previously dismissed it,
-  // so we never flash the bar then hide it.
-  const [show, setShow] = useState(false)
-  const [ready, setReady] = useState(false)
+  const [hidden, setHidden] = useState(false)
 
   useEffect(() => {
-    let cancelled = false
-    // Defer setState to a microtask to avoid the
-    // react-hooks/set-state-in-effect lint rule.
-    queueMicrotask(() => {
-      if (cancelled) return
-      try {
-        const dismissed = localStorage.getItem(DISMISS_KEY) === '1'
-        if (!dismissed) setShow(true)
-      } catch {
-        setShow(true)
-      }
-      setReady(true)
-    })
-    return () => { cancelled = true }
+    try {
+      if (localStorage.getItem(DISMISS_KEY) === '1') setHidden(true)
+    } catch {}
   }, [])
 
   function dismiss() {
-    setShow(false)
+    setHidden(true)
     try { localStorage.setItem(DISMISS_KEY, '1') } catch {}
   }
 
-  // Don't render anything until we've checked dismissal state — avoids CLS.
-  if (!ready || !show) return null
+  if (hidden) return null
 
   return (
     <div className="relative w-full"

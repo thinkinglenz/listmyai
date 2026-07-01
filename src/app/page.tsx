@@ -18,14 +18,14 @@ type BlogPost = {
   published_at: string
 }
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes in 2026',
-  description: 'Browse 800+ AI tools across 20+ categories. Compare AI chatbots, image generators, code assistants, writing tools & more. Find exclusive promo codes, free trials, and lifetime deals. Updated daily.',
+  description: 'Browse 19,000+ AI tools across 20+ categories. Compare AI chatbots, image generators, code assistants, writing tools & more. Find exclusive promo codes, free trials, and lifetime deals. Updated daily.',
   openGraph: {
     title: 'ListmyAI — The #1 AI Tools Directory with Deals & Promo Codes',
-    description: 'Discover, compare, and save on 800+ AI tools. Free trials, promo codes, and exclusive deals on the best AI software.',
+    description: 'Discover, compare, and save on 19,000+ AI tools. Free trials, promo codes, and exclusive deals on the best AI software.',
     url: 'https://listmyai.com',
   },
   alternates: { canonical: 'https://listmyai.com' },
@@ -50,152 +50,93 @@ export default async function HomePage() {
   let totalCount = 0
 
   if (supabase) {
-    // Categories with tool counts
+    // Phase 1: fetch categories (needed to build category count queries)
     const { data: cats } = await supabase
       .from('categories')
       .select('id, slug, name, icon, color')
       .order('name')
 
+    const TOOL_COLS = 'id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by'
+
+    // Phase 2: run ALL remaining queries in parallel
+    const [
+      countResult,
+      featuredResult,
+      trendingResult,
+      postsResult,
+      recentResult,
+      ...catCountResults
+    ] = await Promise.all([
+      // Total tools count (head-only, no data transfer)
+      supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+      // Featured tools
+      supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active').order('upvotes', { ascending: false }).limit(6),
+      // Trending tools
+      supabase.from('ai_tools')
+        .select('id, slug, name, tagline, website, logo_url, pricing_model, starting_price, has_free_trial, promo_code, upvotes, rating_avg, rating_count, is_featured, categories(name)')
+        .in('status', ['active', 'approved', 'claimed', 'verified'])
+        .order('is_featured', { ascending: false }).order('upvotes', { ascending: false }).order('rating_avg', { ascending: false })
+        .limit(20),
+      // Blog posts
+      supabase.from('blog_posts').select('slug, title, excerpt, hero_image_url, tags, published_at').eq('status', 'published').order('published_at', { ascending: false }).limit(3),
+      // Recent tools
+      supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active').order('created_at', { ascending: false }).limit(5),
+      // Per-category counts (head-only, no row data transferred — replaces fetching 20k+ rows)
+      ...(cats ?? []).map(c =>
+        supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('category_id', c.id)
+      ),
+    ])
+
+    totalCount = countResult.count ?? 0
+
     if (cats) {
-      // Get counts per category
-      const { data: toolRows } = await supabase
-        .from('ai_tools')
-        .select('category_id')
-        .eq('status', 'active')
-
-      const countMap = new Map<string, number>()
-      for (const t of toolRows ?? []) {
-        const cid = String(t.category_id)
-        countMap.set(cid, (countMap.get(cid) ?? 0) + 1)
-      }
-
-      categories = cats.map(c => ({
+      categories = cats.map((c, i) => ({
         id: c.id,
         slug: c.slug,
         name: c.name,
         icon: c.icon ?? 'Layers',
         color: c.color ?? '#6366f1',
-        count: countMap.get(String(c.id)) ?? 0,
+        count: catCountResults[i]?.count ?? 0,
       })).filter(c => c.count > 0)
         .sort((a, b) => b.count - a.count)
         .slice(0, 12)
     }
 
-    // Total tools count
-    const { count } = await supabase
-      .from('ai_tools')
-      .select('*', { count: 'exact', head: true })
-      .eq('status', 'active')
-    totalCount = count ?? 0
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mapTool = (t: any) => ({
+      id: String(t.id),
+      slug: t.slug,
+      name: t.name,
+      tagline: t.tagline ?? '',
+      website: t.website ?? '',
+      category: categories.find(c => c.id === t.category_id),
+      pricing_model: t.pricing_model ?? 'free',
+      starting_price: t.starting_price ?? '',
+      has_free_trial: t.has_free_trial ?? false,
+      has_api: t.has_api ?? false,
+      no_code: true,
+      gdpr_compliant: false,
+      status: t.status ?? 'active',
+      claimed: t.claimed ?? false,
+      submitted_by: t.submitted_by ?? undefined,
+      is_featured: t.is_featured ?? false,
+      is_sponsored: t.is_sponsored ?? false,
+      upvotes: t.upvotes ?? 0,
+      rating_avg: t.rating_avg ?? 0,
+      rating_count: t.rating_count ?? 0,
+      view_count: t.view_count ?? 0,
+      click_count: t.click_count ?? 0,
+      platforms: t.platforms ?? [],
+      promo_code: t.promo_code ?? undefined,
+      promo_desc: t.promo_desc ?? undefined,
+      created_at: t.created_at ?? new Date().toISOString(),
+      updated_at: t.updated_at ?? new Date().toISOString(),
+    })
 
-    // Featured / top tools (by upvotes, then rating)
-    const { data: featured } = await supabase
-      .from('ai_tools')
-      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by')
-      .eq('status', 'active')
-      .order('upvotes', { ascending: false })
-      .limit(6)
-
-    if (featured) {
-      const catMap = new Map<string, Category>()
-      for (const c of categories) catMap.set(String(c.id), c)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      featuredTools = featured.map((t: any) => ({
-        id: String(t.id),
-        slug: t.slug,
-        name: t.name,
-        tagline: t.tagline ?? '',
-        website: t.website ?? '',
-        category: catMap.get(String(t.category_id)),
-        pricing_model: t.pricing_model ?? 'free',
-        starting_price: t.starting_price ?? '',
-        has_free_trial: t.has_free_trial ?? false,
-        has_api: t.has_api ?? false,
-        no_code: true,
-        gdpr_compliant: false,
-        status: t.status ?? 'active',
-        claimed: t.claimed ?? false,
-        submitted_by: t.submitted_by ?? undefined,
-        is_featured: t.is_featured ?? false,
-        is_sponsored: t.is_sponsored ?? false,
-        upvotes: t.upvotes ?? 0,
-        rating_avg: t.rating_avg ?? 0,
-        rating_count: t.rating_count ?? 0,
-        view_count: t.view_count ?? 0,
-        click_count: t.click_count ?? 0,
-        platforms: t.platforms ?? [],
-        promo_code: t.promo_code ?? undefined,
-        promo_desc: t.promo_desc ?? undefined,
-        created_at: t.created_at ?? new Date().toISOString(),
-        updated_at: t.updated_at ?? new Date().toISOString(),
-      }))
-    }
-
-    // Top trending — leaderboard shown on the home page
-    const { data: trending } = await supabase
-      .from('ai_tools')
-      .select('id, slug, name, tagline, website, logo_url, pricing_model, starting_price, has_free_trial, promo_code, upvotes, rating_avg, rating_count, is_featured, categories(name)')
-      .in('status', ['active', 'approved', 'claimed', 'verified'])
-      .order('is_featured', { ascending: false })
-      .order('upvotes', { ascending: false })
-      .order('rating_avg', { ascending: false })
-      .limit(20)
-
-    trendingTools = (trending ?? []) as TrendingTool[]
-
-    // Latest blog posts for homepage section
-    const { data: posts } = await supabase
-      .from('blog_posts')
-      .select('slug, title, excerpt, hero_image_url, tags, published_at')
-      .eq('status', 'published')
-      .order('published_at', { ascending: false })
-      .limit(3)
-    latestPosts = (posts ?? []) as BlogPost[]
-
-    // Recently added tools
-    const { data: recent } = await supabase
-      .from('ai_tools')
-      .select('id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(5)
-
-    if (recent) {
-      const catMap = new Map<string, Category>()
-      for (const c of categories) catMap.set(String(c.id), c)
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recentTools = recent.map((t: any) => ({
-        id: String(t.id),
-        slug: t.slug,
-        name: t.name,
-        tagline: t.tagline ?? '',
-        website: t.website ?? '',
-        category: catMap.get(String(t.category_id)),
-        pricing_model: t.pricing_model ?? 'free',
-        starting_price: t.starting_price ?? '',
-        has_free_trial: t.has_free_trial ?? false,
-        has_api: t.has_api ?? false,
-        no_code: true,
-        gdpr_compliant: false,
-        status: t.status ?? 'active',
-        claimed: t.claimed ?? false,
-        submitted_by: t.submitted_by ?? undefined,
-        is_featured: t.is_featured ?? false,
-        is_sponsored: t.is_sponsored ?? false,
-        upvotes: t.upvotes ?? 0,
-        rating_avg: t.rating_avg ?? 0,
-        rating_count: t.rating_count ?? 0,
-        view_count: t.view_count ?? 0,
-        click_count: t.click_count ?? 0,
-        platforms: t.platforms ?? [],
-        promo_code: t.promo_code ?? undefined,
-        promo_desc: t.promo_desc ?? undefined,
-        created_at: t.created_at ?? new Date().toISOString(),
-        updated_at: t.updated_at ?? new Date().toISOString(),
-      }))
-    }
+    featuredTools = (featuredResult.data ?? []).map(mapTool)
+    trendingTools = (trendingResult.data ?? []) as TrendingTool[]
+    latestPosts = (postsResult.data ?? []) as BlogPost[]
+    recentTools = (recentResult.data ?? []).map(mapTool)
   }
 
   const toolLabel = totalCount > 0 ? `${totalCount}+` : '400+'
@@ -213,7 +154,7 @@ export default async function HomePage() {
     '@type': 'WebSite',
     name: 'ListmyAI',
     url: 'https://listmyai.com',
-    description: 'The most comprehensive AI tools directory. Discover, compare, and save on 800+ AI tools with promo codes, free trials, and deals.',
+    description: 'The most comprehensive AI tools directory. Discover, compare, and save on 19,000+ AI tools with promo codes, free trials, and deals.',
     potentialAction: {
       '@type': 'SearchAction',
       target: 'https://listmyai.com/directory?search={search_term_string}',

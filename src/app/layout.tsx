@@ -14,7 +14,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'sw
 export const metadata: Metadata = {
   metadataBase: new URL('https://listmyai.com'),
   title: { default: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes', template: '%s | ListmyAI' },
-  description: 'Discover 800+ AI tools across 20+ categories. Compare pricing, read reviews, find promo codes and free trials. The most comprehensive AI tools directory updated daily.',
+  description: 'Discover 19,000+ AI tools across 20+ categories. Compare pricing, read reviews, find promo codes and free trials. The most comprehensive AI tools directory updated daily.',
   keywords: [
     'AI tools', 'AI tools directory', 'best AI tools', 'AI software', 'AI deals',
     'AI promo codes', 'AI free trial', 'ChatGPT alternatives', 'AI writing tools',
@@ -26,14 +26,14 @@ export const metadata: Metadata = {
     siteName: 'ListmyAI',
     type: 'website',
     title: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes',
-    description: 'Discover 800+ AI tools. Compare pricing, find promo codes, free trials, and deals on the best AI software.',
+    description: 'Discover 19,000+ AI tools. Compare pricing, find promo codes, free trials, and deals on the best AI software.',
     url: 'https://listmyai.com',
     locale: 'en_US',
   },
   twitter: {
     card: 'summary_large_image',
     title: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes',
-    description: 'Discover 800+ AI tools. Compare pricing, find promo codes, free trials, and deals.',
+    description: 'Discover 19,000+ AI tools. Compare pricing, find promo codes, free trials, and deals.',
   },
   robots: {
     index: true,
@@ -58,16 +58,40 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} h-full`}>
-      <head>
-        {/* Google AdSense — placed directly in <head> for crawler visibility */}
-        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
-        <script
-          async
+      <head />
+      <body className="flex min-h-full flex-col">
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'Organization',
+              '@id': 'https://listmyai.com/#organization',
+              name: 'ListmyAI',
+              url: 'https://listmyai.com',
+              logo: { '@type': 'ImageObject', url: 'https://listmyai.com/opengraph-image' },
+              sameAs: [],
+              description: 'The most comprehensive AI tools directory. Discover, compare, and find deals on 19,000+ AI tools across 20+ categories.',
+            },
+            {
+              '@type': 'WebSite',
+              '@id': 'https://listmyai.com/#website',
+              url: 'https://listmyai.com',
+              name: 'ListmyAI',
+              publisher: { '@id': 'https://listmyai.com/#organization' },
+              potentialAction: {
+                '@type': 'SearchAction',
+                target: { '@type': 'EntryPoint', urlTemplate: 'https://listmyai.com/directory?q={search_term_string}' },
+                'query-input': 'required name=search_term_string',
+              },
+            },
+          ],
+        }) }} />
+        {/* Google AdSense — loaded lazily to avoid blocking initial render */}
+        <Script
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5210860252235896"
+          strategy="lazyOnload"
           crossOrigin="anonymous"
         />
-      </head>
-      <body className="flex min-h-full flex-col">
         {/* Google Analytics */}
         <Script
           src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
