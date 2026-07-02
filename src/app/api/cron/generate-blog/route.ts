@@ -406,6 +406,20 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[generate-blog] Error:', msg)
+
+    // Alert the admin — a silent failure here means days of missing posts
+    try {
+      const { sendEmail } = await import('@/lib/email')
+      const hint = msg.includes('credit balance')
+        ? 'Your Anthropic API credit balance has run out. Top up at console.anthropic.com → Plans & Billing, then use "Generate Post Now" in /admin/blog to backfill missed days.'
+        : 'Check the Vercel function logs for details.'
+      await sendEmail({
+        to: process.env.ADMIN_NOTIFY_EMAIL ?? 'listmyai@gmail.com',
+        subject: '⚠️ Daily blog generation failed',
+        html: `<p>The daily AI blog post could not be generated.</p><p><strong>Error:</strong> ${msg.slice(0, 500)}</p><p>${hint}</p>`,
+      })
+    } catch { /* email failed too — nothing more we can do */ }
+
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 }
