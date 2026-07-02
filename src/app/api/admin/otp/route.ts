@@ -5,27 +5,35 @@ import { sendEmail } from '@/lib/email'
 // Resets on each Vercel cold start (acceptable for admin 2FA)
 let stored: { code: string; expiresAt: number } | null = null
 
-const ADMIN_EMAIL = 'edudruv@gmail.com'
+const ADMIN_EMAIL = 'listmyai@gmail.com'
 
 // POST /api/admin/otp — generate and send OTP
 export async function POST() {
   const code = String(Math.floor(100000 + Math.random() * 900000)) // 6-digit
   stored = { code, expiresAt: Date.now() + 10 * 60 * 1000 } // 10 min expiry
 
-  await sendEmail({
-    to: ADMIN_EMAIL,
-    subject: `🔐 ListmyAI Admin OTP: ${code}`,
-    html: `
-      <div style="font-family:Inter,sans-serif;background:#0d1117;padding:40px;border-radius:16px;max-width:400px;margin:0 auto">
-        <h2 style="color:#fff;margin:0 0 8px">Admin Login Code</h2>
-        <p style="color:#94a3b8;margin:0 0 24px;font-size:14px">Use this code to access the ListmyAI admin panel. Expires in 10 minutes.</p>
-        <div style="background:#161b27;border:1px solid #1e2a3a;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
-          <span style="font-size:36px;font-weight:900;letter-spacing:8px;color:#e94560">${code}</span>
+  try {
+    await sendEmail({
+      to: ADMIN_EMAIL,
+      subject: `🔐 ListmyAI Admin OTP: ${code}`,
+      html: `
+        <div style="font-family:Inter,sans-serif;background:#0d1117;padding:40px;border-radius:16px;max-width:400px;margin:0 auto">
+          <h2 style="color:#fff;margin:0 0 8px">Admin Login Code</h2>
+          <p style="color:#94a3b8;margin:0 0 24px;font-size:14px">Use this code to access the ListmyAI admin panel. Expires in 10 minutes.</p>
+          <div style="background:#161b27;border:1px solid #1e2a3a;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
+            <span style="font-size:36px;font-weight:900;letter-spacing:8px;color:#e94560">${code}</span>
+          </div>
+          <p style="color:#475569;font-size:12px;margin:0">If you didn't request this, someone may be trying to access your admin panel.</p>
         </div>
-        <p style="color:#475569;font-size:12px;margin:0">If you didn't request this, someone may be trying to access your admin panel.</p>
-      </div>
-    `,
-  })
+      `,
+    })
+  } catch (err) {
+    console.error('[OTP] Failed to send email:', err)
+    return NextResponse.json(
+      { error: `Email send failed: ${String(err)}` },
+      { status: 500 }
+    )
+  }
 
   return NextResponse.json({ sent: true })
 }

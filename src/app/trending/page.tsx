@@ -4,8 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { TrendingUp, Zap, Sparkles } from 'lucide-react'
 import TrendingList, { type TrendingTool } from '@/components/listing/TrendingList'
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 1800 // 30 min
+export const revalidate = 600
 
 export const metadata: Metadata = {
   title: 'Top Trending AI Tools',

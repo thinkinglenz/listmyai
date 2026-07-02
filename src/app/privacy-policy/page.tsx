@@ -1,4 +1,11 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Privacy Policy',
+  description: 'ListmyAI privacy policy — how we collect, use, and protect your personal information when using our AI tools directory.',
+  alternates: { canonical: 'https://listmyai.com/privacy-policy' },
+}
 
 const LAST_UPDATED = '19 May 2026'
 

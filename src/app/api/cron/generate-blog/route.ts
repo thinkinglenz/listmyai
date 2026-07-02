@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js'
 // Re-enable by importing postToAllSocial from '@/lib/social/post' once
 // Twitter Basic API plan ($100/mo) is active.
 
-export const maxDuration = 120 // allow up to 2 min for Claude generation
+export const maxDuration = 60
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -148,6 +148,13 @@ function pickHeroImage(slug: string): { url: string; alt: string } {
   }
 }
 
+interface MentionedTool {
+  name: string
+  website: string
+  category: string
+  tagline: string
+}
+
 interface GeneratedPost {
   title: string
   slug: string
@@ -156,6 +163,7 @@ interface GeneratedPost {
   tags: string[]
   faqs: { q: string; a: string }[]
   external_refs: { label: string; url: string }[]
+  mentioned_tools: MentionedTool[]
 }
 
 async function generatePost(topic: string, relatedToolIds: string[]): Promise<GeneratedPost> {
@@ -193,8 +201,14 @@ Return ONLY valid JSON matching this exact schema (no prose outside JSON):
   "external_refs": [
     {"label": "Source name", "url": "https://example.com/article"},
     {"label": "Source name", "url": "https://example.com/article"}
+  ],
+  "mentioned_tools": [
+    {"name": "Tool Name", "website": "https://tool.com", "category": "Category Name", "tagline": "One-line description"},
+    ...for EVERY specific AI tool/product mentioned by name in the article
   ]
-}`
+}
+
+IMPORTANT: In "mentioned_tools", list EVERY specific AI tool or product mentioned in body_md. Use the tool's official website URL and a short tagline. For category use one of: Chatbot / Assistant, Image Generation, Video Generation, Audio & Music, Code Assistant, Writing & Copy, SEO & Marketing, Analytics & Data, Voice & Speech, Search & Research, Automation, Design & Creative, Productivity, Education, Healthcare, Legal, Finance, Cybersecurity, Developer Tools, 3D & Spatial, Other.`
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -227,12 +241,97 @@ Return ONLY valid JSON matching this exact schema (no prose outside JSON):
   // Sanitise slug
   parsed.slug = slugify(parsed.slug || parsed.title)
 
-  // Append related tool IDs to body as internal links (SEO backlinks to tools)
-  if (relatedToolIds.length > 0) {
-    // Already handled by related_tool_ids field in the post record
+  return parsed
+}
+
+// ── Auto-add missing tools & inject internal links ──────────────────────────
+async function autoLinkAndAddTools(
+  bodyMd: string,
+  mentionedTools: MentionedTool[]
+): Promise<{ linkedBody: string; toolIds: string[] }> {
+  if (!mentionedTools || mentionedTools.length === 0) return { linkedBody: bodyMd, toolIds: [] }
+
+  const toolIds: string[] = []
+  let md = bodyMd
+
+  for (const tool of mentionedTools) {
+    if (!tool.name || !tool.website) continue
+
+    const toolSlug = slugify(tool.name)
+
+    // Check if tool already exists (by slug or website domain)
+    let domain = ''
+    try { domain = new URL(tool.website).hostname.replace('www.', '') } catch { /* skip */ }
+
+    const { data: existing } = await supabase
+      .from('ai_tools')
+      .select('id, slug')
+      .or(`slug.eq.${toolSlug},website.ilike.%${domain}%`)
+      .limit(1)
+      .maybeSingle()
+
+    let slug: string
+    let toolId: string
+
+    if (existing) {
+      slug = existing.slug
+      toolId = existing.id
+    } else {
+      // Resolve category_id
+      let categoryId: string | null = null
+      if (tool.category) {
+        const catSlug = slugify(tool.category)
+        const { data: catRow } = await supabase
+          .from('categories')
+          .select('id')
+          .or(`slug.eq.${catSlug},name.ilike.%${tool.category}%`)
+          .limit(1)
+          .maybeSingle()
+        if (catRow) categoryId = catRow.id
+      }
+
+      // Insert new tool
+      const { data: inserted, error } = await supabase
+        .from('ai_tools')
+        .insert({
+          slug: toolSlug,
+          name: tool.name,
+          tagline: tool.tagline || `${tool.name} — AI tool`,
+          description: tool.tagline || '',
+          website: tool.website,
+          category_id: categoryId,
+          status: 'active',
+          is_auto_enrolled: false,
+          pricing_model: 'freemium',
+        })
+        .select('id, slug')
+        .single()
+
+      if (error || !inserted) {
+        console.warn(`[auto-link] Failed to insert ${tool.name}: ${error?.message}`)
+        continue
+      }
+
+      slug = inserted.slug
+      toolId = inserted.id
+    }
+
+    toolIds.push(toolId)
+
+    // Inject internal link at first occurrence of tool name in markdown
+    // Avoid linking if already linked (contains [name](...)
+    const alreadyLinked = md.includes(`[${tool.name}]`)
+    if (!alreadyLinked) {
+      const idx = md.indexOf(tool.name)
+      if (idx !== -1) {
+        md = md.substring(0, idx) +
+          `[${tool.name}](https://listmyai.com/tools/${slug})` +
+          md.substring(idx + tool.name.length)
+      }
+    }
   }
 
-  return parsed
+  return { linkedBody: md, toolIds }
 }
 
 export async function GET(req: NextRequest) {
@@ -250,6 +349,14 @@ export async function GET(req: NextRequest) {
     const relatedToolIds = await findRelatedToolIds(topic)
 
     const generated = await generatePost(topic, relatedToolIds)
+
+    // Auto-add any mentioned tools to directory & inject internal links
+    const { linkedBody, toolIds: mentionedToolIds } = await autoLinkAndAddTools(
+      generated.body_md,
+      generated.mentioned_tools ?? []
+    )
+    generated.body_md = linkedBody
+    const allToolIds = [...new Set([...relatedToolIds, ...mentionedToolIds])]
 
     // Check for slug collision and add date suffix if needed
     let finalSlug = generated.slug
@@ -278,7 +385,7 @@ export async function GET(req: NextRequest) {
         hero_image_alt: heroImage.alt,
         tags: generated.tags ?? [],
         faqs: generated.faqs ?? [],
-        related_tool_ids: relatedToolIds,
+        related_tool_ids: allToolIds,
         external_refs: generated.external_refs ?? [],
         is_auto_generated: true,
         source_topic: topic,

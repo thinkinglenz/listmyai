@@ -1,5 +1,17 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Check, Zap, Star, Shield, ArrowRight } from 'lucide-react'
+
+export const metadata: Metadata = {
+  title: 'Pricing — Listing Plans for AI Tools',
+  description: 'Choose your listing plan on ListmyAI. Free listings, Pro featured placements, and Enterprise custom packages for AI tool companies.',
+  openGraph: {
+    title: 'Pricing — AI Tool Listing Plans | ListmyAI',
+    description: 'Free and paid plans to list your AI tool on the largest AI tools directory.',
+    url: 'https://listmyai.com/pricing',
+  },
+  alternates: { canonical: 'https://listmyai.com/pricing' },
+}
 
 const PLANS = [
   {

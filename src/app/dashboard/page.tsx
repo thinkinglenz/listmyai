@@ -337,6 +337,11 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
+                          <Link href={`/dashboard/edit/${listing.slug}`}
+                            className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/5"
+                            style={{ borderColor: '#1e2a3a' }}>
+                            <Edit className="h-3 w-3" /> Edit
+                          </Link>
                           <Link href={`/tools/${listing.slug}`}
                             className="flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs text-slate-300 transition hover:bg-white/5"
                             style={{ borderColor: '#1e2a3a' }}>

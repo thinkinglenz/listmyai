@@ -160,6 +160,12 @@ export default function Navbar() {
       {open && (
         <div className="border-t border-brand-border bg-brand-navy px-4 pb-4 md:hidden">
           <div className="flex flex-col gap-1 pt-2">
+            {/* Mobile search */}
+            <Link href="/directory" onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white">
+              <Search className="h-4 w-4" /> Search AI Tools
+            </Link>
+            <hr className="my-1 border-brand-border" />
             {NAV_LINKS.map(l => (
               <Link key={l.href} href={l.href} onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white">

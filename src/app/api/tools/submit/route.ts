@@ -13,33 +13,69 @@ const supabase = createClient(
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
 
-function buildInsert(slug: string, body: Record<string, unknown>, catId: number) {
-  const {
-    name, website, tagline, description, pricing_model,
-    starting_price, has_free_trial, trial_duration, promo_code, promo_desc,
-    has_api, company_name, hq_location, founded_year,
-    contact_email, contact_name,
-  } = body as Record<string, string | boolean>
+function orNull(v: unknown): unknown { return v || null }
+function toBool(v: unknown): boolean { return !!v }
+function toArr(v: unknown): string[] | null {
+  if (Array.isArray(v)) return v.length ? v : null
+  return null
+}
 
+function buildInsert(slug: string, body: Record<string, unknown>, catId: number) {
   return {
     slug,
-    name,
-    tagline,
-    description,
-    website,
+    name: body.name,
+    tagline: orNull(body.tagline),
+    description: orNull(body.description),
+    website: body.website,
     category_id: catId,
-    pricing_model: (pricing_model as string)?.toLowerCase().replace(/\s+/g, '_') ?? 'free',
-    starting_price: starting_price ?? null,
-    has_free_trial: has_free_trial ?? false,
-    trial_duration: trial_duration ?? null,
-    promo_code: promo_code ?? null,
-    promo_desc: promo_desc ?? null,
-    has_api: has_api ?? false,
-    company_name: company_name ?? null,
-    hq_location: hq_location ?? null,
-    founded_year: founded_year ?? null,
-    contact_email: contact_email ?? null,
-    contact_name: contact_name ?? null,
+    pricing_model: ((body.pricing_model as string) ?? '').toLowerCase().replace(/\s+/g, '_') || 'free',
+    starting_price: orNull(body.starting_price),
+    pricing_url: orNull(body.pricing_url),
+    has_free_trial: toBool(body.has_free_trial),
+    trial_duration: orNull(body.trial_duration),
+    promo_code: orNull(body.promo_code),
+    promo_desc: orNull(body.promo_desc),
+    has_api: toBool(body.has_api),
+    api_docs_url: orNull(body.api_docs_url),
+    no_code: toBool(body.no_code),
+    gdpr_compliant: toBool(body.gdpr_compliant),
+    platforms: toArr(body.platforms),
+    integrations: orNull(body.integrations),
+    // Media
+    logo_url: orNull(body.logo_url),
+    video_url: orNull(body.video_url),
+    demo_url: orNull(body.demo_url),
+    screenshots: toArr(body.screenshots),
+    // Company
+    company_name: orNull(body.company_name),
+    company_description: orNull(body.company_description),
+    hq_location: orNull(body.hq_location),
+    founded_year: orNull(body.founded_year),
+    team_size: orNull(body.team_size),
+    // Contact
+    contact_name: orNull(body.contact_name),
+    contact_email: orNull(body.contact_email),
+    contact_phone: orNull(body.contact_phone),
+    support_url: orNull(body.support_url),
+    // Social
+    twitter_url: orNull(body.twitter_url),
+    linkedin_url: orNull(body.linkedin_url),
+    github_url: orNull(body.github_url),
+    discord_url: orNull(body.discord_url),
+    youtube_url: orNull(body.youtube_url),
+    facebook_url: orNull(body.facebook_url),
+    instagram_url: orNull(body.instagram_url),
+    tiktok_url: orNull(body.tiktok_url),
+    product_hunt_url: orNull(body.product_hunt_url),
+    // Audience
+    target_audience: orNull(body.target_audience),
+    use_cases: orNull(body.use_cases),
+    tags: toArr(body.tags),
+    // Promotion
+    social_promotion_consent: toBool(body.social_promotion_consent),
+    creatives: toArr(body.creatives),
+    brand_guidelines_url: orNull(body.brand_guidelines_url),
+    // Status
     status: 'pending',
     is_featured: false,
     is_sponsored: false,

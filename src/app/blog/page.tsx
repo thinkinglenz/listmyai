@@ -4,7 +4,6 @@ import Image from 'next/image'
 import { createClient } from '@supabase/supabase-js'
 import { ArrowRight, Calendar, Tag, BookOpen, Sparkles } from 'lucide-react'
 
-export const dynamic = 'force-dynamic'
 export const revalidate = 600
 
 export const metadata: Metadata = {

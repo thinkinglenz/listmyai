@@ -8,7 +8,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: ['/admin/', '/api/', '/auth/', '/reset-password'],
+        disallow: ['/admin/', '/api/', '/auth/', '/dashboard/', '/reset-password'],
       },
       {
         // Allow AI crawlers explicitly

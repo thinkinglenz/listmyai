@@ -19,11 +19,18 @@ export async function GET(req: NextRequest) {
   const status = req.nextUrl.searchParams.get('status') ?? 'all'
   const limit = Math.min(parseInt(req.nextUrl.searchParams.get('limit') ?? '50'), 200)
 
+  const slug = req.nextUrl.searchParams.get('slug')
+  const fields = slug
+    ? 'id, slug, title, status, is_auto_generated, published_at, view_count, tags, excerpt, hero_image_url, body_md, related_tool_ids'
+    : 'id, slug, title, status, is_auto_generated, published_at, view_count, tags, excerpt, hero_image_url'
+
   let query = supabase
     .from('blog_posts')
-    .select('id, slug, title, status, is_auto_generated, published_at, view_count, tags, excerpt, hero_image_url')
+    .select(fields)
     .order('published_at', { ascending: false })
     .limit(limit)
+
+  if (slug) query = query.eq('slug', slug)
 
   if (status !== 'all') query = query.eq('status', status)
 
@@ -41,7 +48,7 @@ export async function PATCH(req: NextRequest) {
 
   // Only allow safe field updates from admin UI
   const allowed = ['status', 'title', 'excerpt', 'meta_title', 'meta_description', 'tags',
-    'sponsorship', 'published_at', 'hero_image_url', 'hero_image_alt']
+    'sponsorship', 'published_at', 'hero_image_url', 'hero_image_alt', 'body_md', 'related_tool_ids']
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   for (const key of allowed) {
     if (key in updates) patch[key] = updates[key]

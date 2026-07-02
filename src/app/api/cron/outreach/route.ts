@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { sendEmail, autoEnrollWelcomeEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 300 // 5 min — enough for 20 emails at 600 ms each
+export const maxDuration = 60
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

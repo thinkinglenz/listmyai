@@ -2,8 +2,9 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Refund Policy — ListmyAI',
+  title: 'Refund Policy',
   description: 'Refund and cancellation policy for ListmyAI listings and subscriptions.',
+  alternates: { canonical: 'https://listmyai.com/refund-policy' },
 }
 
 const SECTIONS = [

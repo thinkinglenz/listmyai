@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Gift, Tag, Zap, Percent, BadgeCheck, ExternalLink, Sparkles } from 'lucide-react'
 import CopyCodeButton from '@/components/promo/CopyCodeButton'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 1800
 
 export const metadata: Metadata = {
   title: 'AI Deals, Promo Codes & Free Trials',

@@ -41,16 +41,32 @@ export interface AiTool {
   company_description?: string
   founded_year?: string
   hq_location?: string
+  team_size?: string
   use_cases?: string
   alternatives?: string[]
+  target_audience?: string
+  integrations?: string
+  // Media
+  video_url?: string
+  demo_url?: string
   // Contact / social
   contact_email?: string
+  contact_name?: string
+  contact_phone?: string
   support_url?: string
   twitter_url?: string
   linkedin_url?: string
   github_url?: string
   discord_url?: string
   youtube_url?: string
+  facebook_url?: string
+  instagram_url?: string
+  tiktok_url?: string
+  product_hunt_url?: string
+  // Promotion consent
+  social_promotion_consent?: boolean
+  creatives?: string[]
+  brand_guidelines_url?: string
 
   status: ListingStatus
   claimed?: boolean

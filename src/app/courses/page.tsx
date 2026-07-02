@@ -2,8 +2,9 @@ import Link from 'next/link'
 import { Star, Users, PlayCircle, BookOpen, Zap, CheckCircle, Clock } from 'lucide-react'
 
 export const metadata = {
-  title: 'AI Courses & Resources — ListmyAI',
+  title: 'AI Courses & Resources',
   description: 'Learn how to master AI tools with our curated courses, guides, and resources. From beginner to expert — start building with AI today.',
+  alternates: { canonical: 'https://listmyai.com/courses' },
 }
 
 const COURSES = [

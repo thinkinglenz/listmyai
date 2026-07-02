@@ -169,7 +169,7 @@ export default function FindPage() {
             {/* Question card */}
             <div className="rounded-2xl border p-8" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
               <h2 className="mb-6 text-xl font-bold text-white text-center">{q.question}</h2>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {q.options.map(opt => (
                   <button key={opt.value} onClick={() => select(opt.value)}
                     className="flex items-center gap-3 rounded-xl border p-4 text-left text-sm font-medium transition hover:border-red-500/40 hover:bg-red-500/5"

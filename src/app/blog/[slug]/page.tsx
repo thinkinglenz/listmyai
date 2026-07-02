@@ -10,7 +10,7 @@ import ShareButtons from '@/components/blog/ShareButtons'
 import SponsoredSlot from '@/components/blog/SponsoredSlot'
 import CommentSection from '@/components/blog/CommentSection'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

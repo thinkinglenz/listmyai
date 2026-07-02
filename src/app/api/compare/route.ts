@@ -4,8 +4,8 @@ import { createHash } from 'crypto'
 
 // ─── Rate limiter ────────────────────────────────────────────────────────────
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT_MAX = 30
-const RATE_LIMIT_WINDOW = 3600
+const RATE_LIMIT_MAX = 100       // comparisons allowed per window
+const RATE_LIMIT_WINDOW = 3600   // 1 hour window
 
 function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
   const now = Date.now()
@@ -328,7 +328,7 @@ export async function POST(req: NextRequest) {
         ip_hash: ipHash, use_case: use_case || null, rate_limited: true,
       })
       return NextResponse.json(
-        { error: `Rate limit exceeded. Try again in ${Math.ceil(resetIn / 60)} minutes.` },
+        { error: `You've made too many comparisons. Please wait ${Math.ceil(resetIn / 60)} minute${Math.ceil(resetIn / 60) === 1 ? '' : 's'} before trying again.` },
         { status: 429, headers: { 'Retry-After': String(resetIn) } }
       )
     }

@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 const STATS = [
   { label: 'Monthly visitors',     value: '50K+',   icon: Users },
   { label: 'Newsletter subs',      value: '12K+',   icon: Mail },
-  { label: 'AI tools listed',      value: '800+',   icon: Sparkles },
+  { label: 'AI tools listed',      value: '19,000+',   icon: Sparkles },
   { label: 'Avg. CTR on features', value: '4.8%',   icon: MousePointerClick },
 ]
 

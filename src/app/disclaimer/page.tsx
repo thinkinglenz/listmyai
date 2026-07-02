@@ -1,5 +1,12 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AlertCircle } from 'lucide-react'
+
+export const metadata: Metadata = {
+  title: 'Disclaimer',
+  description: 'ListmyAI disclaimer — limitations of liability and accuracy of information regarding AI tool listings, reviews, and recommendations.',
+  alternates: { canonical: 'https://listmyai.com/disclaimer' },
+}
 
 const LAST_UPDATED = '19 May 2026'
 

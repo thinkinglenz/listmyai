@@ -1,4 +1,11 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
+
+export const metadata: Metadata = {
+  title: 'Terms of Use',
+  description: 'ListmyAI terms of use — rules and guidelines governing the use of our AI tools directory, listings, and services.',
+  alternates: { canonical: 'https://listmyai.com/terms' },
+}
 
 const LAST_UPDATED = '19 May 2026'
 
