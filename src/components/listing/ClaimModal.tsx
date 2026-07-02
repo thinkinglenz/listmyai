@@ -240,8 +240,8 @@ export default function ClaimModal({ toolId, toolName, toolSlug, toolWebsite, on
             <div className="mt-5 rounded-xl border p-4" style={{ borderColor: '#1e2a3a', background: 'rgba(255,255,255,0.02)' }}>
               <p className="text-xs font-semibold text-slate-300">While you wait</p>
               <p className="mt-1 text-xs text-slate-500">Add a &ldquo;Listed on ListmyAI&rdquo; backlink to your site — it helps both of us with SEO:</p>
-              <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
-                <code className="flex-1 text-xs text-slate-400 truncate">{badgeHtml}</code>
+              <div className="mt-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border px-3 py-2" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
+                <code className="min-w-0 flex-1 truncate text-xs text-slate-400">{badgeHtml}</code>
                 <button onClick={copyBacklink} className="flex-shrink-0 text-slate-500 hover:text-white transition">
                   {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
                 </button>
@@ -275,8 +275,8 @@ export default function ClaimModal({ toolId, toolName, toolSlug, toolWebsite, on
             <div className="mt-5 rounded-xl border p-4" style={{ borderColor: '#1e2a3a', background: 'rgba(255,255,255,0.02)' }}>
               <p className="text-xs font-semibold text-slate-300">Add a backlink in the meantime</p>
               <p className="mt-1 text-xs text-slate-500">This helps us verify your site and boosts SEO for both of us.</p>
-              <div className="mt-2 flex items-center gap-2 rounded-lg border px-3 py-2" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
-                <code className="flex-1 truncate text-xs text-slate-400">{badgeHtml}</code>
+              <div className="mt-2 flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border px-3 py-2" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
+                <code className="min-w-0 flex-1 truncate text-xs text-slate-400">{badgeHtml}</code>
                 <button onClick={copyBacklink} className="flex-shrink-0 text-slate-500 hover:text-white transition">
                   {copied ? <Check className="h-4 w-4 text-green-400" /> : <Copy className="h-4 w-4" />}
                 </button>

@@ -5,16 +5,30 @@
     color-scheme: dark;
   }
 
-  html { scroll-behavior: smooth; }
+  html {
+    scroll-behavior: smooth;
+    /* Never let stray wide elements zoom out the mobile viewport.
+       `clip` keeps position:sticky working; `hidden` is the fallback. */
+    overflow-x: hidden;
+    overflow-x: clip;
+  }
 
   body {
     background: #0d1117;
     color: #f1f5f9;
     font-family: Inter, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    overflow-x: clip;
+    overflow-wrap: break-word;
   }
 
   ::selection { background: rgba(233,69,96,0.3); color: #fff; }
+
+  /* Rendered blog/user HTML: keep wide media and code inside the viewport */
+  pre { max-width: 100%; overflow-x: auto; }
+  img, video, iframe { max-width: 100%; }
+  table { max-width: 100%; }
 
   ::-webkit-scrollbar        { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track  { background: transparent; }

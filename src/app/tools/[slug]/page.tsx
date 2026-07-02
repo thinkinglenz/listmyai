@@ -16,7 +16,7 @@ import { AiTool, Category, Promotion } from '@/types'
 import { PRICING_LABELS, PRICING_COLORS, PLATFORM_LABELS, formatCount, cn } from '@/lib/utils'
 import { createClient } from '@supabase/supabase-js'
 
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -63,13 +63,24 @@ function shapeTool(t: any, cat?: Category): AiTool {
     hq_location: t.hq_location ?? undefined,
     use_cases: t.use_cases ?? undefined,
     alternatives: t.alternatives ?? [],
+    target_audience: t.target_audience ?? undefined,
+    integrations: t.integrations ?? undefined,
+    team_size: t.team_size ?? undefined,
+    video_url: t.video_url ?? undefined,
+    demo_url: t.demo_url ?? undefined,
     contact_email: t.contact_email ?? undefined,
+    contact_name: t.contact_name ?? undefined,
+    contact_phone: t.contact_phone ?? undefined,
     support_url: t.support_url ?? undefined,
     twitter_url: t.twitter_url ?? undefined,
     linkedin_url: t.linkedin_url ?? undefined,
     github_url: t.github_url ?? undefined,
     discord_url: t.discord_url ?? undefined,
     youtube_url: t.youtube_url ?? undefined,
+    facebook_url: t.facebook_url ?? undefined,
+    instagram_url: t.instagram_url ?? undefined,
+    tiktok_url: t.tiktok_url ?? undefined,
+    product_hunt_url: t.product_hunt_url ?? undefined,
     status: t.status ?? 'active',
     is_featured: t.is_featured ?? false,
     is_sponsored: t.is_sponsored ?? false,
@@ -345,22 +356,22 @@ export default async function ToolPage({ params }: PageProps) {
           />
         )}
 
-        <div className="grid gap-8 lg:grid-cols-3">
+        <div className="grid gap-6 sm:gap-8 lg:grid-cols-3">
 
           {/* ── Main column ─────────────────────────────────────────────── */}
-          <div className="space-y-6 lg:col-span-2">
+          <div className="min-w-0 space-y-5 sm:space-y-6 lg:col-span-2">
 
             {/* Hero card */}
-            <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
-              <div className="flex items-start gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl text-2xl font-black text-white"
+            <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl font-black text-white sm:h-16 sm:w-16 sm:rounded-2xl sm:text-2xl"
                   style={{background:'rgba(255,255,255,0.08)',border:'1px solid #1e2a3a'}}>
                   {tool.name[0]}
                 </div>
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h1 className="text-2xl font-black text-white">{tool.name}</h1>
+                    <h1 className="text-xl font-black text-white sm:text-2xl">{tool.name}</h1>
                     {tool.is_featured && (
                       <span className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
                         style={{background:'rgba(245,158,11,0.15)',border:'1px solid rgba(245,158,11,0.25)',color:'#f59e0b'}}>
@@ -403,9 +414,9 @@ export default async function ToolPage({ params }: PageProps) {
               </div>
 
               {/* Action buttons */}
-              <div className="mt-5 flex flex-wrap gap-3">
+              <div className="mt-5 flex flex-wrap gap-2.5 sm:gap-3">
                 <a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 sm:w-auto"
                   style={{background:'#e94560',boxShadow:'0 0 20px rgba(233,69,96,0.25)'}}>
                   <ExternalLink className="h-4 w-4" />
                   Visit {tool.name}
@@ -423,7 +434,7 @@ export default async function ToolPage({ params }: PageProps) {
 
               {/* Rating summary */}
               {tool.rating_count > 0 && (
-                <div className="mt-4 flex items-center gap-3 border-t pt-4" style={{borderColor:'#1e2a3a'}}>
+                <div className="mt-4 flex flex-wrap items-center gap-3 border-t pt-4" style={{borderColor:'#1e2a3a'}}>
                   <div className="flex">
                     {[1,2,3,4,5].map(s => (
                       <Star key={s} className={cn('h-4 w-4', s <= Math.round(tool.rating_avg) ? 'fill-amber-400 text-amber-400' : 'text-slate-700')} />
@@ -436,11 +447,36 @@ export default async function ToolPage({ params }: PageProps) {
               )}
             </div>
 
+            {/* Demo button */}
+            {tool.demo_url && (
+              <a href={outbound(tool.demo_url)} target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 rounded-2xl border py-4 text-sm font-bold transition hover:border-emerald-500/40 hover:bg-emerald-500/5"
+                style={{borderColor:'rgba(16,185,129,0.2)',background:'rgba(16,185,129,0.04)',color:'#10b981'}}>
+                <Monitor className="h-5 w-5" /> Try Live Demo <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            )}
+
+            {/* Video embed */}
+            {tool.video_url && (() => {
+              const ytMatch = tool.video_url!.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
+              const vimeoMatch = tool.video_url!.match(/vimeo\.com\/(\d+)/)
+              const embedUrl = ytMatch ? `https://www.youtube-nocookie.com/embed/${ytMatch[1]}` : vimeoMatch ? `https://player.vimeo.com/video/${vimeoMatch[1]}` : null
+              if (!embedUrl) return null
+              return (
+                <div className="rounded-2xl border overflow-hidden" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+                  <div className="aspect-video">
+                    <iframe src={embedUrl} title={`${tool.name} demo video`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen className="h-full w-full" />
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Website Preview — clean, no browser chrome */}
             <WebsitePreview website={tool.website} toolName={tool.name} outboundUrl={outbound(tool.website)} />
 
             {/* About — merged description + solution provider */}
-            <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+            <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl text-lg font-black text-white"
                   style={{background:'rgba(233,69,96,0.12)',border:'1px solid rgba(233,69,96,0.25)'}}>
@@ -532,6 +568,34 @@ export default async function ToolPage({ params }: PageProps) {
                         GitHub
                       </a>
                     )}
+                    {tool.facebook_url && (
+                      <a href={tool.facebook_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+                        style={{borderColor:'#1e2a3a'}}>
+                        <Globe className="h-3.5 w-3.5 text-slate-500" /> Facebook
+                      </a>
+                    )}
+                    {tool.instagram_url && (
+                      <a href={tool.instagram_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+                        style={{borderColor:'#1e2a3a'}}>
+                        <Globe className="h-3.5 w-3.5 text-slate-500" /> Instagram
+                      </a>
+                    )}
+                    {tool.tiktok_url && (
+                      <a href={tool.tiktok_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+                        style={{borderColor:'#1e2a3a'}}>
+                        <Globe className="h-3.5 w-3.5 text-slate-500" /> TikTok
+                      </a>
+                    )}
+                    {tool.product_hunt_url && (
+                      <a href={tool.product_hunt_url} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
+                        style={{borderColor:'#1e2a3a'}}>
+                        <Globe className="h-3.5 w-3.5 text-slate-500" /> Product Hunt
+                      </a>
+                    )}
                     {tool.support_url && (
                       <a href={outbound(tool.support_url)} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5 hover:text-white"
@@ -544,9 +608,17 @@ export default async function ToolPage({ params }: PageProps) {
               )}
             </div>
 
+            {/* Target audience */}
+            {tool.target_audience && (
+              <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+                <h2 className="mb-3 text-lg font-bold text-white">Who Is {tool.name} For?</h2>
+                <p className="text-sm leading-relaxed text-slate-300">{tool.target_audience}</p>
+              </div>
+            )}
+
             {/* Use cases */}
             {useCases.length > 0 && (
-              <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+              <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
                 <h2 className="mb-4 text-lg font-bold text-white">Key Use Cases</h2>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {useCases.map(uc => (
@@ -562,7 +634,7 @@ export default async function ToolPage({ params }: PageProps) {
 
             {/* Promotions */}
             {promos.length > 0 && (
-              <div className="rounded-2xl border p-6" style={{borderColor:'rgba(233,69,96,0.2)',background:'rgba(233,69,96,0.04)'}}>
+              <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'rgba(233,69,96,0.2)',background:'rgba(233,69,96,0.04)'}}>
                 <h2 className="mb-4 text-lg font-bold text-white">🎁 Active Deals & Promotions</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {promos.map(p => <PromoCard key={p.id} promo={{...p, tool:{ id:tool.id, name:tool.name, slug:tool.slug, category:tool.category }}} />)}
@@ -574,7 +646,7 @@ export default async function ToolPage({ params }: PageProps) {
             <RatingWidget toolId={tool.id} toolName={tool.name} ratingAvg={tool.rating_avg} ratingCount={tool.rating_count} />
 
             {/* FAQ — SEO + AI optimised */}
-            <div className="rounded-2xl border p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+            <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
               <h2 className="mb-5 text-lg font-bold text-white">Frequently Asked Questions</h2>
               <div className="space-y-4">
                 {faqs.map(({ q, a }) => (
@@ -605,10 +677,10 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
 
           {/* ── Sidebar ─────────────────────────────────────────────────── */}
-          <div className="space-y-5">
+          <div className="min-w-0 space-y-5">
 
             {/* Quick facts */}
-            <div className="rounded-2xl border p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+            <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-400">Quick Facts</h3>
               <div className="space-y-3">
                 {[
@@ -616,6 +688,7 @@ export default async function ToolPage({ params }: PageProps) {
                   { icon:<Building2 className="h-4 w-4" />,  label:'Company',  val:tool.company_name },
                   { icon:<MapPin className="h-4 w-4" />,     label:'Location', val:tool.hq_location },
                   { icon:<Calendar className="h-4 w-4" />,   label:'Founded',  val:tool.founded_year },
+                  { icon:<Globe className="h-4 w-4" />,      label:'Team',     val:tool.team_size },
                   { icon:<Globe className="h-4 w-4" />,      label:'Pricing',  val:tool.starting_price },
                 ].filter(r => r.val).map(row => (
                   <div key={row.label} className="flex items-center justify-between gap-3 text-sm">
@@ -627,8 +700,8 @@ export default async function ToolPage({ params }: PageProps) {
             </div>
 
             {/* Contact & Social */}
-            {(tool.contact_email || tool.support_url || tool.twitter_url || tool.linkedin_url || tool.github_url || tool.discord_url || tool.youtube_url) && (
-              <div className="rounded-2xl border p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+            {(tool.contact_email || tool.support_url || tool.twitter_url || tool.linkedin_url || tool.github_url || tool.discord_url || tool.youtube_url || tool.facebook_url || tool.instagram_url || tool.tiktok_url || tool.product_hunt_url) && (
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
                 <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-400">Contact & Social</h3>
                 <div className="space-y-2.5">
                   {tool.contact_email && (
@@ -684,13 +757,49 @@ export default async function ToolPage({ params }: PageProps) {
                       YouTube
                     </a>
                   )}
+                  {tool.facebook_url && (
+                    <a href={tool.facebook_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                      style={{border:'1px solid #1e2a3a'}}>
+                      <Globe className="h-4 w-4 text-slate-500" /> Facebook
+                    </a>
+                  )}
+                  {tool.instagram_url && (
+                    <a href={tool.instagram_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                      style={{border:'1px solid #1e2a3a'}}>
+                      <Globe className="h-4 w-4 text-slate-500" /> Instagram
+                    </a>
+                  )}
+                  {tool.tiktok_url && (
+                    <a href={tool.tiktok_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                      style={{border:'1px solid #1e2a3a'}}>
+                      <Globe className="h-4 w-4 text-slate-500" /> TikTok
+                    </a>
+                  )}
+                  {tool.product_hunt_url && (
+                    <a href={tool.product_hunt_url} target="_blank" rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white"
+                      style={{border:'1px solid #1e2a3a'}}>
+                      <Globe className="h-4 w-4 text-slate-500" /> Product Hunt
+                    </a>
+                  )}
                 </div>
+              </div>
+            )}
+
+            {/* Integrations */}
+            {tool.integrations && (
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">Integrations</h3>
+                <p className="text-sm text-slate-300">{tool.integrations}</p>
               </div>
             )}
 
             {/* Platforms */}
             {tool.platforms && tool.platforms.length > 0 && (
-              <div className="rounded-2xl border p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">Available On</h3>
                 <div className="flex flex-wrap gap-2">
                   {tool.platforms.map(p => (
@@ -706,7 +815,7 @@ export default async function ToolPage({ params }: PageProps) {
 
             {/* Trial */}
             {tool.has_free_trial && (
-              <div className="rounded-2xl border p-5" style={{borderColor:'rgba(16,185,129,0.2)',background:'rgba(16,185,129,0.04)'}}>
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'rgba(16,185,129,0.2)',background:'rgba(16,185,129,0.04)'}}>
                 <h3 className="mb-2 text-sm font-bold text-emerald-400">✓ Free Trial Available</h3>
                 <p className="text-sm text-slate-400">{tool.trial_duration ?? 'Free trial available — check website for details.'}</p>
                 <a href={outbound(tool.pricing_url ?? tool.website)} target="_blank" rel="noopener noreferrer"
@@ -719,7 +828,7 @@ export default async function ToolPage({ params }: PageProps) {
 
             {/* Alternatives */}
             {tool.alternatives && tool.alternatives.length > 0 && (
-              <div className="rounded-2xl border p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-400">Similar Tools</h3>
                 <div className="space-y-1">
                   {tool.alternatives.map(alt => (
@@ -732,9 +841,22 @@ export default async function ToolPage({ params }: PageProps) {
               </div>
             )}
 
+            {/* Alternatives page link */}
+            <Link href={`/alternatives/${tool.slug}`}
+              className="block rounded-2xl border p-5 transition hover:border-red-500/30"
+              style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+              <h3 className="text-sm font-bold text-white">Looking for {tool.name} alternatives?</h3>
+              <p className="mt-1 text-xs text-slate-500">
+                Compare similar tools, pricing, and features side by side.
+              </p>
+              <span className="mt-2 inline-block text-xs font-semibold" style={{color:'#e94560'}}>
+                View all alternatives →
+              </span>
+            </Link>
+
             {/* API */}
             {tool.has_api && (
-              <div className="rounded-2xl border p-5" style={{borderColor:'rgba(6,182,212,0.2)',background:'rgba(6,182,212,0.04)'}}>
+              <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'rgba(6,182,212,0.2)',background:'rgba(6,182,212,0.04)'}}>
                 <h3 className="mb-2 text-sm font-bold" style={{color:'#06b6d4'}}>⚡ API Available</h3>
                 <p className="text-sm text-slate-400">{tool.name} provides a developer API for integration into your own products.</p>
                 {tool.api_docs_url && (
