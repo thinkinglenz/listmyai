@@ -301,6 +301,7 @@ import ClaimBanner from '@/components/listing/ClaimBanner'
 import ContactForm from '@/components/listing/ContactForm'
 import WebsitePreview from '@/components/listing/WebsitePreview'
 import ToolShareButtons from '@/components/listing/ToolShareButtons'
+import ToolPageTracker from '@/components/listing/ToolPageTracker'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -326,6 +327,9 @@ export default async function ToolPage({ params }: PageProps) {
     <>
       {/* JSON-LD structured data */}
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+
+      {/* View + outbound click tracking */}
+      <ToolPageTracker slug={tool.slug} />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
 

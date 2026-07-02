@@ -72,6 +72,15 @@ function LoginForm() {
             Account created! Please check your email to verify, then log in.
           </div>
         )}
+        {searchParams.get('error') && (
+          <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {searchParams.get('error')!.includes('code verifier')
+              ? 'That link couldn’t be used in this browser. Please request a new password reset link and open it on the same device and browser you requested it from.'
+              : searchParams.get('error')!.includes('expired')
+                ? 'That link has expired. Please request a new one.'
+                : 'Sign-in link failed. Please try again or request a new link.'}
+          </div>
+        )}
 
         <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
           <form className="space-y-4" onSubmit={handleSubmit}>
