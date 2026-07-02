@@ -45,23 +45,24 @@ export async function POST(req: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    // Check if user already upvoted this tool (try upvotes table)
+    // Check if user already upvoted this tool.
+    // NOTE: the upvotes table has a composite PK (user_id, tool_id) — no id column.
     const { data: existing, error: checkErr } = await supabase
       .from('upvotes')
-      .select('id')
+      .select('user_id')
       .eq('user_id', user.id)
       .eq('tool_id', toolId)
       .maybeSingle()
 
-    // If upvotes table doesn't exist, just toggle the counter directly
-    if (checkErr && (checkErr.message.includes('does not exist') || checkErr.code === '42P01')) {
+    // If upvotes table itself doesn't exist, just toggle the counter directly
+    if (checkErr && (checkErr.message.includes('Could not find the table') || checkErr.code === 'PGRST205' || checkErr.code === '42P01')) {
       await updateUpvoteCount(supabase, toolId, 1)
       return NextResponse.json({ upvoted: true })
     }
 
     if (existing) {
       // Remove upvote (toggle off)
-      await supabase.from('upvotes').delete().eq('id', existing.id)
+      await supabase.from('upvotes').delete().eq('user_id', user.id).eq('tool_id', toolId)
       await updateUpvoteCount(supabase, toolId, -1)
       return NextResponse.json({ upvoted: false })
     } else {
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
       const { error: insertErr } = await supabase.from('upvotes').insert({ user_id: user.id, tool_id: toolId })
       if (insertErr) {
         // If upvotes table doesn't exist, just increment the counter
-        if (insertErr.message.includes('does not exist') || insertErr.code === '42P01') {
+        if (insertErr.message.includes('Could not find the table') || insertErr.code === 'PGRST205' || insertErr.code === '42P01') {
           await updateUpvoteCount(supabase, toolId, 1)
           return NextResponse.json({ upvoted: true })
         }

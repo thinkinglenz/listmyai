@@ -29,12 +29,22 @@ export async function GET() {
       dmcaOpen = count ?? 0
     } catch { /* table doesn't exist */ }
 
-    // Get total upvotes — count from upvotes table (fast head-only query)
+    // Get total upvotes — sum of ai_tools.upvotes (matches what tool pages show)
     let totalUpvotes = 0
     try {
-      const { count } = await supabase.from('upvotes').select('*', { count: 'exact', head: true })
-      totalUpvotes = count ?? 0
-    } catch { /* table may not exist */ }
+      // PostgREST aggregate — single fast query
+      const { data: agg, error: aggErr } = await supabase.from('ai_tools').select('upvotes.sum()')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (!aggErr && agg?.[0]) totalUpvotes = (agg[0] as any).sum ?? 0
+      else if (aggErr) throw aggErr
+    } catch {
+      // Aggregates disabled — fetch only tools that have upvotes and sum here
+      try {
+        const { data } = await supabase.from('ai_tools').select('upvotes').gt('upvotes', 0).limit(20000)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        totalUpvotes = (data ?? []).reduce((s, r: any) => s + (r.upvotes ?? 0), 0)
+      } catch { /* keep 0 */ }
+    }
 
     // Get total users from auth — paginate to get real count
     let totalUsers = 0
@@ -66,13 +76,22 @@ export async function GET() {
       .order('created_at', { ascending: false })
       .limit(5)
 
-    // Rating stats — count from ratings table (fast)
+    // Rating stats — from ai_tools counters (matches what tool pages show,
+    // and includes ratings saved via the pre-migration fallback)
     let avgRating = 0
     let totalReviews = 0
     try {
-      const { count } = await supabase.from('ratings').select('*', { count: 'exact', head: true })
-      totalReviews = count ?? 0
-    } catch { /* table may not exist */ }
+      const { data: rated } = await supabase
+        .from('ai_tools')
+        .select('rating_avg, rating_count')
+        .gt('rating_count', 0)
+        .limit(20000)
+      for (const r of rated ?? []) {
+        totalReviews += r.rating_count ?? 0
+        avgRating += (r.rating_avg ?? 0) * (r.rating_count ?? 0)
+      }
+      avgRating = totalReviews > 0 ? avgRating / totalReviews : 0
+    } catch { /* keep 0 */ }
 
     // Tools added in last 30 days — only fetch the date column, limit to recent
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
