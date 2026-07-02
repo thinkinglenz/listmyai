@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyToolOwner } from '@/lib/notify'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,12 +33,19 @@ export async function POST(req: NextRequest) {
     const current = (row as any)[column] ?? 0
     // Early-stage boost: views count double until a listing reaches 100
     const increment = event === 'view' && current < 100 ? 2 : 1
+    const next = current + increment
     await supabase
       .from('ai_tools')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ [column]: current + increment } as any)
+      .update({ [column]: next } as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .eq('id', (row as any).id)
+
+    // Views milestone: email the owner each time the count crosses a 100 mark
+    if (event === 'view' && Math.floor(next / 100) > Math.floor(current / 100)) {
+      const milestone = Math.floor(next / 100) * 100
+      notifyToolOwner({ slug }, { type: 'views', count: milestone }).catch(() => {})
+    }
 
     return NextResponse.json({ ok: true })
   } catch {

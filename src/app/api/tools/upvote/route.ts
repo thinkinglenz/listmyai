@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { notifyToolOwner } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +78,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: insertErr.message }, { status: 500 })
       }
       await updateUpvoteCount(supabase, toolId, 1)
+      // Notify the listing owner (non-blocking)
+      notifyToolOwner({ id: toolId }, { type: 'upvote' }).catch(() => {})
       return NextResponse.json({ upvoted: true })
     }
   } catch {

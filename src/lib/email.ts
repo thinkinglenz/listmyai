@@ -192,3 +192,19 @@ export function passwordResetEmail(resetUrl: string) {
     ${P(`This link expires in 1 hour. If you didn't request a reset, you can safely ignore this email.`)}
   `)
 }
+
+export function ownerEngagementEmail(
+  toolName: string,
+  headline: string,
+  bodyText: string,
+  detailHtml: string,
+  toolUrl: string,
+) {
+  return BASE(`
+    ${H1(headline)}
+    ${P(bodyText)}
+    ${detailHtml}
+    ${BTN(toolUrl, `View ${toolName}`)}
+    ${P(`Keep the momentum going — reply to comments and share your listing to attract more visitors.`)}
+  `)
+}

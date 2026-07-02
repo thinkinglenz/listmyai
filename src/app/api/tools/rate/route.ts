@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { notifyToolOwner } from '@/lib/notify'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,6 +90,9 @@ export async function POST(req: NextRequest) {
         .update({ rating_avg: Math.round(avg * 10) / 10, rating_count: ratings.length })
         .eq('id', toolId)
     }
+
+    // Notify the listing owner (non-blocking)
+    notifyToolOwner({ id: toolId }, { type: 'rating', rating }).catch(() => {})
 
     return NextResponse.json({ saved: true, rating })
   } catch {

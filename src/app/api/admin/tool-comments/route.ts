@@ -1,6 +1,7 @@
 // Admin: list tool comments, approve or reject them
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { notifyToolOwner } from '@/lib/notify'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -57,6 +58,22 @@ export async function PATCH(req: NextRequest) {
     .eq('id', id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // On approval, notify the listing owner about the new public comment
+  if (action === 'approve') {
+    const { data: c } = await supabase
+      .from('tool_comments')
+      .select('tool_id, author_name, body')
+      .eq('id', id)
+      .maybeSingle()
+    if (c) {
+      notifyToolOwner(
+        { id: c.tool_id },
+        { type: 'comment', authorName: c.author_name, body: c.body }
+      ).catch(() => {})
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 
