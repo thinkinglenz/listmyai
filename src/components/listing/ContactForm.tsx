@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Send, CheckCircle, AlertCircle } from 'lucide-react'
+import { Send, CheckCircle, AlertCircle, User } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
 
 function generateCaptcha() {
   const a = Math.floor(Math.random() * 10) + 1
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function ContactForm({ toolName, toolSlug }: Props) {
+  const { user } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
@@ -27,11 +29,19 @@ export default function ContactForm({ toolName, toolSlug }: Props) {
     setCaptcha(generateCaptcha())
   }, [])
 
+  // Logged-in users: use their account identity automatically
+  useEffect(() => {
+    if (!user) return
+    setName(n => n || user.user_metadata?.full_name || user.email?.split('@')[0] || '')
+    setEmail(e => e || user.email || '')
+  }, [user])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
 
-    if (parseInt(captchaInput) !== captcha.answer) {
+    // Human check only for anonymous visitors — logged-in users skip it
+    if (!user && parseInt(captchaInput) !== captcha.answer) {
       setError('Incorrect answer. Please try again.')
       setCaptcha(generateCaptcha())
       setCaptchaInput('')
@@ -93,26 +103,38 @@ export default function ContactForm({ toolName, toolSlug }: Props) {
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">Your Name *</label>
-            <input
-              type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="John Smith" required
-              className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
-              style={{ borderColor: '#1e2a3a' }}
-            />
+        {user ? (
+          /* Logged in — no need to type your details */
+          <div className="flex items-center gap-2.5 rounded-xl border px-4 py-3"
+            style={{ borderColor: '#1e2a3a', background: 'rgba(255,255,255,0.02)' }}>
+            <User className="h-4 w-4 shrink-0" style={{ color: '#e94560' }} />
+            <p className="min-w-0 truncate text-sm text-slate-400">
+              Sending as <span className="font-semibold text-white">{name}</span>
+              <span className="text-slate-600"> · {email}</span>
+            </p>
           </div>
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">Email Address *</label>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com" required
-              className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
-              style={{ borderColor: '#1e2a3a' }}
-            />
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">Your Name *</label>
+              <input
+                type="text" value={name} onChange={e => setName(e.target.value)}
+                placeholder="John Smith" required
+                className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+                style={{ borderColor: '#1e2a3a' }}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">Email Address *</label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com" required
+                className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+                style={{ borderColor: '#1e2a3a' }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         <div>
           <label className="mb-1.5 block text-sm font-medium text-slate-300">Your Message *</label>
@@ -126,21 +148,23 @@ export default function ContactForm({ toolName, toolSlug }: Props) {
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="flex-1">
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">
-              Quick Verification: <span className="font-mono text-white">{captcha.question}</span>
-            </label>
-            <input
-              type="text" value={captchaInput} onChange={e => setCaptchaInput(e.target.value)}
-              placeholder="Your answer" required
-              className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition sm:max-w-[200px]"
-              style={{ borderColor: '#1e2a3a' }}
-            />
-          </div>
+          {!user && (
+            <div className="flex-1">
+              <label className="mb-1.5 block text-sm font-medium text-slate-300">
+                Quick Verification: <span className="font-mono text-white">{captcha.question}</span>
+              </label>
+              <input
+                type="text" value={captchaInput} onChange={e => setCaptchaInput(e.target.value)}
+                placeholder="Your answer" required
+                className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition sm:max-w-[200px]"
+                style={{ borderColor: '#1e2a3a' }}
+              />
+            </div>
+          )}
 
           <button
             type="submit" disabled={status === 'loading'}
-            className="flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
+            className="flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60 sm:ml-auto"
             style={{ background: '#e94560' }}
           >
             {status === 'loading' ? (
