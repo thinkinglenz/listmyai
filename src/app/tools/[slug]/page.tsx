@@ -302,6 +302,7 @@ import ToolCommentSection from '@/components/listing/ToolCommentSection'
 import WebsitePreview from '@/components/listing/WebsitePreview'
 import ToolShareButtons from '@/components/listing/ToolShareButtons'
 import ToolPageTracker from '@/components/listing/ToolPageTracker'
+import ReturnRatingPrompt from '@/components/listing/ReturnRatingPrompt'
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -330,6 +331,9 @@ export default async function ToolPage({ params }: PageProps) {
 
       {/* View + outbound click tracking */}
       <ToolPageTracker slug={tool.slug} />
+
+      {/* One-tap rating prompt when the visitor returns from the tool's site */}
+      <ReturnRatingPrompt toolId={tool.id} toolSlug={tool.slug} toolName={tool.name} />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
 
