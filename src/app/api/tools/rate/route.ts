@@ -46,8 +46,15 @@ export async function POST(req: NextRequest) {
       )
 
     if (upsertErr) {
-      // If ratings table doesn't exist, update the tool's rating directly
-      if (upsertErr.message.includes('does not exist') || upsertErr.code === '42P01') {
+      // If ratings table doesn't exist, update the tool's rating directly.
+      // Supabase/PostgREST reports a missing table as "Could not find the
+      // table ... in the schema cache" (code PGRST205), not "does not exist".
+      const missingTable =
+        upsertErr.message.includes('does not exist') ||
+        upsertErr.message.includes('Could not find the table') ||
+        upsertErr.code === '42P01' ||
+        upsertErr.code === 'PGRST205'
+      if (missingTable) {
         const { data: tool } = await supabase
           .from('ai_tools')
           .select('rating_avg, rating_count')

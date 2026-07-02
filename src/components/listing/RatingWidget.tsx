@@ -35,9 +35,11 @@ export default function RatingWidget({ toolId, toolName, ratingAvg, ratingCount 
   const [showLoginNudge, setShowLoginNudge] = useState(false)
   const [saved, setSaved] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   async function handleStarClick(v: number) {
     setUserRating(v)
+    setSaveError('')
 
     if (!user) {
       setShowLoginNudge(true)
@@ -55,9 +57,12 @@ export default function RatingWidget({ toolId, toolName, ratingAvg, ratingCount 
       if (res.ok) {
         setSaved(true)
         setShowLoginNudge(false)
+      } else {
+        const body = await res.json().catch(() => null)
+        setSaveError(body?.error ?? 'Could not save your rating. Please try again.')
       }
     } catch {
-      // Silently fail
+      setSaveError('Could not save your rating. Please check your connection and try again.')
     }
     setSaving(false)
   }
@@ -82,6 +87,13 @@ export default function RatingWidget({ toolId, toolName, ratingAvg, ratingCount 
         {/* Saving state */}
         {saving && (
           <p className="mt-2 text-xs text-slate-500">Saving your rating...</p>
+        )}
+
+        {/* Save error */}
+        {saveError && !saving && (
+          <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs text-red-400">
+            {saveError}
+          </p>
         )}
 
         {/* Login nudge — only when not logged in */}
