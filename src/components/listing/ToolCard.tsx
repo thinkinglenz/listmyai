@@ -27,24 +27,40 @@ export default function ToolCard({ tool, variant = 'grid' }: Props) {
   if (variant === 'list') {
     return (
       <Link href={`/tools/${tool.slug}`}
-        className="group flex items-center gap-4 rounded-xl border border-brand-border bg-brand-card p-4 transition-all hover:border-brand-red/30 hover:shadow-card-hover">
+        className="group flex items-center gap-3 rounded-xl border border-brand-border bg-brand-card p-3 transition-all hover:border-brand-red/30 hover:shadow-card-hover sm:gap-4 sm:p-4">
         {/* Logo */}
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white/5">
+        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-white/5 sm:h-12 sm:w-12 sm:rounded-xl">
           {tool.logo_url
             ? <Image src={tool.logo_url} alt={tool.name} fill className="object-contain p-1" />
-            : <span className="flex h-full w-full items-center justify-center text-xl font-bold text-slate-400">
+            : <span className="flex h-full w-full items-center justify-center text-lg font-bold text-slate-400 sm:text-xl">
                 {tool.name[0]}
               </span>
           }
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-semibold text-white group-hover:text-brand-red transition-colors">{tool.name}</span>
-            {tool.is_featured && <span className="flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs text-amber-400 border border-amber-500/20"><Zap className="h-3 w-3" /> Featured</span>}
-            <span className={cn('flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs', badge.cls)}>{badge.icon}{badge.label}</span>
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-white group-hover:text-brand-red transition-colors sm:text-base">{tool.name}</span>
+            {tool.is_featured && <span className="flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400 border border-amber-500/20 sm:gap-1 sm:px-2 sm:text-xs"><Zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Featured</span>}
           </div>
-          <p className="mt-0.5 text-sm text-slate-400 truncate">{tool.tagline}</p>
+          <p className="mt-0.5 text-xs text-slate-500 line-clamp-1 sm:text-sm sm:text-slate-400">{tool.tagline}</p>
+          {/* Mobile-only meta row */}
+          <div className="mt-1.5 flex items-center gap-1.5 sm:hidden">
+            {pricing && (
+              <span className={cn('rounded-full border px-1.5 py-0.5 text-[10px] font-medium', PRICING_COLORS[pricing])}>
+                {PRICING_LABELS[pricing]}
+              </span>
+            )}
+            {hasPromo && <span className="rounded-full bg-brand-red/15 border border-brand-red/20 px-1.5 py-0.5 text-[10px] font-medium text-brand-red">🎁 Deal</span>}
+            <span className="flex items-center gap-0.5 text-[10px] text-slate-600">
+              <ThumbsUp className="h-2.5 w-2.5" />{formatCount(tool.upvotes)}
+            </span>
+            {tool.rating_count > 0 && (
+              <span className="flex items-center gap-0.5 text-[10px] text-slate-600">
+                <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />{tool.rating_avg.toFixed(1)}
+              </span>
+            )}
+          </div>
         </div>
 
         <div className="hidden sm:flex items-center gap-3 shrink-0">

@@ -4,14 +4,13 @@ import SearchBar from '@/components/search/SearchBar'
 import FilterSidebar from '@/components/search/FilterSidebar'
 import ToolCard from '@/components/listing/ToolCard'
 import { AiTool, Category } from '@/types'
-import { LayoutGrid } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 
 export const metadata: Metadata = {
   title: 'Browse All AI Tools — Directory',
-  description: 'Browse and filter 800+ AI tools by category, pricing, and features. Find the perfect AI chatbot, image generator, code assistant, writing tool, or automation platform for your needs.',
+  description: 'Browse and filter 19,000+ AI tools by category, pricing, and features. Find the perfect AI chatbot, image generator, code assistant, writing tool, or automation platform for your needs.',
   openGraph: {
-    title: 'AI Tools Directory — Browse 800+ Tools by Category',
+    title: 'AI Tools Directory — Browse 19,000+ Tools by Category',
     description: 'Filter AI tools by category, pricing model, and features. Compare chatbots, image generators, code assistants, and more.',
     url: 'https://listmyai.com/directory',
   },
@@ -55,13 +54,33 @@ export default async function DirectoryPage({ searchParams }: Props) {
     .select('id, slug, name, icon, color')
     .order('name')
 
+  // Count tools per category using parallel lightweight count queries
+  const countResults = await Promise.all(
+    (categoriesRaw ?? []).map(c =>
+      supabase
+        .from('ai_tools')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .eq('category_id', c.id)
+        .then(r => ({ id: c.id, count: r.count ?? 0 }))
+    )
+  )
+  const countMap = new Map<string, number>()
+  for (const r of countResults) countMap.set(String(r.id), r.count)
+
+  // Get total tool count
+  const { count: totalCount } = await supabase
+    .from('ai_tools')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'active')
+
   const categories: Category[] = (categoriesRaw ?? []).map(c => ({
     id: c.id,
     slug: c.slug,
     name: c.name,
     icon: c.icon ?? 'Layers',
     color: c.color ?? '#6366f1',
-    count: 0,
+    count: countMap.get(String(c.id)) ?? 0,
   }))
 
   // Build category lookup map (id → Category)
@@ -148,15 +167,43 @@ export default async function DirectoryPage({ searchParams }: Props) {
     }
   })
 
+  const activeCatName = categories.find(c => c.slug === category)?.name
+
+  const directoryLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: category ? `${activeCatName ?? 'AI'} Tools` : 'AI Tools Directory',
+    url: `https://listmyai.com/directory${category ? `?category=${category}` : ''}`,
+    description: 'Browse and compare AI tools by category, pricing, and features.',
+    mainEntity: {
+      '@type': 'ItemList',
+      numberOfItems: tools.length,
+      itemListElement: tools.slice(0, 20).map((t, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: `https://listmyai.com/tools/${t.slug}`,
+        name: t.name,
+      })),
+    },
+  }
+
+  const displayCount = q || category || pricing || trial || api ? tools.length : (totalCount ?? tools.length)
+
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-      {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-black text-white">AI Tools Directory</h1>
-        <p className="mt-1 text-slate-400">
-          Discover and compare the best AI tools — updated daily
+    <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(directoryLd) }} />
+    <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-8">
+      {/* ── Header — compact on mobile ─────────────────────────────────── */}
+      <div className="mb-4 sm:mb-8">
+        <h1 className="text-2xl font-black text-white sm:text-3xl">
+          {activeCatName ? `${activeCatName} Tools` : 'AI Tools Directory'}
+        </h1>
+        <p className="mt-0.5 text-sm text-slate-500 sm:mt-1 sm:text-base">
+          {activeCatName
+            ? `Browse the best ${activeCatName.toLowerCase()} AI tools`
+            : 'Discover and compare the best AI tools — updated daily'}
         </p>
-        <div className="mt-4 max-w-xl">
+        <div className="mt-3 sm:mt-4 sm:max-w-xl">
           <Suspense>
             <SearchBar defaultValue={q} />
           </Suspense>
@@ -164,34 +211,30 @@ export default async function DirectoryPage({ searchParams }: Props) {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
-          Database error: {error.message}. Showing available data.
+        <div className="mb-4 rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3 text-sm text-red-400">
+          Database error: {error.message}
         </div>
       )}
 
-      <div className="flex gap-8">
-        {/* Sidebar */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:gap-8">
+        {/* Sidebar — filter chips on mobile, sidebar on desktop */}
         <Suspense>
           <FilterSidebar categories={categories} />
         </Suspense>
 
-        {/* Grid */}
+        {/* Results */}
         <div className="min-w-0 flex-1">
-          {/* Toolbar */}
-          <div className="mb-5 flex items-center justify-between">
+          {/* Results count */}
+          <div className="mb-3 sm:mb-5">
             <p className="text-sm text-slate-400">
-              <span className="font-semibold text-white">{tools.length}</span> tools
-              {q && <span> for &ldquo;<span className="text-red-400">{q}</span>&rdquo;</span>}
+              <span className="font-semibold text-white">{displayCount.toLocaleString()}</span> tools
+              {q && <span> matching &ldquo;<span className="text-brand-red">{q}</span>&rdquo;</span>}
+              {activeCatName && !q && <span> in <span className="text-brand-red">{activeCatName}</span></span>}
             </p>
-            <div className="flex items-center gap-1 rounded-lg border border-white/10 p-1">
-              <button className="rounded-md p-1.5 bg-white/5 text-white">
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-            </div>
           </div>
 
           {tools.length === 0 ? (
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-12 text-center">
+            <div className="rounded-2xl border border-white/10 bg-white/5 px-6 py-12 text-center sm:px-12">
               <p className="text-2xl">🤔</p>
               <p className="mt-2 font-semibold text-white">No tools found</p>
               <p className="mt-1 text-sm text-slate-500">
@@ -201,12 +244,21 @@ export default async function DirectoryPage({ searchParams }: Props) {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {tools.map(tool => <ToolCard key={tool.id} tool={tool} />)}
-            </div>
+            <>
+              {/* Mobile: compact list cards | Desktop: grid cards */}
+              {/* Mobile list (hidden on sm+) */}
+              <div className="flex flex-col gap-2.5 sm:hidden">
+                {tools.map(tool => <ToolCard key={tool.id} tool={tool} variant="list" />)}
+              </div>
+              {/* Desktop grid (hidden on mobile) */}
+              <div className="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-3">
+                {tools.map(tool => <ToolCard key={tool.id} tool={tool} />)}
+              </div>
+            </>
           )}
         </div>
       </div>
     </div>
+    </>
   )
 }
