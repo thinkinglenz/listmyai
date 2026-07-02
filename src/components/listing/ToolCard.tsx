@@ -39,6 +39,9 @@ export default function ToolCard({ tool, variant = 'grid' }: Props) {
         </div>
 
         <div className="min-w-0 flex-1">
+          {tool.is_sponsored && (
+            <p className="text-[9px] font-medium uppercase tracking-widest text-slate-500">Sponsored</p>
+          )}
           <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <span className="text-sm font-semibold text-white group-hover:text-brand-red transition-colors sm:text-base">{tool.name}</span>
             {tool.is_featured && <span className="flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400 border border-amber-500/20 sm:gap-1 sm:px-2 sm:text-xs"><Zap className="h-2.5 w-2.5 sm:h-3 sm:w-3" /> Featured</span>}
@@ -116,6 +119,9 @@ export default function ToolCard({ tool, variant = 'grid' }: Props) {
       </div>
 
       <div className="flex flex-1 flex-col p-4 pt-2">
+        {tool.is_sponsored && (
+          <p className="mb-0.5 text-[9px] font-medium uppercase tracking-widest text-slate-500">Sponsored</p>
+        )}
         {/* Name + status */}
         <div className="flex items-start justify-between gap-2 mb-1">
           <h3 className="font-bold text-white group-hover:text-brand-red transition-colors leading-tight">

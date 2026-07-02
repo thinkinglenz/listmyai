@@ -87,10 +87,15 @@ export default async function DirectoryPage({ searchParams }: Props) {
   const catMap = new Map<string, Category>()
   for (const c of categories) catMap.set(String(c.id), c)
 
-  // ── Build tools query ─────────────────────────────────────────────────────
-  let query = supabase
-    .from('ai_tools')
-    .select(`
+  // ── Resolve category filter once (used by both organic + sponsored) ──────
+  let filterCatId: string | null = null
+  if (category) {
+    const { data: catRow } = await supabase
+      .from('categories').select('id').eq('slug', category).maybeSingle()
+    filterCatId = catRow ? String(catRow.id) : '00000000-0000-0000-0000-000000000000'
+  }
+
+  const TOOL_COLS = `
       id, slug, name, tagline, website,
       pricing_model, starting_price, has_free_trial, has_api,
       status, is_featured, is_sponsored,
@@ -98,23 +103,23 @@ export default async function DirectoryPage({ searchParams }: Props) {
       view_count, click_count, category_id,
       platforms, promo_code, promo_desc,
       created_at, updated_at, claimed, submitted_by
-    `)
-    .eq('status', 'active')
+    `
 
-  if (q) {
-    query = query.or(`name.ilike.%${q}%,tagline.ilike.%${q}%`)
+  // Applies the user's active filters to any tools query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyFilters(qb: any) {
+    if (q) qb = qb.or(`name.ilike.%${q}%,tagline.ilike.%${q}%`)
+    if (filterCatId) qb = qb.eq('category_id', filterCatId)
+    if (pricing) qb = qb.eq('pricing_model', pricing)
+    if (trial)   qb = qb.eq('has_free_trial', true)
+    if (api)     qb = qb.eq('has_api', true)
+    return qb
   }
 
-  if (category) {
-    const { data: catRow } = await supabase
-      .from('categories').select('id').eq('slug', category).maybeSingle()
-    if (catRow) query = query.eq('category_id', catRow.id)
-    else query = query.eq('category_id', '00000000-0000-0000-0000-000000000000')
-  }
-
-  if (pricing) query = query.eq('pricing_model', pricing)
-  if (trial)   query = query.eq('has_free_trial', true)
-  if (api)     query = query.eq('has_api', true)
+  // ── Organic results ───────────────────────────────────────────────────────
+  let query = applyFilters(
+    supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active')
+  )
 
   if (sort === 'popular') query = query.order('upvotes', { ascending: false })
   else if (sort === 'rating') query = query.order('rating_avg', { ascending: false })
@@ -123,11 +128,16 @@ export default async function DirectoryPage({ searchParams }: Props) {
 
   query = query.limit(200)
 
-  const { data: toolsRaw, error } = await query
+  // ── Sponsored slots (Amazon-style): relevant paid listings pinned on top ──
+  const sponsoredQuery = applyFilters(
+    supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active').eq('is_sponsored', true)
+  ).order('upvotes', { ascending: false }).limit(2)
+
+  const [{ data: toolsRaw, error }, { data: sponsoredRaw }] = await Promise.all([query, sponsoredQuery])
 
   // ── Shape data to match AiTool type ───────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tools: AiTool[] = (toolsRaw ?? []).map((t: any) => {
+  const shape = (t: any): AiTool => {
     const cat = catMap.get(String(t.category_id))
     return {
       id: String(t.id),
@@ -165,7 +175,13 @@ export default async function DirectoryPage({ searchParams }: Props) {
       created_at: t.created_at ?? new Date().toISOString(),
       updated_at: t.updated_at ?? new Date().toISOString(),
     }
-  })
+  }
+
+  // Sponsored slots first (tagged), then organic results without duplicates
+  const sponsored: AiTool[] = (sponsoredRaw ?? []).map(shape)
+  const sponsoredIds = new Set(sponsored.map(t => t.id))
+  const organic: AiTool[] = (toolsRaw ?? []).map(shape).filter((t: AiTool) => !sponsoredIds.has(t.id))
+  const tools: AiTool[] = [...sponsored, ...organic]
 
   const activeCatName = categories.find(c => c.slug === category)?.name
 

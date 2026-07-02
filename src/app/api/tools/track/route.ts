@@ -30,10 +30,12 @@ export async function POST(req: NextRequest) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const current = (row as any)[column] ?? 0
+    // Early-stage boost: views count double until a listing reaches 100
+    const increment = event === 'view' && current < 100 ? 2 : 1
     await supabase
       .from('ai_tools')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ [column]: current + 1 } as any)
+      .update({ [column]: current + increment } as any)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .eq('id', (row as any).id)
 
