@@ -43,5 +43,13 @@ export async function GET() {
     badges.blog_comments = blogComments ?? 0
   } catch {}
 
+  try {
+    const { count: toolComments } = await supabase
+      .from('tool_comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    badges.tool_comments = toolComments ?? 0
+  } catch {}
+
   return NextResponse.json(badges)
 }

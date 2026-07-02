@@ -298,7 +298,7 @@ function buildJsonLd(tool: AiTool, faqs: { q: string; a: string }[]) {
 // ── ClaimBanner — rendered server-side, wraps client ClaimModal ───────────────
 
 import ClaimBanner from '@/components/listing/ClaimBanner'
-import ContactForm from '@/components/listing/ContactForm'
+import ToolCommentSection from '@/components/listing/ToolCommentSection'
 import WebsitePreview from '@/components/listing/WebsitePreview'
 import ToolShareButtons from '@/components/listing/ToolShareButtons'
 import ToolPageTracker from '@/components/listing/ToolPageTracker'
@@ -662,8 +662,8 @@ export default async function ToolPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Contact Form */}
-            <ContactForm toolName={tool.name} toolSlug={tool.slug} />
+            {/* Comments — moderated */}
+            <ToolCommentSection toolId={tool.id} toolSlug={tool.slug} toolName={tool.name} />
 
             {/* Disclaimer */}
             <div className="rounded-xl p-4 text-xs leading-relaxed text-slate-500"
