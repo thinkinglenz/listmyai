@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   // Data query with pagination
   let query = supabase
     .from('ai_tools')
-    .select('id, name, slug, website, status, claimed, upvotes, rating_avg, rating_count, created_at, category_id, categories(name), tagline, description, logo_url')
+    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, created_at, category_id, categories(name), tagline, description, logo_url')
     .order('created_at', { ascending: false })
     .range(from, to)
 
@@ -119,8 +119,19 @@ export async function GET(req: NextRequest) {
   const { data, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Enrich with claiming user email for each claimed tool
+  const enriched = await Promise.all((data ?? []).map(async (tool: any) => {
+    if (!tool.claimed_by) return tool
+    try {
+      const { data: user } = await supabase.auth.admin.getUserById(tool.claimed_by)
+      return { ...tool, claimed_by_email: user?.user?.email ?? null }
+    } catch {
+      return { ...tool, claimed_by_email: null }
+    }
+  }))
+
   return NextResponse.json({
-    tools: data ?? [],
+    tools: enriched,
     page,
     pageSize: PAGE_SIZE,
     total: totalCount ?? 0,

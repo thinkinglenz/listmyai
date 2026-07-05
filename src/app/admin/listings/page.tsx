@@ -17,6 +17,8 @@ interface Tool {
   website: string
   status: 'active' | 'pending' | 'rejected' | 'inactive'
   claimed: boolean
+  claimed_by: string | null
+  claimed_by_email?: string | null
   upvotes: number
   rating: number
   added: string
@@ -727,7 +729,8 @@ export default function AdminListingsPage() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             category: (t.categories as any)?.name ?? '',
             website: t.website ?? '', status: t.status ?? 'pending',
-            claimed: t.claimed ?? false, upvotes: t.upvotes ?? 0,
+            claimed: t.claimed ?? false, claimed_by: t.claimed_by ?? null, claimed_by_email: t.claimed_by_email ?? null,
+            upvotes: t.upvotes ?? 0,
             rating: t.rating_avg ?? 0,
             added: t.created_at ? new Date(t.created_at).toISOString().split('T')[0] : '',
             tagline: t.tagline ?? '', description: t.description ?? '',
@@ -778,6 +781,8 @@ export default function AdminListingsPage() {
           website: t.website ?? '—',
           status: t.status ?? 'pending',
           claimed: t.claimed ?? false,
+          claimed_by: t.claimed_by ?? null,
+          claimed_by_email: t.claimed_by_email ?? null,
           upvotes: t.upvotes ?? 0,
           rating: t.rating_avg ?? 0,
           added: t.created_at
@@ -1022,9 +1027,16 @@ export default function AdminListingsPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`text-xs font-medium ${tool.claimed ? 'text-emerald-400' : 'text-slate-600'}`}>
-                            {tool.claimed ? '✓ Claimed' : 'Unclaimed'}
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className={`text-xs font-medium ${tool.claimed ? 'text-emerald-400' : 'text-slate-600'}`}>
+                              {tool.claimed ? '✓ Claimed' : 'Unclaimed'}
+                            </span>
+                            {tool.claimed && tool.claimed_by_email && (
+                              <span className="text-[10px] text-slate-500 truncate max-w-[150px]" title={tool.claimed_by_email}>
+                                {tool.claimed_by_email}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-400">{tool.upvotes.toLocaleString()}</td>
                         <td className="px-4 py-3 text-sm text-slate-400">{tool.rating > 0 ? `${tool.rating} ★` : '—'}</td>
