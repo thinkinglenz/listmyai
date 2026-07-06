@@ -285,6 +285,21 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Contact / Advertise Card */}
+                <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-white mb-1">Questions or Interested in Advertising?</h3>
+                      <p className="text-sm text-slate-400">Get in touch about sponsorships, partnerships, or any other inquiries.</p>
+                    </div>
+                    <Link href="/contact"
+                      className="flex-shrink-0 rounded-lg px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 whitespace-nowrap"
+                      style={{ background: '#e94560' }}>
+                      Contact Us
+                    </Link>
+                  </div>
+                </div>
               </div>
             )}
 

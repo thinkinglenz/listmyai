@@ -156,6 +156,7 @@ const PACKAGES: Tier[] = [
 // ── Bundles ──────────────────────────────────────────────────────────────────
 const BUNDLES = [
   {
+    key: 'starter',
     name: 'Starter',
     price: '$249',
     unit: '/month',
@@ -164,6 +165,7 @@ const BUNDLES = [
     color: '#3b82f6',
   },
   {
+    key: 'growth',
     name: 'Growth',
     price: '$599',
     unit: '/month',
@@ -173,6 +175,7 @@ const BUNDLES = [
     highlight: true,
   },
   {
+    key: 'launch',
     name: 'Launch',
     price: '$1,499',
     unit: 'one-time',
@@ -227,11 +230,11 @@ export default function AdvertisePage() {
           Get your AI tool, product, or service in front of an audience that&apos;s ready to buy.
         </p>
         <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a href="mailto:listmyai@gmail.com?subject=Advertising%20enquiry"
+          <Link href="/contact"
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: '#e94560', boxShadow: '0 0 20px rgba(233,69,96,0.25)' }}>
             Book a Placement <ArrowRight className="h-4 w-4" />
-          </a>
+          </Link>
           <a href="#packages"
             className="rounded-xl border px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
             style={{ borderColor: '#1e2a3a' }}>
@@ -320,11 +323,11 @@ export default function AdvertisePage() {
                 ))}
               </ul>
 
-              <a href={`mailto:listmyai@gmail.com?subject=${encodeURIComponent(`${p.name} enquiry`)}`}
+              <Link href={`/contact?package=${encodeURIComponent(p.key)}`}
                 className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                 style={{ background: p.color }}>
                 {p.cta} <ArrowRight className="h-3.5 w-3.5" />
-              </a>
+              </Link>
             </div>
           ))}
         </div>
@@ -370,11 +373,11 @@ export default function AdvertisePage() {
                   </li>
                 ))}
               </ul>
-              <a href={`mailto:listmyai@gmail.com?subject=${encodeURIComponent(`${b.name} bundle enquiry`)}`}
+              <Link href={`/contact?package=${encodeURIComponent(b.key)}`}
                 className="flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                 style={{ background: b.color }}>
                 Get {b.name} <ArrowRight className="h-3.5 w-3.5" />
-              </a>
+              </Link>
             </div>
           ))}
         </div>
@@ -422,11 +425,11 @@ export default function AdvertisePage() {
           Tell us a bit about your tool and what you&apos;d like to accomplish. We&apos;ll send a custom plan and creative recommendations within 24 hours.
         </p>
         <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <a href="mailto:listmyai@gmail.com?subject=Advertising%20enquiry%20from%20listmyai.com%2Fadvertise"
+          <Link href="/contact"
             className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
             style={{ background: '#e94560', boxShadow: '0 0 24px rgba(233,69,96,0.3)' }}>
-            <Send className="h-4 w-4" /> Email Sales — listmyai@gmail.com
-          </a>
+            <Send className="h-4 w-4" /> Get in Touch
+          </Link>
           <Link href="/submit"
             className="rounded-xl border px-6 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white"
             style={{ borderColor: '#1e2a3a' }}>
