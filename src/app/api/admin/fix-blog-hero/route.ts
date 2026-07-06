@@ -7,8 +7,9 @@ const supabase = createClient(
 )
 
 export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== 'lmai@admin2026') {
+  const body = await req.json().catch(() => ({}))
+  const secret = body.secret || req.headers.get('x-admin-secret')
+  if (secret !== process.env.CRON_SECRET && secret !== 'lmai@admin2026') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
