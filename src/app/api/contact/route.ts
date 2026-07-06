@@ -1,69 +1,114 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { sendEmail } from '@/lib/email'
 
-function supabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export async function POST(req: NextRequest) {
-  let body: { name?: string; email?: string; message?: string; tool_name?: string; tool_slug?: string }
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
-  }
+    const body = await req.json()
+    const { sender_name, sender_email, message, package_type, auto_register } = body
 
-  const { name, email, message, tool_name, tool_slug } = body
+    if (!sender_name || !sender_email || !message) {
+      return NextResponse.json({ error: 'Name, email, and message are required' }, { status: 400 })
+    }
 
-  if (!name?.trim()) return NextResponse.json({ error: 'Name is required' }, { status: 422 })
-  if (!email?.trim() || !email.includes('@')) return NextResponse.json({ error: 'Valid email is required' }, { status: 422 })
-  if (!message?.trim()) return NextResponse.json({ error: 'Message is required' }, { status: 422 })
-  if (message.trim().length < 10) return NextResponse.json({ error: 'Message is too short' }, { status: 422 })
+    const cookieStore = await cookies()
+    const ssrClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try { cookieStore.set(name, value, options) } catch { /* ignore in RSC */ }
+            })
+          },
+        },
+      }
+    )
 
-  const admin = supabaseAdmin()
+    const { data: { user } } = await ssrClient.auth.getUser()
+    let userId: string | null = user?.id ?? null
+    let autoRegistered = false
 
-  // Try to save to contact_messages table
-  const { error: insertErr } = await admin.from('contact_messages').insert({
-    name: name.trim(),
-    email: email.trim(),
-    message: message.trim(),
-    tool_name: tool_name || null,
-    tool_slug: tool_slug || null,
-  })
+    if (!userId && auto_register) {
+      try {
+        const { data: signUpData, error: signUpErr } = await supabase.auth.admin.createUser({
+          email: sender_email,
+          user_metadata: { full_name: sender_name },
+          
+        })
 
-  if (insertErr) {
-    console.error('[contact] Insert failed:', insertErr.message)
-    // Still send email even if DB insert fails
-  }
+        if (signUpErr) {
+          if (signUpErr.message.includes('already exists')) {
+            autoRegistered = false
+          } else {
+            throw signUpErr
+          }
+        } else {
+          userId = signUpData?.user?.id ?? null
+          autoRegistered = true
+        }
+      } catch (err) {
+        console.error('[contact] Auto-register failed:', err)
+      }
+    }
 
-  // Send notification email to admin
-  try {
-    const toolContext = tool_name ? `<p style="color:#94a3b8;font-size:13px;">From listing: <strong>${tool_name}</strong> (/tools/${tool_slug})</p>` : ''
+    const { error: insertErr } = await supabase.from('contact_messages').insert({
+      user_id: userId,
+      sender_email,
+      sender_name,
+      package_type,
+      message,
+      status: 'new',
+    })
 
-    await sendEmail({
-      to: process.env.ADMIN_EMAIL || 'listmyai@gmail.com',
-      subject: `New Contact: ${name.trim()}${tool_name ? ` — re: ${tool_name}` : ''}`,
-      html: `
-        <div style="font-family:system-ui,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#0d1117;color:#e2e8f0;border-radius:12px;">
-          <h2 style="color:#fff;margin:0 0 16px;">New Contact Message</h2>
-          ${toolContext}
-          <div style="background:#161b27;border:1px solid #1e2a3a;border-radius:8px;padding:16px;margin:16px 0;">
-            <p style="margin:0 0 8px;"><strong style="color:#fff;">Name:</strong> ${name.trim()}</p>
-            <p style="margin:0 0 8px;"><strong style="color:#fff;">Email:</strong> <a href="mailto:${email.trim()}" style="color:#e94560;">${email.trim()}</a></p>
-            <p style="margin:0;"><strong style="color:#fff;">Message:</strong></p>
-            <p style="margin:8px 0 0;white-space:pre-wrap;color:#94a3b8;">${message.trim()}</p>
+    if (insertErr) {
+      return NextResponse.json({ error: 'Failed to save message' }, { status: 500 })
+    }
+
+    try {
+      const subject = package_type
+        ? `New contact: ${package_type} inquiry from ${sender_name}`
+        : `New contact message from ${sender_name}`
+
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #e94560; margin-bottom: 16px;">New Contact Message</h2>
+          <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+            <p><strong>From:</strong> ${sender_name}</p>
+            <p><strong>Email:</strong> <a href="mailto:${sender_email}">${sender_email}</a></p>
+            ${package_type ? `<p><strong>Package:</strong> ${package_type}</p>` : ''}
           </div>
-          <p style="color:#475569;font-size:12px;margin:16px 0 0;">Sent from ListmyAI contact form</p>
+          <div style="background: #ffffff; padding: 16px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 16px;">
+            <p style="white-space: pre-wrap; color: #374151;">${message}</p>
+          </div>
+          ${autoRegistered ? `<p style="color: #059669; font-size: 14px;">✓ New account auto-registered.</p>` : ''}
         </div>
-      `,
+      `
+
+      await sendEmail({
+        to: process.env.ADMIN_NOTIFY_EMAIL || 'listmyai@gmail.com',
+        subject,
+        html: emailHtml,
+      })
+    } catch (err) {
+      console.error('[contact] Email failed:', err)
+    }
+
+    return NextResponse.json({
+      ok: true,
+      auto_registered: autoRegistered,
     })
   } catch (err) {
-    console.error('[contact] Failed to send notification email:', err)
+    console.error('[contact] Error:', err)
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
-
-  return NextResponse.json({ ok: true })
 }

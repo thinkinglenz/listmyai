@@ -4,9 +4,9 @@
     {
       "name": "listmyai",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev"],
+      "runtimeArgs": ["next", "dev", "--port", "3002"],
       "port": 3002,
-      "autoPort": false
+      "url": "http://localhost:3002/submit"
     }
   ]
 }
