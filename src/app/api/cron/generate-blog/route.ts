@@ -143,7 +143,8 @@ function pickHeroImage(slug: string): { url: string; alt: string } {
   }
   const img = HERO_IMAGES[hash % HERO_IMAGES.length]
   return {
-    url: `https://images.unsplash.com/${img.id}?w=1200&auto=format&fit=crop&q=80`,
+    // Use picsum.photos as more reliable fallback than unsplash
+    url: `https://picsum.photos/1200/630?random=${hash}`,
     alt: img.alt,
   }
 }
