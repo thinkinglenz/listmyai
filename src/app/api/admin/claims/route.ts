@@ -9,7 +9,7 @@ const supabase = createClient(
 export async function GET() {
   const { data, error } = await supabase
     .from('claim_requests')
-    .select('*, ai_tools(name, slug, website)')
+    .select('*, ai_tools(id, name, slug, website, tagline, description, category_id, pricing_model, has_free_trial, logo_url, categories(name))')
     .order('created_at', { ascending: false })
     .limit(100)
 

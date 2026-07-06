@@ -208,3 +208,19 @@ export function ownerEngagementEmail(
     ${P(`Keep the momentum going — reply to comments and share your listing to attract more visitors.`)}
   `)
 }
+
+export function adminClaimNotificationEmail(
+  toolName: string,
+  claimantName: string,
+  claimantEmail: string,
+  toolDetails: string,
+  claimUrl: string,
+) {
+  return BASE(`
+    ${H1(`New claim: ${toolName}`)}
+    ${P(`${claimantName} (${claimantEmail}) just claimed this listing.`)}
+    ${toolDetails}
+    ${BTN(claimUrl, 'Review & Approve in Admin Panel')}
+    ${P(`Review the tool details above before approving. You can also reject this claim if needed.`)}
+  `)
+}

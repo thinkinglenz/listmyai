@@ -12,7 +12,19 @@ interface Claim {
   status: 'pending' | 'pending_verification' | 'approved' | 'rejected' | 'expired'
   note?: string
   created_at: string
-  ai_tools?: { name: string; slug: string; website: string }
+  ai_tools?: {
+    id: string
+    name: string
+    slug: string
+    website: string
+    tagline?: string
+    description?: string
+    category_id?: string
+    pricing_model?: string
+    has_free_trial?: boolean
+    logo_url?: string
+    categories?: { name: string }
+  }
 }
 
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -163,6 +175,31 @@ export default function AdminClaimsPage() {
                     </span>
                   </div>
                   <Row label="Submitted" value={new Date(active.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} />
+                </div>
+
+                {/* Tool details */}
+                <div className="mb-5 border-t pt-4" style={{ borderColor: '#1e2a3a' }}>
+                  <p className="mb-3 text-xs font-semibold uppercase text-slate-500">Tool Details</p>
+                  <div className="space-y-2.5">
+                    {active.ai_tools?.tagline && (
+                      <Row label="Tagline" value={active.ai_tools.tagline} />
+                    )}
+                    {active.ai_tools?.description && (
+                      <div>
+                        <p className="text-xs text-slate-500 mb-1">Description</p>
+                        <p className="text-sm text-slate-300 line-clamp-3">{active.ai_tools.description}</p>
+                      </div>
+                    )}
+                    {active.ai_tools?.categories?.name && (
+                      <Row label="Category" value={active.ai_tools.categories.name} />
+                    )}
+                    {active.ai_tools?.pricing_model && (
+                      <Row label="Pricing" value={active.ai_tools.pricing_model} />
+                    )}
+                    {active.ai_tools?.has_free_trial && (
+                      <Row label="Free trial" value="Yes" />
+                    )}
+                  </div>
                 </div>
 
                 {active.note && (

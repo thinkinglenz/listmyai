@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { randomBytes } from 'crypto'
-import { sendEmail, claimVerificationEmail } from '@/lib/email'
+import { sendEmail, claimVerificationEmail, adminClaimNotificationEmail } from '@/lib/email'
 
 function supabaseAdmin() {
   return createClient(
@@ -180,6 +180,27 @@ export async function POST(req: NextRequest) {
       })
     } catch (err) {
       console.error('[claim] Failed to send verification email:', err)
+    }
+  }
+
+  // ── Send admin notification ────────────────────────────────────────────
+  if (inserted) {
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://listmyai.com'
+      const toolDetails = `
+        <div style="margin:20px 0;padding:16px;background:rgba(255,255,255,0.03);border:1px solid #1e2a3a;border-radius:12px">
+          <p><strong>Tool:</strong> ${tool.name}</p>
+          <p><strong>Website:</strong> <a href="${tool.website}" style="color:#e94560">${tool.website || 'N/A'}</a></p>
+          <p><strong>Claim type:</strong> ${claimType === 'domain-match' ? '✓ Domain Match (auto-verified)' : 'Manual Review'}</p>
+          <p><strong>Claimant:</strong> ${name.trim()}</p>
+        </div>`
+      await sendEmail({
+        to: process.env.ADMIN_NOTIFY_EMAIL || 'listmyai@gmail.com',
+        subject: `🔔 New claim: ${tool.name}`,
+        html: adminClaimNotificationEmail(tool.name, name.trim(), email, toolDetails, `${appUrl}/admin/claims`),
+      })
+    } catch (err) {
+      console.error('[claim] Failed to send admin notification:', err)
     }
   }
 
