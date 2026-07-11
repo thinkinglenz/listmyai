@@ -16,10 +16,24 @@ function generateCaptcha() {
   return { question: `${a} + ${b} = ?`, answer: a + b }
 }
 
+const PACKAGE_OPTIONS = [
+  { key: 'featured', label: 'Featured Listing ($49/month)' },
+  { key: 'sponsored', label: 'Sponsored Listing ($199/month)' },
+  { key: 'banner', label: 'Homepage Banner ($299/week)' },
+  { key: 'newsletter', label: 'Newsletter Sponsor' },
+  { key: 'review', label: 'Sponsored Review' },
+  { key: 'social', label: 'Social Boost' },
+  { key: 'starter', label: 'Bundle - Starter ($249/month)' },
+  { key: 'growth', label: 'Bundle - Growth ($599/month)' },
+  { key: 'launch', label: 'Bundle - Launch ($1,499 one-time)' },
+  { key: 'general', label: 'General Inquiry' },
+]
+
 export default function ContactForm({ package: pkgType, onSuccess }: Props) {
   const { user } = useAuth()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [selectedPackage, setSelectedPackage] = useState(pkgType || '')
   const [message, setMessage] = useState('')
   const [captchaInput, setCaptchaInput] = useState('')
   const [captcha, setCaptcha] = useState({ question: '', answer: 0 })
@@ -39,15 +53,15 @@ export default function ContactForm({ package: pkgType, onSuccess }: Props) {
     e.preventDefault()
     setError('')
 
-    // Captcha check (skip for logged-in users)
-    if (!user && parseInt(captchaInput) !== captcha.answer) {
+    // Captcha check (for everyone)
+    if (parseInt(captchaInput) !== captcha.answer) {
       setError('Incorrect answer. Please try again.')
       setCaptcha(generateCaptcha())
       setCaptchaInput('')
       return
     }
 
-    if (!name.trim() || !email.trim() || !message.trim()) {
+    if (!name.trim() || !email.trim() || !message.trim() || !selectedPackage) {
       setError('All fields are required.')
       return
     }
@@ -62,7 +76,7 @@ export default function ContactForm({ package: pkgType, onSuccess }: Props) {
           sender_name: name.trim(),
           sender_email: email.trim(),
           message: message.trim(),
-          package_type: pkgType,
+          package_type: selectedPackage,
           auto_register: !user, // If not logged in, request auto-registration
         }),
       })
@@ -142,16 +156,24 @@ export default function ContactForm({ package: pkgType, onSuccess }: Props) {
           </div>
         )}
 
-        {/* Package type (if provided) */}
-        {pkgType && (
-          <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-300">Regarding</label>
-            <div className="rounded-xl border bg-white/4 px-4 py-3 text-sm text-slate-400"
-              style={{ borderColor: '#1e2a3a' }}>
-              {pkgType.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
-            </div>
-          </div>
-        )}
+        {/* Package type dropdown */}
+        <div>
+          <label className="mb-1.5 block text-sm font-medium text-slate-300">What can we help you with? *</label>
+          <select
+            value={selectedPackage}
+            onChange={e => setSelectedPackage(e.target.value)}
+            required
+            className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition"
+            style={{ borderColor: '#1e2a3a' }}
+          >
+            <option value="">-- Select a category --</option>
+            {PACKAGE_OPTIONS.map(opt => (
+              <option key={opt.key} value={opt.key}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {/* Message */}
         <div>
@@ -167,25 +189,23 @@ export default function ContactForm({ package: pkgType, onSuccess }: Props) {
           />
         </div>
 
-        {/* Captcha (only for non-logged-in users) */}
-        {!user && (
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-            <div className="flex-1">
-              <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                Quick check: <span className="font-mono text-white">{captcha.question}</span>
-              </label>
-              <input
-                type="text"
-                value={captchaInput}
-                onChange={e => setCaptchaInput(e.target.value)}
-                placeholder="Answer"
-                required={!user}
-                className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition sm:max-w-[200px]"
-                style={{ borderColor: '#1e2a3a' }}
-              />
-            </div>
+        {/* Captcha (for everyone) */}
+        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-sm font-medium text-slate-300">
+              Quick check: <span className="font-mono text-white">{captcha.question}</span>
+            </label>
+            <input
+              type="text"
+              value={captchaInput}
+              onChange={e => setCaptchaInput(e.target.value)}
+              placeholder="Answer"
+              required
+              className="w-full rounded-xl border bg-white/4 px-4 py-3 text-sm text-white placeholder:text-slate-600 focus:outline-none transition sm:max-w-[200px]"
+              style={{ borderColor: '#1e2a3a' }}
+            />
           </div>
-        )}
+        </div>
 
         {/* Error */}
         {error && (

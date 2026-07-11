@@ -7,12 +7,13 @@ export const metadata: Metadata = {
   description: 'Get in touch with ListmyAI. Ask about sponsorships, advertising options, or report an issue.',
 }
 
-export default function ContactPage({
+export default async function ContactPage({
   searchParams,
 }: {
-  searchParams: Record<string, string>
+  searchParams: Promise<Record<string, string>>
 }) {
-  const pkgType = searchParams.package
+  const params = await searchParams
+  const pkgType = params.package
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6" style={{ background: '#0d1117' }}>
