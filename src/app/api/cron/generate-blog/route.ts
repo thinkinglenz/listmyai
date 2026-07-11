@@ -99,53 +99,15 @@ async function findRelatedToolIds(topic: string): Promise<string[]> {
   return (trending ?? []).map(d => d.id)
 }
 
-// Large curated pool of unique AI/tech Unsplash photos.
-// Assigned deterministically per post slug — guarantees no two posts share an image.
-const HERO_IMAGES = [
-  { id: 'photo-1677442135703-1787eea5ce01', alt: 'AI neural network visualization' },
-  { id: 'photo-1620712943543-bcc4688e7485', alt: 'Humanoid robot representing AI' },
-  { id: 'photo-1655720828018-edd2daec9349', alt: 'AI processor chip close-up' },
-  { id: 'photo-1704901429756-49d21c00bbf6', alt: 'Futuristic AI interface' },
-  { id: 'photo-1563986768494-4dee2763ff3f', alt: 'Developer writing code' },
-  { id: 'photo-1518770660439-4636190af475', alt: 'Circuit board technology' },
-  { id: 'photo-1551434678-e076c223a692', alt: 'Laptop showing data analysis' },
-  { id: 'photo-1522202176988-66273c2fd55f', alt: 'Team collaborating on technology' },
-  { id: 'photo-1485827404703-89b55fcc595e', alt: 'Robot and human interaction' },
-  { id: 'photo-1531746790731-6c087fecd65a', alt: 'Abstract digital technology' },
-  { id: 'photo-1507003211169-0a1dd7228f2d', alt: 'Data visualization dashboard' },
-  { id: 'photo-1504384308090-c894fdcc538d', alt: 'Modern coworking tech office' },
-  { id: 'photo-1568952433726-3896e3881c65', alt: 'Machine learning concept' },
-  { id: 'photo-1485546246426-74dc88dec4d9', alt: 'Technology network connection' },
-  { id: 'photo-1526374965328-7f61d4dc18c5', alt: 'Digital matrix code' },
-  { id: 'photo-1550751827-4bd374c3f58b', alt: 'Cybersecurity digital lock' },
-  { id: 'photo-1558494949-ef010cbdcc31', alt: 'Server data center infrastructure' },
-  { id: 'photo-1579389083175-d81f61c70b1d', alt: 'AI chatbot interface concept' },
-  { id: 'photo-1617791160505-6f00504e3519', alt: 'Augmented reality technology' },
-  { id: 'photo-1616161560417-f3a3a2e27ea8', alt: 'Quantum computing abstract' },
-  { id: 'photo-1488229297570-58520851e868', alt: 'Software development workspace' },
-  { id: 'photo-1533750349088-cd871a92f312', alt: 'Mobile app development' },
-  { id: 'photo-1496181133206-80ce9b88a853', alt: 'Laptop computer for productivity' },
-  { id: 'photo-1461749280684-dccba630e2f6', alt: 'Code on multiple monitors' },
-  { id: 'photo-1454165804606-c3d57bc86b40', alt: 'Business analytics charts' },
-  { id: 'photo-1516321318423-f06f85e504b3', alt: 'Video conference collaboration' },
-  { id: 'photo-1544197150-b99a580bb7a8', alt: 'Cloud computing concept' },
-  { id: 'photo-1573164713988-8665fc963095', alt: 'Natural language processing' },
-  { id: 'photo-1580894894513-541e068a3e2b', alt: 'AI automation workflow' },
-  { id: 'photo-1581091226825-a6a2a5aee158', alt: 'Digital transformation tech' },
-]
+// Hero image: rendered on-demand by /api/blog-hero/[slug] from the post's own
+// title (branded card via next/og ImageResponse). Deterministic — same slug
+// always produces the identical PNG — and always on-topic.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
 
-// Deterministically pick a hero image based on the post slug.
-// Same slug → always same image; different slugs → different images.
-function pickHeroImage(slug: string): { url: string; alt: string } {
-  let hash = 0
-  for (let i = 0; i < slug.length; i++) {
-    hash = (hash * 31 + slug.charCodeAt(i)) >>> 0
-  }
-  const img = HERO_IMAGES[hash % HERO_IMAGES.length]
+function pickHeroImage(slug: string, title: string): { url: string; alt: string } {
   return {
-    // Use picsum.photos as more reliable fallback than unsplash
-    url: `https://picsum.photos/1200/630?random=${hash}`,
-    alt: img.alt,
+    url: `${APP_URL}/api/blog-hero/${slug}`,
+    alt: title,
   }
 }
 
@@ -372,8 +334,8 @@ export async function GET(req: NextRequest) {
       finalSlug = `${finalSlug}-${dateSuffix}`.slice(0, 90)
     }
 
-    // Assign hero image deterministically from pool — unique per slug
-    const heroImage = pickHeroImage(finalSlug)
+    // Hero image rendered from the post title — unique and on-topic per slug
+    const heroImage = pickHeroImage(finalSlug, generated.title)
 
     const { data: inserted, error } = await supabase
       .from('blog_posts')

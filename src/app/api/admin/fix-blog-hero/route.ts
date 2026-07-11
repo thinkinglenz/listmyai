@@ -6,6 +6,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
+
+// Repoints every auto-generated post's hero image to /api/blog-hero/[slug],
+// which renders a deterministic branded card from the post's own title.
+// Fixes legacy posts stuck with random picsum/unsplash/placeholder URLs.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
   const secret = body.secret || req.headers.get('x-admin-secret')
@@ -13,41 +18,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  // Get the latest auto-generated blog post
-  const { data: latest, error: fetchErr } = await supabase
+  const { data: posts, error: fetchErr } = await supabase
     .from('blog_posts')
     .select('id, slug, title, hero_image_url')
     .eq('is_auto_generated', true)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  if (fetchErr || !latest) {
+  if (fetchErr || !posts || posts.length === 0) {
     return NextResponse.json({ error: 'No blog posts found', details: fetchErr?.message }, { status: 404 })
   }
 
-  // Generate a deterministic image URL based on slug
-  let hash = 0
-  for (let i = 0; i < latest.slug.length; i++) {
-    hash = (hash * 31 + latest.slug.charCodeAt(i)) >>> 0
-  }
-  const newImageUrl = `https://picsum.photos/1200/630?random=${hash}`
+  const updated: string[] = []
+  const failed: { slug: string; error: string }[] = []
 
-  // Update the hero image
-  const { error: updateErr } = await supabase
-    .from('blog_posts')
-    .update({ hero_image_url: newImageUrl })
-    .eq('id', latest.id)
+  for (const post of posts) {
+    const newImageUrl = `${APP_URL}/api/blog-hero/${post.slug}`
+    if (post.hero_image_url === newImageUrl) continue
 
-  if (updateErr) {
-    return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    const { error: updateErr } = await supabase
+      .from('blog_posts')
+      .update({ hero_image_url: newImageUrl, hero_image_alt: post.title })
+      .eq('id', post.id)
+
+    if (updateErr) failed.push({ slug: post.slug, error: updateErr.message })
+    else updated.push(post.slug)
   }
 
   return NextResponse.json({
-    success: true,
-    post: latest.title,
-    slug: latest.slug,
-    newImageUrl,
-    message: 'Hero image updated. Refresh /admin/blog to see it.',
+    success: failed.length === 0,
+    total: posts.length,
+    updated,
+    failed,
+    message: `Repointed ${updated.length} post(s) to /api/blog-hero. Refresh /admin/blog to see it.`,
   })
 }

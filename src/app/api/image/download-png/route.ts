@@ -6,12 +6,16 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'url param required' }, { status: 400 })
 
-  // Force PNG format via Unsplash URL param (works for any Unsplash image)
-  const pngUrl = url
-    .replace(/[&?]fm=[a-z]+/, '')       // remove existing fm= param
-    .replace(/[&?]auto=format/, '')      // remove auto=format
-    .replace(/\?$/, '')                  // clean trailing ?
-    + (url.includes('?') ? '&' : '?') + 'fm=png&fit=crop'
+  // Our own blog-hero endpoint already returns a PNG — pass through untouched.
+  // Otherwise, force PNG format via Unsplash URL param.
+  const isOwnHero = url.includes('/api/blog-hero/')
+  const pngUrl = isOwnHero
+    ? (url.startsWith('http') ? url : `${req.nextUrl.origin}${url}`)
+    : url
+        .replace(/[&?]fm=[a-z]+/, '')       // remove existing fm= param
+        .replace(/[&?]auto=format/, '')      // remove auto=format
+        .replace(/\?$/, '')                  // clean trailing ?
+        + (url.includes('?') ? '&' : '?') + 'fm=png&fit=crop'
 
   try {
     const res = await fetch(pngUrl, { headers: { 'User-Agent': 'ListmyAI/1.0' } })
