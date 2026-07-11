@@ -11,10 +11,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Fetch all active tools
+  // Fetch all active tools with category info
   const { data: tools } = await supabase
     .from('ai_tools')
-    .select('slug, updated_at, created_at')
+    .select('slug, updated_at, created_at, category_id')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(50000)
@@ -85,6 +85,40 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
+  // Comparison pages (X vs Y for tools in the same category)
+  // Group tools by category, then generate all pairs within each category
+  const toolsByCategory = new Map<number | null, typeof tools>()
+  ;(tools ?? []).forEach(tool => {
+    if (!toolsByCategory.has(tool.category_id)) {
+      toolsByCategory.set(tool.category_id, [])
+    }
+    toolsByCategory.get(tool.category_id)!.push(tool)
+  })
+
+  const comparisonPages: MetadataRoute.Sitemap = []
+  toolsByCategory.forEach((categoryTools) => {
+    if (!categoryTools) return
+    // Generate all pairs within this category (A vs B, but not B vs A — so i < j)
+    for (let i = 0; i < categoryTools.length; i++) {
+      for (let j = i + 1; j < categoryTools.length; j++) {
+        const slugA = categoryTools[i].slug
+        const slugB = categoryTools[j].slug
+        const recentDate = new Date(
+          Math.max(
+            new Date(categoryTools[i].updated_at ?? categoryTools[i].created_at).getTime(),
+            new Date(categoryTools[j].updated_at ?? categoryTools[j].created_at).getTime()
+          )
+        )
+        comparisonPages.push({
+          url: `${BASE_URL}/compare/${slugA}-vs-${slugB}`,
+          lastModified: recentDate,
+          changeFrequency: 'weekly' as const,
+          priority: 0.6,
+        })
+      }
+    }
+  })
+
   // Use-case pages
   const useCaseSlugs = [
     'writing', 'image-generation', 'video-creation', 'coding', 'chatbots',
@@ -105,6 +139,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/use-case`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.8 },
     ...toolPages,
     ...alternativesPages,
+    ...comparisonPages,
     ...blogPages,
     ...categoryPages,
     ...useCasePages,
