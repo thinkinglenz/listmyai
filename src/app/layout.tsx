@@ -29,6 +29,14 @@ export const metadata: Metadata = {
     description: 'Discover 19,000+ AI tools. Compare pricing, find promo codes, free trials, and deals on the best AI software.',
     url: 'https://listmyai.com',
     locale: 'en_US',
+    images: [
+      {
+        url: 'https://listmyai.com/opengraph-image',
+        width: 1200,
+        height: 630,
+        alt: 'ListmyAI — The #1 AI Tools Directory',
+      },
+    ],
   },
   twitter: {
     card: 'summary_large_image',
