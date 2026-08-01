@@ -195,11 +195,27 @@ IMPORTANT: In "mentioned_tools", list EVERY specific AI tool or product mentione
   const result = await response.json()
   const text: string = result.content?.[0]?.text ?? ''
 
-  // Extract JSON from the response
-  const jsonMatch = text.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('No JSON found in Claude response')
+  // Extract JSON: find opening brace and count to matching closing brace
+  const start = text.indexOf('{')
+  if (start === -1) throw new Error('No JSON found in Claude response')
 
-  const parsed = JSON.parse(jsonMatch[0]) as GeneratedPost
+  let depth = 0
+  let end = -1
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++
+    else if (text[i] === '}') {
+      depth--
+      if (depth === 0) {
+        end = i + 1
+        break
+      }
+    }
+  }
+
+  if (end === -1) throw new Error('Malformed JSON: unmatched braces in Claude response')
+
+  const jsonStr = text.substring(start, end)
+  const parsed = JSON.parse(jsonStr) as GeneratedPost
 
   // Sanitise slug
   parsed.slug = slugify(parsed.slug || parsed.title)
