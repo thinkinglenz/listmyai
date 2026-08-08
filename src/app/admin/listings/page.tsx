@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone } from 'lucide-react'
+import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone, Pencil } from 'lucide-react'
+import Link from 'next/link'
+import EditToolModal from '@/components/admin/EditToolModal'
 
 const LinkedInIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
@@ -680,6 +682,8 @@ export default function AdminListingsPage() {
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [socialTool, setSocialTool] = useState<Tool | null>(null)
+  const [editingTool, setEditingTool] = useState<Tool | null>(null)
+  const [categories, setCategories] = useState<string[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Social share helpers ─────────────────────────────────────────────────────
@@ -812,6 +816,14 @@ export default function AdminListingsPage() {
 
   useEffect(() => { loadTools(1) }, [loadTools])
 
+  // Load categories for edit modal
+  useEffect(() => {
+    fetch('/api/admin/categories')
+      .then(r => r.json())
+      .then(d => setCategories((d.data || []).map((c: any) => c.name)))
+      .catch(() => {})
+  }, [])
+
   // Debounced search
   function handleSearchChange(val: string) {
     setSearch(val)
@@ -907,6 +919,18 @@ export default function AdminListingsPage() {
       )}
       {socialTool && (
         <SocialPostModal tool={socialTool} onClose={() => setSocialTool(null)} />
+      )}
+
+      {editingTool && (
+        <EditToolModal
+          tool={editingTool}
+          categories={categories}
+          onClose={() => setEditingTool(null)}
+          onSave={() => {
+            setEditingTool(null)
+            loadTools(page)
+          }}
+        />
       )}
 
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -1049,6 +1073,16 @@ export default function AdminListingsPage() {
                                 <Eye className="h-3.5 w-3.5" />
                               </a>
                             )}
+                            {/* Edit button - opens modal */}
+                            <button onClick={() => setEditingTool(tool)} title="Quick edit"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-blue-500/10 hover:text-blue-400">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            {/* Full edit page link */}
+                            <Link href={`/admin/tools/${tool.id}/edit`} title="Full edit page"
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-500/10 hover:text-slate-300">
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
                             {/* Share buttons */}
                             {tool.status === 'active' && tool.slug && (
                               <>
