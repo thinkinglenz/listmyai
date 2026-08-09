@@ -481,7 +481,7 @@ export default async function ToolPage({ params }: PageProps) {
             })()}
 
             {/* Website Preview — clean, no browser chrome */}
-            <WebsitePreview website={tool.website} toolName={tool.name} outboundUrl={outbound(tool.website)} />
+            <WebsitePreview website={tool.website} toolName={tool.name} outboundUrl={outbound(tool.website)} coverUrl={tool.cover_url} />
 
             {/* About — merged description + solution provider */}
             <div className="rounded-2xl border p-4 sm:p-6" style={{borderColor:'#1e2a3a',background:'#161b27'}}>

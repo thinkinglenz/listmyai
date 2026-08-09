@@ -7,11 +7,21 @@ interface Props {
   website: string
   toolName: string
   outboundUrl: string
+  /**
+   * Admin/owner-supplied preview image. Sites behind a bot firewall can never
+   * be captured automatically, so a hand-picked image set in admin wins over
+   * the screenshot service.
+   */
+  coverUrl?: string | null
 }
 
-export default function WebsitePreview({ website, toolName, outboundUrl }: Props) {
+export default function WebsitePreview({ website, toolName, outboundUrl, coverUrl }: Props) {
   const [imgError, setImgError] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
+
+  const previewSrc = coverUrl
+    ? coverUrl
+    : `/api/tools/screenshot?url=${encodeURIComponent(website)}`
 
   return (
     <a href={outboundUrl} target="_blank" rel="noopener noreferrer"
@@ -32,7 +42,7 @@ export default function WebsitePreview({ website, toolName, outboundUrl }: Props
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`/api/tools/screenshot?url=${encodeURIComponent(website)}`}
+              src={previewSrc}
               alt={`${toolName} website screenshot`}
               className={`w-full h-auto transition ${imgLoaded ? '' : 'absolute opacity-0'}`}
               loading="lazy"

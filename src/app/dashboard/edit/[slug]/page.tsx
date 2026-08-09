@@ -220,6 +220,15 @@ export default function EditListingPage() {
             <input type="url" value={tool.logo_url ?? ''} onChange={e => set('logo_url', e.target.value)}
               className={inputCls} style={inputStyle} />
           </Field>
+          <Field label="Preview Image URL">
+            <input type="url" value={tool.cover_url ?? ''} onChange={e => set('cover_url', e.target.value)}
+              placeholder="Leave blank to auto-capture your homepage"
+              className={inputCls} style={inputStyle} />
+            <p className="mt-1.5 text-xs text-slate-500">
+              We normally screenshot your homepage automatically. If your site blocks bots
+              (Cloudflare and similar), set an image here instead.
+            </p>
+          </Field>
           <Field label="Product Video URL">
             <input type="url" value={tool.video_url ?? ''} onChange={e => set('video_url', e.target.value)}
               placeholder="YouTube or Vimeo URL" className={inputCls} style={inputStyle} />

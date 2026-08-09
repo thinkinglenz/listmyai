@@ -35,6 +35,28 @@ function placeholderReason(buf: Buffer): string | null {
   return null
 }
 
+// Returns the refusing status code when the site turns away automated
+// clients, or null when a capture is worth attempting. A network error is
+// not treated as a block — thum.io may still reach a host we cannot.
+async function probeForBotBlock(target: string): Promise<number | null> {
+  try {
+    const res = await fetch(target, {
+      method: 'GET',
+      redirect: 'follow',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml',
+      },
+      signal: AbortSignal.timeout(8_000),
+    })
+    // Drain so the connection is released promptly; the body itself is unused.
+    void res.body?.cancel()
+    return res.status === 403 || res.status === 429 || res.status === 503 ? res.status : null
+  } catch {
+    return null
+  }
+}
+
 export async function GET(req: NextRequest) {
   const target = req.nextUrl.searchParams.get('url')
   if (!target) {
@@ -54,6 +76,22 @@ export async function GET(req: NextRequest) {
   }
   if (/^(localhost$|127\.|10\.|192\.168\.|169\.254\.|\[?::1\]?$)/i.test(parsed.hostname)) {
     return NextResponse.json({ error: 'Blocked host' }, { status: 400 })
+  }
+
+  // Sites behind a bot firewall (Cloudflare and friends) serve crawlers a
+  // "you have been blocked" page instead of their homepage. thum.io happily
+  // screenshots that block page and returns it as a perfectly valid, richly
+  // detailed PNG, so no amount of inspecting the bytes will catch it.
+  //
+  // What does catch it: asking the site ourselves. A host that refuses our
+  // request refuses thum.io's too, so a 403/429/503 here means the capture
+  // would be a block page — skip it and let the branded fallback show.
+  const blockedStatus = await probeForBotBlock(parsed.toString())
+  if (blockedStatus) {
+    return NextResponse.json(
+      { error: `Site blocks automated access (${blockedStatus})` },
+      { status: 404, headers: { 'Cache-Control': 'public, max-age=86400' } }
+    )
   }
 
   const upstream = `https://image.thum.io/get/width/1280/crop/800/noanimate/${parsed.toString()}`
