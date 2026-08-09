@@ -32,7 +32,7 @@ export default function WebsitePreview({ website, toolName, outboundUrl }: Props
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`https://image.thum.io/get/width/1280/crop/800/noanimate/${website}`}
+              src={`/api/tools/screenshot?url=${encodeURIComponent(website)}`}
               alt={`${toolName} website screenshot`}
               className={`w-full h-auto transition ${imgLoaded ? '' : 'absolute opacity-0'}`}
               loading="lazy"
