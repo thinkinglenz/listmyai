@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
-import { ADMIN_COOKIE, adminCookieOptions, createAdminToken } from '@/lib/admin-auth'
+import { ADMIN_COOKIE, adminCookieOptions, createAdminToken, REMEMBERED_MS, SESSION_MS } from '@/lib/admin-auth'
 
 // In-memory OTP store — single admin so one slot is enough
 // Resets on each Vercel cold start (acceptable for admin 2FA)
@@ -41,7 +41,7 @@ export async function POST() {
 
 // PUT /api/admin/otp — verify OTP
 export async function PUT(req: NextRequest) {
-  const { code } = await req.json()
+  const { code, remember } = await req.json()
 
   if (!stored || Date.now() > stored.expiresAt) {
     stored = null
@@ -54,9 +54,12 @@ export async function PUT(req: NextRequest) {
 
   stored = null // one-time use
 
-  // Hand back a signed session so /api/admin/* write routes can verify this
-  // request came from a real admin login rather than anyone with the URL.
+  // Hand back a signed session. This cookie is the only thing that grants
+  // admin access — both the panel UI and the write routes check it — so
+  // "remember this browser" has to extend the cookie rather than leave a flag
+  // in localStorage that no server ever validates.
+  const lifetime = remember ? REMEMBERED_MS : SESSION_MS
   const res = NextResponse.json({ verified: true })
-  res.cookies.set(ADMIN_COOKIE, createAdminToken(), adminCookieOptions)
+  res.cookies.set(ADMIN_COOKIE, createAdminToken(lifetime), adminCookieOptions(lifetime))
   return res
 }

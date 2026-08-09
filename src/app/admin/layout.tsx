@@ -10,26 +10,9 @@ import {
 
 // ─── Admin password + Email OTP gate ────────────────────────────────────────
 const ADMIN_PASSWORD = 'lmai@admin2026'
-const SESSION_KEY    = 'lmai_admin_auth'
-const REMEMBER_KEY   = 'lmai_admin_remember'
-const REMEMBER_DAYS  = 30
 
-function isTrustedBrowser(): boolean {
-  try {
-    const raw = localStorage.getItem(REMEMBER_KEY)
-    if (!raw) return false
-    const { token, expiresAt } = JSON.parse(raw)
-    return !!token && Date.now() < expiresAt
-  } catch { return false }
-}
-
-function trustBrowser() {
-  const token = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)
-  localStorage.setItem(REMEMBER_KEY, JSON.stringify({
-    token,
-    expiresAt: Date.now() + REMEMBER_DAYS * 24 * 60 * 60 * 1000,
-  }))
-}
+// Access lives entirely in the httpOnly cookie issued after the OTP; see
+// /api/admin/session. The browser deliberately keeps no auth state of its own.
 
 function PasswordGate({ onAuth }: { onAuth: () => void }) {
   const [step, setStep]       = useState<'password' | 'otp'>('password')
@@ -70,13 +53,13 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
     const res = await fetch('/api/admin/otp', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: otp.trim() }),
+      body: JSON.stringify({ code: otp.trim(), remember }),
     })
     const data = await res.json()
     setLoading(false)
     if (data.verified) {
-      if (remember) trustBrowser()
-      sessionStorage.setItem(SESSION_KEY, '1')
+      // The server set a signed cookie; "remember" only changed how long it
+      // lives. Nothing about access is stored on the client any more.
       onAuth()
     } else {
       setError(data.error ?? 'Incorrect code.'); setOtp(''); triggerShake()
@@ -151,7 +134,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
             <label className="flex cursor-pointer items-center gap-2 text-xs text-slate-500">
               <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
                 className="rounded accent-indigo-500" />
-              Remember this browser for {REMEMBER_DAYS} days
+              Remember this browser for 30 days
             </label>
             <button type="submit" disabled={loading || otp.length !== 6}
               className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
@@ -198,12 +181,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [badges, setBadges] = useState<Record<string, number>>({})
   const pathname = usePathname()
 
+  const [checkingSession, setCheckingSession] = useState(true)
+
   useEffect(() => {
-    // Already authed this session OR browser is trusted for 30 days
-    if (sessionStorage.getItem(SESSION_KEY) === '1' || isTrustedBrowser()) {
-      sessionStorage.setItem(SESSION_KEY, '1')
-      setAuthed(true)
-    }
+    // Ask the server whether this browser holds a valid admin cookie. That
+    // cookie is also what the write routes require, so the panel can never
+    // again appear unlocked while every save comes back unauthorised.
+    fetch('/api/admin/session')
+      .then(r => r.json())
+      .then(d => setAuthed(Boolean(d?.ok)))
+      .catch(() => setAuthed(false))
+      .finally(() => setCheckingSession(false))
   }, [])
 
   // Fetch live badge counts
@@ -214,6 +202,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       .then(d => setBadges(d ?? {}))
       .catch(() => {})
   }, [authed, pathname])
+
+  // Avoid flashing the password form while the session check is in flight.
+  if (checkingSession) return (
+    <div className="flex min-h-screen items-center justify-center" style={{ background: '#0d1117' }}>
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-700 border-t-slate-400" />
+    </div>
+  )
 
   if (!authed) return (
     <>
@@ -295,7 +290,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <LogOut className="h-4 w-4" /> Back to site
           </Link>
           <button
-            onClick={() => { sessionStorage.removeItem(SESSION_KEY); setAuthed(false) }}
+            onClick={async () => {
+              // Clear the cookie server-side, or the next load walks straight
+              // back in on the session that is still valid.
+              await fetch('/api/admin/session', { method: 'DELETE' }).catch(() => {})
+              setAuthed(false)
+            }}
             className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-sm text-red-500 transition hover:bg-red-500/10">
             <LogOut className="h-4 w-4" /> Log out of admin
           </button>

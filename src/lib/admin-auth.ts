@@ -13,7 +13,9 @@ import { createHmac, timingSafeEqual } from 'crypto'
 import type { NextRequest } from 'next/server'
 
 export const ADMIN_COOKIE = 'lmai_admin'
-const SESSION_MS = 12 * 60 * 60 * 1000 // 12 hours
+
+export const SESSION_MS = 12 * 60 * 60 * 1000 // 12 hours
+export const REMEMBERED_MS = 30 * 24 * 60 * 60 * 1000 // "trust this browser"
 
 function signingKey(): string {
   const key = process.env.CRON_SECRET
@@ -26,8 +28,8 @@ function sign(payload: string): string {
 }
 
 /** Token of the form "<expiresAt>.<hmac>". */
-export function createAdminToken(): string {
-  const expiresAt = String(Date.now() + SESSION_MS)
+export function createAdminToken(lifetimeMs: number = SESSION_MS): string {
+  const expiresAt = String(Date.now() + lifetimeMs)
   return `${expiresAt}.${sign(expiresAt)}`
 }
 
@@ -51,10 +53,12 @@ export function isAdminRequest(req: NextRequest): boolean {
   }
 }
 
-export const adminCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
-  path: '/',
-  maxAge: SESSION_MS / 1000,
+export function adminCookieOptions(lifetimeMs: number = SESSION_MS) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax' as const,
+    path: '/',
+    maxAge: Math.floor(lifetimeMs / 1000),
+  }
 }
