@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og'
 
-export const runtime = 'edge'
+// See opengraph-image.tsx — `runtime = 'edge'` yields an empty 0-byte image
+// under Next 16, so the default runtime is used instead.
 export const alt = 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -47,7 +48,9 @@ export default async function Image() {
           >
             AI
           </div>
-          <div style={{ fontSize: '48px', fontWeight: 900, color: 'white' }}>
+          {/* Satori requires an explicit display on any element with more than
+              one child, and this has three: "List", the span, and "AI". */}
+          <div style={{ display: 'flex', fontSize: '48px', fontWeight: 900, color: 'white' }}>
             List<span style={{ color: '#e94560' }}>my</span>AI
           </div>
         </div>

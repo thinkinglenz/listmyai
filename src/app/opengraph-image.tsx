@@ -1,6 +1,8 @@
 import { ImageResponse } from 'next/og'
 
-export const runtime = 'edge'
+// No `runtime = 'edge'` here: under Next 16 that combination returns an empty
+// 0-byte body with a 200 and an image/png content-type, so LinkedIn and X drew
+// their grey placeholder instead of the card. The default runtime renders it.
 export const alt = 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes'
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
@@ -50,7 +52,9 @@ export default async function Image() {
           >
             AI
           </div>
-          <div style={{ fontSize: '48px', fontWeight: 900, color: 'white' }}>
+          {/* Satori requires an explicit display on any element with more than
+              one child, and this has three: "List", the span, and "AI". */}
+          <div style={{ display: 'flex', fontSize: '48px', fontWeight: 900, color: 'white' }}>
             List<span style={{ color: '#e94560' }}>my</span>AI
           </div>
         </div>
