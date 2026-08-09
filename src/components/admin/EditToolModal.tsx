@@ -66,10 +66,12 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-2xl rounded-2xl border bg-slate-900" style={{ borderColor: '#1e2a3a' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      {/* Column layout with a capped height so the body scrolls on short
+          screens while the header and Save button stay put. */}
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl border bg-slate-900" style={{ borderColor: '#1e2a3a' }}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b px-6 py-4" style={{ borderColor: '#1e2a3a' }}>
+        <div className="flex shrink-0 items-center justify-between border-b px-6 py-4" style={{ borderColor: '#1e2a3a' }}>
           <h2 className="text-lg font-bold text-white">Edit Tool</h2>
           <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-white/10 hover:text-white transition">
             <X className="h-5 w-5" />
@@ -77,7 +79,7 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
         </div>
 
         {/* Body */}
-        <div className="space-y-4 px-6 py-4 max-h-[70vh] overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
           {error && (
             <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400 border border-red-500/20">
               {error}
@@ -189,7 +191,7 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t px-6 py-4" style={{ borderColor: '#1e2a3a' }}>
+        <div className="flex shrink-0 items-center justify-end gap-2 border-t px-6 py-4" style={{ borderColor: '#1e2a3a' }}>
           <button
             onClick={onClose}
             disabled={saving}
