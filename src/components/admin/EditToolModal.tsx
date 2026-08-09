@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
+import PreviewImageUpload from '@/components/PreviewImageUpload'
 
 interface Tool {
   id: string
@@ -170,23 +171,16 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
 
           {/* Cover / preview image override */}
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Preview image URL</label>
-            <input
-              type="url"
-              name="cover_url"
-              value={formData.cover_url ?? ''}
-              onChange={handleChange}
-              placeholder="Leave blank to auto-capture a screenshot"
-              className="w-full rounded-lg border bg-white/5 px-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2"
-              style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
+            <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Preview image</label>
+            <PreviewImageUpload
+              toolId={tool.id}
+              value={formData.cover_url}
+              onChange={url => setFormData(prev => ({ ...prev, cover_url: url }))}
             />
             <p className="mt-1.5 text-xs text-slate-500">
-              Set this when the site blocks screenshot bots (Cloudflare and similar) — the auto-capture would only show their block page.
+              Leave empty to auto-capture the homepage. Set an image when the site blocks
+              screenshot bots (Cloudflare and similar), where auto-capture would only get their block page.
             </p>
-            {formData.cover_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={formData.cover_url} alt="Preview" className="mt-3 w-full rounded-lg border" style={{ borderColor: '#1e2a3a' }} />
-            )}
           </div>
         </div>
 

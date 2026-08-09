@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
   // Data query with pagination
   let query = supabase
     .from('ai_tools')
-    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, created_at, category_id, categories(name), tagline, description, logo_url')
+    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, created_at, category_id, categories(name), tagline, description, logo_url, cover_url')
     .order('created_at', { ascending: false })
     .range(from, to)
 

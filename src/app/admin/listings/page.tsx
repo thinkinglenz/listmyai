@@ -27,6 +27,7 @@ interface Tool {
   tagline: string
   description: string
   logo_url: string
+  cover_url?: string | null
 }
 
 // ─── Social Post Modal ───────────────────────────────────────────────────────

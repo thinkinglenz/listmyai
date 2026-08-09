@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { ADMIN_COOKIE, adminCookieOptions, createAdminToken } from '@/lib/admin-auth'
 
 // In-memory OTP store — single admin so one slot is enough
 // Resets on each Vercel cold start (acceptable for admin 2FA)
@@ -52,5 +53,10 @@ export async function PUT(req: NextRequest) {
   }
 
   stored = null // one-time use
-  return NextResponse.json({ verified: true })
+
+  // Hand back a signed session so /api/admin/* write routes can verify this
+  // request came from a real admin login rather than anyone with the URL.
+  const res = NextResponse.json({ verified: true })
+  res.cookies.set(ADMIN_COOKIE, createAdminToken(), adminCookieOptions)
+  return res
 }
