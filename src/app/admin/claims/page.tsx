@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Shield, Check, X, ExternalLink, Mail, Clock, AlertCircle } from 'lucide-react'
+import RejectClaimDialog from '@/components/admin/RejectClaimDialog'
 
 interface Claim {
   id: string
@@ -11,6 +12,7 @@ interface Claim {
   claim_type: 'domain-match' | 'manual'
   status: 'pending' | 'pending_verification' | 'approved' | 'rejected' | 'expired'
   note?: string
+  rejection_reason?: string | null
   created_at: string
   ai_tools?: {
     id: string
@@ -46,6 +48,7 @@ export default function AdminClaimsPage() {
   const [tableReady, setTableReady] = useState(true)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [acting, setActing] = useState(false)
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/admin/claims')
@@ -58,17 +61,21 @@ export default function AdminClaimsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  async function act(id: string, status: 'approved' | 'rejected') {
+  async function act(id: string, status: 'approved' | 'rejected', reason?: string) {
     setActing(true)
     const res = await fetch('/api/admin/claims', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status }),
+      body: JSON.stringify({ id, status, reason }),
     })
     const data = await res.json()
     if (res.ok) {
-      setClaims(prev => prev.map(c => c.id === id ? { ...c, status } : c))
+      setClaims(prev => prev.map(c => c.id === id ? { ...c, status, rejection_reason: reason ?? null } : c))
       setActiveId(null)
+      setRejectingId(null)
+      if (status === 'rejected' && data.emailed === false) {
+        alert('Claim rejected, but the notification email could not be sent. The reason is still on their dashboard.')
+      }
       if (data.update_error) {
         alert(`Claim status updated but tool update failed: ${data.update_error}`)
       }
@@ -82,8 +89,20 @@ export default function AdminClaimsPage() {
   const resolved = claims.filter(c => c.status !== 'pending' && c.status !== 'pending_verification')
   const active   = claims.find(c => c.id === activeId)
 
+  const rejecting = claims.find(c => c.id === rejectingId)
+
   return (
     <div>
+      {rejecting && (
+        <RejectClaimDialog
+          toolName={rejecting.ai_tools?.name ?? 'this listing'}
+          claimantEmail={rejecting.claimant_email}
+          busy={acting}
+          onCancel={() => setRejectingId(null)}
+          onConfirm={reason => act(rejecting.id, 'rejected', reason)}
+        />
+      )}
+
       <div className="mb-6">
         <h1 className="text-2xl font-black text-white">Claim Requests</h1>
         <p className="text-sm text-slate-500">
@@ -202,6 +221,14 @@ export default function AdminClaimsPage() {
                   </div>
                 </div>
 
+                {active.status === 'rejected' && active.rejection_reason && (
+                  <div className="mb-5 rounded-xl border p-3"
+                    style={{ borderColor: 'rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.06)' }}>
+                    <p className="mb-1 text-xs font-semibold uppercase text-red-400">Reason sent to claimant</p>
+                    <p className="text-xs leading-relaxed text-slate-300">{active.rejection_reason}</p>
+                  </div>
+                )}
+
                 {active.note && (
                   <div className="mb-5 flex gap-2 rounded-xl border p-3"
                     style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.06)' }}>
@@ -217,7 +244,7 @@ export default function AdminClaimsPage() {
                       style={{ background: '#10b981' }}>
                       <Check className="h-4 w-4" /> Approve
                     </button>
-                    <button onClick={() => act(active.id, 'rejected')} disabled={acting}
+                    <button onClick={() => setRejectingId(active.id)} disabled={acting}
                       className="flex flex-1 items-center justify-center gap-2 rounded-xl border py-2.5 text-sm font-bold text-red-400 transition hover:bg-red-500/10 disabled:opacity-50"
                       style={{ borderColor: 'rgba(239,68,68,0.3)' }}>
                       <X className="h-4 w-4" /> Reject

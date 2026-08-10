@@ -27,6 +27,15 @@ interface Listing {
   created_at: string
 }
 
+interface ClaimRequest {
+  id: string
+  status: 'pending' | 'pending_verification' | 'approved' | 'rejected' | 'expired'
+  rejection_reason: string | null
+  created_at: string
+  tool_name: string
+  tool_slug: string | null
+}
+
 interface UserProfile {
   full_name: string
   email: string
@@ -60,6 +69,7 @@ export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
   const [listings, setListings] = useState<Listing[]>([])
+  const [claimRequests, setClaimRequests] = useState<ClaimRequest[]>([])
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
@@ -131,6 +141,26 @@ export default function DashboardPage() {
           click_count: t.click_count ?? 0,
           is_featured: t.is_featured ?? false,
           created_at: t.created_at,
+        })))
+      }
+
+      // Claim requests, so a pending or rejected claim is visible here rather
+      // than only in the email we sent.
+      const { data: claims } = await supabase
+        .from('claim_requests')
+        .select('id, status, rejection_reason, created_at, ai_tools(name, slug)')
+        .order('created_at', { ascending: false })
+        .limit(20)
+
+      if (claims) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setClaimRequests(claims.map((c: any) => ({
+          id: c.id,
+          status: c.status,
+          rejection_reason: c.rejection_reason ?? null,
+          created_at: c.created_at,
+          tool_name: (Array.isArray(c.ai_tools) ? c.ai_tools[0]?.name : c.ai_tools?.name) ?? 'a listing',
+          tool_slug: (Array.isArray(c.ai_tools) ? c.ai_tools[0]?.slug : c.ai_tools?.slug) ?? null,
         })))
       }
 
@@ -242,6 +272,61 @@ export default function DashboardPage() {
                       style={{ background: '#e94560' }}>
                       <Plus className="h-4 w-4" /> Submit Your Tool
                     </Link>
+                  </div>
+                )}
+
+                {/* Claim requests that need the claimant to do something, or
+                    that were turned down and need explaining. */}
+                {claimRequests.filter(c => c.status === 'rejected' || c.status === 'pending').length > 0 && (
+                  <div className="mb-8">
+                    <h2 className="mb-4 font-bold text-white">Your Claim Requests</h2>
+                    <div className="space-y-3">
+                      {claimRequests
+                        .filter(c => c.status === 'rejected' || c.status === 'pending')
+                        .map(claim => {
+                          const rejected = claim.status === 'rejected'
+                          return (
+                            <div
+                              key={claim.id}
+                              className="rounded-2xl border p-4"
+                              style={{
+                                borderColor: rejected ? 'rgba(239,68,68,0.25)' : '#1e2a3a',
+                                background: rejected ? 'rgba(239,68,68,0.05)' : '#161b27',
+                              }}
+                            >
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="font-semibold text-white">{claim.tool_name}</span>
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                                  style={
+                                    rejected
+                                      ? { background: 'rgba(239,68,68,0.15)', color: '#f87171' }
+                                      : { background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }
+                                  }
+                                >
+                                  {rejected ? 'Not approved' : 'Awaiting review'}
+                                </span>
+                              </div>
+
+                              {rejected && claim.rejection_reason && (
+                                <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                                  {claim.rejection_reason}
+                                </p>
+                              )}
+
+                              {rejected && claim.tool_slug && (
+                                <Link
+                                  href={`/tools/${claim.tool_slug}`}
+                                  className="mt-3 inline-block text-xs font-semibold hover:underline"
+                                  style={{ color: '#e94560' }}
+                                >
+                                  Claim again from your company email →
+                                </Link>
+                              )}
+                            </div>
+                          )
+                        })}
+                    </div>
                   </div>
                 )}
 
