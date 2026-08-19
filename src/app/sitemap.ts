@@ -14,7 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Fetch all active tools with category info
   const { data: tools } = await supabase
     .from('ai_tools')
-    .select('slug, updated_at, created_at, category_id')
+    .select('slug, updated_at, created_at, category_id, upvotes, view_count, description')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
     .limit(50000)
@@ -65,8 +65,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const blogPages: MetadataRoute.Sitemap = (posts ?? []).map(p => ({
     url: `${BASE_URL}/blog/${p.slug}`,
     lastModified: p.updated_at ? new Date(p.updated_at) : new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: 0.6,
+    // The blog is the growth surface, so it outranks everything but the home page.
+    changeFrequency: 'daily' as const,
+    priority: 0.9,
   }))
 
   // Category pages
@@ -85,35 +86,51 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  // Comparison pages (X vs Y for tools in the same category)
-  // Group tools by category, then generate all pairs within each category
-  const toolsByCategory = new Map<number | null, typeof tools>()
+  // Comparison pages.
+  //
+  // Pairing every tool with every other in its category is O(n^2): 1,000 active
+  // tools produced 61,277 URLs, which pushed the sitemap past Google's 50,000
+  // limit and buried the blog at the very end where it was never crawled. That
+  // volume of near-identical auto-generated pages is also what Google's scaled
+  // content abuse policy targets.
+  //
+  // So pair only the strongest tools in each category. The pages themselves all
+  // still work and stay reachable by links; this only decides what we actively
+  // put in front of Google.
+  const COMPARABLE_PER_CATEGORY = 15 // 15 tools -> 105 pairs per category
+
+  const toolsByCategory = new Map<string | number | null, NonNullable<typeof tools>>()
   ;(tools ?? []).forEach(tool => {
-    if (!toolsByCategory.has(tool.category_id)) {
-      toolsByCategory.set(tool.category_id, [])
-    }
-    toolsByCategory.get(tool.category_id)!.push(tool)
+    const key = tool.category_id ?? null
+    if (!toolsByCategory.has(key)) toolsByCategory.set(key, [])
+    toolsByCategory.get(key)!.push(tool)
   })
 
+  // A comparison is only worth showing when both sides have something to
+  // compare, so rank on real interest and require a description.
+  const score = (t: { upvotes?: number | null; view_count?: number | null }) =>
+    (t.upvotes ?? 0) * 10 + (t.view_count ?? 0)
+
   const comparisonPages: MetadataRoute.Sitemap = []
-  toolsByCategory.forEach((categoryTools) => {
+  toolsByCategory.forEach(categoryTools => {
     if (!categoryTools) return
-    // Generate all pairs within this category (A vs B, but not B vs A — so i < j)
-    for (let i = 0; i < categoryTools.length; i++) {
-      for (let j = i + 1; j < categoryTools.length; j++) {
-        const slugA = categoryTools[i].slug
-        const slugB = categoryTools[j].slug
-        const recentDate = new Date(
-          Math.max(
-            new Date(categoryTools[i].updated_at ?? categoryTools[i].created_at).getTime(),
-            new Date(categoryTools[j].updated_at ?? categoryTools[j].created_at).getTime()
-          )
-        )
+    const ranked = categoryTools
+      .filter(t => (t.description ?? '').trim().length > 60)
+      .sort((a, b) => score(b) - score(a))
+      .slice(0, COMPARABLE_PER_CATEGORY)
+
+    for (let i = 0; i < ranked.length; i++) {
+      for (let j = i + 1; j < ranked.length; j++) {
         comparisonPages.push({
-          url: `${BASE_URL}/compare/${slugA}-vs-${slugB}`,
-          lastModified: recentDate,
+          url: `${BASE_URL}/compare/${ranked[i].slug}-vs-${ranked[j].slug}`,
+          lastModified: new Date(
+            Math.max(
+              new Date(ranked[i].updated_at ?? ranked[i].created_at).getTime(),
+              new Date(ranked[j].updated_at ?? ranked[j].created_at).getTime()
+            )
+          ),
           changeFrequency: 'weekly' as const,
-          priority: 0.6,
+          priority: 0.5,
         })
       }
     }
@@ -134,14 +151,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   return [
+    // Blog posts lead the file. Crawlers work top-down, and these were
+    // previously last of 63,392 URLs, so they were never reached.
+    ...blogPages,
     ...staticPages,
     { url: `${BASE_URL}/alternatives`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.8 },
     { url: `${BASE_URL}/use-case`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.8 },
+    ...categoryPages,
+    ...useCasePages,
     ...toolPages,
     ...alternativesPages,
     ...comparisonPages,
-    ...blogPages,
-    ...categoryPages,
-    ...useCasePages,
   ]
 }

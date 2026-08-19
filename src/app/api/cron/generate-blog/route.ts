@@ -2,6 +2,8 @@
 // Triggered by vercel.json schedule or manually with ?secret=<CRON_SECRET>
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { fetchTrendingAiTopics } from '@/lib/seo/trending'
+import { submitToIndexNow } from '@/lib/seo/indexnow'
 // Social auto-posting removed — use manual share buttons in /admin/blog instead.
 // Re-enable by importing postToAllSocial from '@/lib/social/post' once
 // Twitter Basic API plan ($100/mo) is active.
@@ -22,54 +24,64 @@ function slugify(text: string): string {
     .slice(0, 80)
 }
 
-// Pick a fresh topic — avoid repeating topics from the last 30 days
-async function pickTopic(): Promise<string> {
+// Pick a topic — a genuinely trending AI story if we can find one, otherwise
+// an evergreen fallback. Either way, never repeat the last 30 days.
+interface PickedTopic { topic: string; keywords: string[]; sourceUrl?: string; trending: boolean }
+
+async function recentTopics(): Promise<Set<string>> {
   const { data } = await supabase
     .from('blog_posts')
     .select('source_topic')
     .eq('is_auto_generated', true)
     .gte('published_at', new Date(Date.now() - 30 * 86400_000).toISOString())
     .order('published_at', { ascending: false })
-    .limit(30)
+    .limit(60)
 
-  const recentTopics = new Set((data ?? []).map(r => r.source_topic?.toLowerCase()))
+  return new Set((data ?? []).map(r => (r.source_topic ?? '').toLowerCase()))
+}
 
-  const topics = [
-    'GPT-5 capabilities and real-world use cases',
-    'Claude AI: latest features and model updates',
-    'Google Gemini Ultra vs GPT-4: 2026 comparison',
-    'Best AI coding assistants for developers in 2026',
-    'How AI is transforming content creation workflows',
-    'Open-source AI models: what is available in 2026',
-    'AI image generation tools: Midjourney, DALL-E, Stable Diffusion compared',
-    'Top AI productivity tools for remote teams',
-    'AI in healthcare: latest breakthroughs 2026',
-    'How to use AI for SEO and content marketing',
-    'AI voice synthesis and cloning tools overview',
-    'Agentic AI: autonomous agents changing enterprise workflows',
-    'AI prompt engineering: advanced tips and techniques',
-    'Best AI tools for video creation and editing',
-    'LLM fine-tuning for business: a practical guide',
-    'AI customer service bots: what works and what fails',
-    'On-device AI: running LLMs locally in 2026',
-    'AI regulation and compliance: what businesses need to know',
-    'How startups are building AI-native products in 2026',
-    'AI search engines: Perplexity, SearchGPT, and beyond',
-    'AI data analysis tools: replacing traditional BI',
-    'AI writing assistants: honest 2026 review',
-    'Cost of running AI in production: a technical deep dive',
-    'AI safety research: alignment progress in 2026',
-    'Multimodal AI: image, video, and audio in one model',
-    'AI for education: personalized learning breakthroughs',
-    'Top AI APIs for developers to build with today',
-    'AI in finance: fraud detection and trading automation',
-    'AI legal tools: contract analysis and research in 2026',
-    'How vector databases power modern AI applications',
-  ]
+const EVERGREEN_TOPICS = [
+  'Claude AI: latest features and model updates',
+  'Best AI coding assistants for developers in 2026',
+  'How AI is transforming content creation workflows',
+  'Open-source AI models: what is available in 2026',
+  'AI image generation tools: Midjourney, DALL-E, Stable Diffusion compared',
+  'Top AI productivity tools for remote teams',
+  'How to use AI for SEO and content marketing',
+  'Agentic AI: autonomous agents changing enterprise workflows',
+  'AI prompt engineering: advanced tips and techniques',
+  'Best AI tools for video creation and editing',
+  'AI customer service bots: what works and what fails',
+  'On-device AI: running LLMs locally in 2026',
+  'AI search engines: Perplexity, SearchGPT, and beyond',
+  'AI writing assistants: honest 2026 review',
+  'Multimodal AI: image, video, and audio in one model',
+  'Top AI APIs for developers to build with today',
+  'How vector databases power modern AI applications',
+]
 
-  const fresh = topics.filter(t => !recentTopics.has(t.toLowerCase()))
-  const pool = fresh.length > 0 ? fresh : topics
-  return pool[Math.floor(Math.random() * pool.length)]
+async function pickTopic(): Promise<PickedTopic> {
+  const recent = await recentTopics()
+
+  // A story is only worth writing about if it is both trending and unwritten.
+  const trending = await fetchTrendingAiTopics()
+  const fresh = trending.find(t => {
+    const key = t.title.toLowerCase()
+    if (recent.has(key)) return false
+    // Guard against re-covering the same story under a reworded headline.
+    return !Array.from(recent).some(prev =>
+      prev.length > 20 && (prev.includes(key.slice(0, 30)) || key.includes(prev.slice(0, 30)))
+    )
+  })
+
+  if (fresh) {
+    return { topic: fresh.title, keywords: fresh.keywords, sourceUrl: fresh.url, trending: true }
+  }
+
+  const unused = EVERGREEN_TOPICS.filter(t => !recent.has(t.toLowerCase()))
+  const pool = unused.length > 0 ? unused : EVERGREEN_TOPICS
+  const topic = pool[Math.floor(Math.random() * pool.length)]
+  return { topic, keywords: [], trending: false }
 }
 
 // Fetch up to 6 tool slugs that might be relevant to the topic
@@ -129,7 +141,8 @@ interface GeneratedPost {
   mentioned_tools: MentionedTool[]
 }
 
-async function generatePost(topic: string, relatedToolIds: string[]): Promise<GeneratedPost> {
+async function generatePost(picked: PickedTopic, relatedToolIds: string[]): Promise<GeneratedPost> {
+  const { topic, keywords, sourceUrl } = picked
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not set')
 
@@ -138,6 +151,9 @@ async function generatePost(topic: string, relatedToolIds: string[]): Promise<Ge
   const prompt = `You are a professional AI journalist writing for ListmyAI.com, a directory of 1,000+ AI tools.
 
 Today is ${today}. Write a comprehensive, SEO-optimised blog post about: "${topic}"
+${picked.trending ? 'This is a story trending in AI right now, so write it as timely coverage: lead with what happened and why it matters this week, not as a general explainer.' : ''}
+${sourceUrl ? `Source for context: ${sourceUrl}` : ''}
+${keywords.length > 0 ? `Work these trending search terms in naturally — in the title where it fits, the opening paragraph, and at least one heading. Never force them or repeat them mechanically: ${keywords.join(', ')}` : ''}
 
 Requirements:
 - Write for AI Search (Perplexity, ChatGPT, Gemini) and Google — use clear structure, factual statements, authoritative tone
@@ -324,10 +340,13 @@ export async function GET(req: NextRequest) {
   const forceTopicParam = req.nextUrl.searchParams.get('topic')
 
   try {
-    const topic = forceTopicParam ?? await pickTopic()
+    const picked: PickedTopic = forceTopicParam
+      ? { topic: forceTopicParam, keywords: [], trending: false }
+      : await pickTopic()
+    const topic = picked.topic
     const relatedToolIds = await findRelatedToolIds(topic)
 
-    const generated = await generatePost(topic, relatedToolIds)
+    const generated = await generatePost(picked, relatedToolIds)
 
     // Auto-add any mentioned tools to directory & inject internal links
     const { linkedBody, toolIds: mentionedToolIds } = await autoLinkAndAddTools(
@@ -376,9 +395,24 @@ export async function GET(req: NextRequest) {
 
     if (error) throw new Error(`Supabase insert error: ${error.message}`)
 
+    // Push the new post straight to IndexNow so Bing — and therefore ChatGPT
+    // Search and Copilot — can pick it up within minutes. Google has no
+    // equivalent API and still discovers it via the sitemap, where blog posts
+    // now sit at the top of the file.
+    const indexed = await submitToIndexNow([
+      `https://listmyai.com/blog/${finalSlug}`,
+      'https://listmyai.com/blog',
+    ])
+    if (!indexed.ok) {
+      console.warn('[generate-blog] IndexNow submission failed:', indexed.error ?? indexed.status)
+    }
+
     return NextResponse.json({
       ok: true,
       topic,
+      trending: picked.trending,
+      keywords: picked.keywords,
+      indexnow: indexed,
       post: inserted,
       share: `https://listmyai.com/admin/blog`,
     })
