@@ -1,6 +1,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { resolvePlayableEmbed } from '@/lib/video-embed'
 import type { Metadata } from 'next'
 import {
   ExternalLink, Globe, CheckCircle2, Shield, AlertCircle,
@@ -311,6 +312,10 @@ export default async function ToolPage({ params }: PageProps) {
   const tool = await fetchTool(slug)
   if (!tool) notFound()
 
+  // Verified with the video host, so a dead or placeholder link renders
+  // nothing instead of "This video is unavailable".
+  const videoEmbedUrl = await resolvePlayableEmbed(tool.video_url)
+
   const related = await fetchRelated(tool.category ? String(tool.category.id) : null, slug)
 
   // User-submitted or claimed tools show "Claimed" badge; scraped tools show their DB status
@@ -465,20 +470,14 @@ export default async function ToolPage({ params }: PageProps) {
             )}
 
             {/* Video embed */}
-            {tool.video_url && (() => {
-              const ytMatch = tool.video_url!.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
-              const vimeoMatch = tool.video_url!.match(/vimeo\.com\/(\d+)/)
-              const embedUrl = ytMatch ? `https://www.youtube-nocookie.com/embed/${ytMatch[1]}` : vimeoMatch ? `https://player.vimeo.com/video/${vimeoMatch[1]}` : null
-              if (!embedUrl) return null
-              return (
-                <div className="rounded-2xl border overflow-hidden" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
-                  <div className="aspect-video">
-                    <iframe src={embedUrl} title={`${tool.name} demo video`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen className="h-full w-full" />
-                  </div>
+            {videoEmbedUrl && (
+              <div className="rounded-2xl border overflow-hidden" style={{borderColor:'#1e2a3a',background:'#161b27'}}>
+                <div className="aspect-video">
+                  <iframe src={videoEmbedUrl} title={`${tool.name} demo video`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen className="h-full w-full" />
                 </div>
-              )
-            })()}
+              </div>
+            )}
 
             {/* Website Preview — clean, no browser chrome */}
             <WebsitePreview website={tool.website} toolName={tool.name} outboundUrl={outbound(tool.website)} coverUrl={tool.cover_url} />
