@@ -11,7 +11,7 @@ const supabase = createClient(
 // request could write any column on the row, including ownership and counters.
 const EDITABLE = new Set([
   'name', 'tagline', 'description', 'website',
-  'logo_url', 'cover_url', 'category_id', 'category',
+  'logo_url', 'cover_url', 'category_id',
   'status', 'pricing_model',
 ])
 

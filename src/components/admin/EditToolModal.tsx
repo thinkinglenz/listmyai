@@ -9,6 +9,7 @@ interface Tool {
   name: string
   slug: string
   category: string
+  category_id?: string | null
   website: string
   tagline: string
   description: string
@@ -20,7 +21,7 @@ interface EditToolModalProps {
   tool: Tool
   onClose: () => void
   onSave: (updatedTool: Tool) => void
-  categories?: string[]
+  categories?: { id: string; name: string }[]
 }
 
 export default function EditToolModal({ tool, onClose, onSave, categories = [] }: EditToolModalProps) {
@@ -43,7 +44,7 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
         body: JSON.stringify({
           name: formData.name,
           tagline: formData.tagline,
-          category: formData.category,
+          category_id: formData.category_id || null,
           website: formData.website,
           logo_url: formData.logo_url,
           cover_url: formData.cover_url || null,
@@ -130,15 +131,15 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
           <div>
             <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Category</label>
             <select
-              name="category"
-              value={formData.category}
+              name="category_id"
+              value={formData.category_id ?? ''}
               onChange={handleChange}
               className="w-full rounded-lg border bg-white/5 px-3 py-2 text-white focus:outline-none focus:ring-2"
               style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
             >
               <option value="">Select a category</option>
               {categories.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
           </div>

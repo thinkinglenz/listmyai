@@ -16,6 +16,7 @@ interface Tool {
   name: string
   slug: string
   category: string
+  category_id?: string | null
   website: string
   status: 'active' | 'pending' | 'rejected' | 'inactive'
   claimed: boolean
@@ -684,7 +685,7 @@ export default function AdminListingsPage() {
   const [exporting, setExporting] = useState(false)
   const [socialTool, setSocialTool] = useState<Tool | null>(null)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
-  const [categories, setCategories] = useState<string[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── Social share helpers ─────────────────────────────────────────────────────
@@ -821,7 +822,7 @@ export default function AdminListingsPage() {
   useEffect(() => {
     fetch('/api/admin/categories')
       .then(r => r.json())
-      .then(d => setCategories((d.data || []).map((c: any) => c.name)))
+      .then(d => setCategories(d.data || []))
       .catch(() => {})
   }, [])
 
