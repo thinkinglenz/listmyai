@@ -97,13 +97,41 @@ function shapeTool(t: any, cat?: Category): AiTool {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Hostname for display. Stored website values are not all valid URLs — some
+ * are blank, some lack a scheme — and an unguarded `new URL()` threw
+ * "TypeError: Invalid URL" during render, turning those listings into 500s.
+ */
+function displayHost(url: string): string {
+  if (!url) return ''
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    try {
+      return new URL(`https://${url}`).hostname.replace(/^www\./, '')
+    } catch {
+      return url
+    }
+  }
+}
+
 /** Append ?ref=listmyai to every outbound link */
 function outbound(url: string): string {
-  try {
-    const u = new URL(url)
-    u.searchParams.set('ref', 'listmyai')
-    return u.toString()
-  } catch { return url }
+  if (!url) return '#'
+  for (const candidate of [url, `https://${url}`]) {
+    try {
+      const u = new URL(candidate)
+      // Tools are publicly submitted, and `new URL` happily accepts
+      // "javascript:alert(1)" as valid — putting that in an href would run it
+      // on click. Only real web links may be linked to.
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return '#'
+      u.searchParams.set('ref', 'listmyai')
+      return u.toString()
+    } catch { /* try the next form */ }
+  }
+  // Returning the raw value would render as a relative link and 404, so send
+  // the visitor nowhere rather than somewhere wrong.
+  return '#'
 }
 
 // ── Status badge config ───────────────────────────────────────────────────────
@@ -533,7 +561,7 @@ export default async function ToolPage({ params }: PageProps) {
                     <p className="text-xs text-slate-500 mb-0.5">Website</p>
                     <a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer"
                       className="text-sm font-medium hover:underline" style={{color:'#e94560'}}>
-                      {new URL(tool.website).hostname}
+                      {displayHost(tool.website)}
                     </a>
                   </div>
                 </div>
@@ -691,7 +719,7 @@ export default async function ToolPage({ params }: PageProps) {
               <h3 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-400">Quick Facts</h3>
               <div className="space-y-3">
                 {[
-                  { icon:<Globe className="h-4 w-4" />,      label:'Website',  val:<a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{color:'#e94560'}}>{new URL(tool.website).hostname}</a> },
+                  { icon:<Globe className="h-4 w-4" />,      label:'Website',  val:<a href={outbound(tool.website)} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{color:'#e94560'}}>{displayHost(tool.website)}</a> },
                   { icon:<Building2 className="h-4 w-4" />,  label:'Company',  val:tool.company_name },
                   { icon:<MapPin className="h-4 w-4" />,     label:'Location', val:tool.hq_location },
                   { icon:<Calendar className="h-4 w-4" />,   label:'Founded',  val:tool.founded_year },
