@@ -11,13 +11,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Fetch all active tools with category info
-  const { data: tools } = await supabase
-    .from('ai_tools')
-    .select('slug, updated_at, created_at, category_id, upvotes, view_count, description')
-    .eq('status', 'active')
-    .order('created_at', { ascending: false })
-    .limit(50000)
+  // Supabase caps a response at 1,000 rows regardless of .limit(), so the
+  // previous single query silently returned 1,000 of ~19,000 active tools and
+  // the other 18,000 tool pages were never advertised to Google at all. Page
+  // through explicitly.
+  //
+  // Headroom note: ~19k tools produce ~19k tool pages plus ~19k alternatives
+  // pages, which with everything else lands near 40,000 against Google's
+  // 50,000-per-file limit. If the catalogue grows much beyond ~24k tools this
+  // has to become a sitemap index (generateSitemaps), which changes the URLs
+  // to /sitemap/0.xml and needs resubmitting in Search Console.
+  const PAGE = 1000
+  const MAX_TOOLS = 22_000
+
+  type ToolRow = {
+    slug: string
+    updated_at: string | null
+    created_at: string
+    category_id: string | null
+    upvotes: number | null
+    view_count: number | null
+    description: string | null
+  }
+
+  const tools: ToolRow[] = []
+  for (let from = 0; from < MAX_TOOLS; from += PAGE) {
+    const { data, error } = await supabase
+      .from('ai_tools')
+      .select('slug, updated_at, created_at, category_id, upvotes, view_count, description')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .range(from, from + PAGE - 1)
+
+    if (error || !data || data.length === 0) break
+    tools.push(...(data as ToolRow[]))
+    if (data.length < PAGE) break // last page
+  }
 
   // Fetch all categories
   const { data: categories } = await supabase
@@ -54,7 +83,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 
   // Tool pages
-  const toolPages: MetadataRoute.Sitemap = (tools ?? []).map(tool => ({
+  const toolPages: MetadataRoute.Sitemap = tools.map(tool => ({
     url: `${BASE_URL}/tools/${tool.slug}`,
     lastModified: new Date(tool.updated_at ?? tool.created_at),
     changeFrequency: 'weekly' as const,
@@ -79,7 +108,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }))
 
   // Alternatives pages (one per tool)
-  const alternativesPages: MetadataRoute.Sitemap = (tools ?? []).map(tool => ({
+  const alternativesPages: MetadataRoute.Sitemap = tools.map(tool => ({
     url: `${BASE_URL}/alternatives/${tool.slug}`,
     lastModified: new Date(tool.updated_at ?? tool.created_at),
     changeFrequency: 'weekly' as const,
@@ -100,7 +129,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const COMPARABLE_PER_CATEGORY = 15 // 15 tools -> 105 pairs per category
 
   const toolsByCategory = new Map<string | number | null, NonNullable<typeof tools>>()
-  ;(tools ?? []).forEach(tool => {
+  ;tools.forEach(tool => {
     const key = tool.category_id ?? null
     if (!toolsByCategory.has(key)) toolsByCategory.set(key, [])
     toolsByCategory.get(key)!.push(tool)
