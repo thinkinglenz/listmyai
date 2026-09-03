@@ -54,7 +54,12 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  alternates: { canonical: 'https://listmyai.com' },
+  alternates: {
+    canonical: 'https://listmyai.com',
+    // Emits <link rel="alternate" type="application/rss+xml">, which is how
+    // browsers and automation tools discover the feed without being told.
+    types: { 'application/rss+xml': 'https://listmyai.com/rss.xml' },
+  },
   verification: {
     google: process.env.GOOGLE_SITE_VERIFICATION ?? undefined,
   },
