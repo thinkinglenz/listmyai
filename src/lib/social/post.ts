@@ -17,6 +17,13 @@
 
 import crypto from 'crypto'
 
+/**
+ * Meta retires a Graph API version roughly two years after release, and a call
+ * to a retired one starts failing rather than silently degrading. Keeping it
+ * in one place makes the periodic bump a one-line change.
+ */
+const GRAPH_API_VERSION = 'v23.0'
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface SocialPost {
@@ -29,7 +36,8 @@ export interface SocialPost {
 
 interface SocialResult {
   twitter?: { ok: boolean; id?: string; error?: string }
-  // facebook and instagram: add back when Meta verification is complete
+  facebook?: { ok: boolean; id?: string; error?: string }
+  // instagram: needs a linked IG business account, not set up yet
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -165,7 +173,7 @@ export async function postToFacebook(post: SocialPost): Promise<{ ok: boolean; i
 
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/${pageId}/feed`,
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/feed`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,7 +221,7 @@ export async function postToInstagram(post: SocialPost): Promise<{ ok: boolean; 
   try {
     // Step 1: create media container
     const containerRes = await fetch(
-      `https://graph.facebook.com/v19.0/${igId}/media`,
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -235,7 +243,7 @@ export async function postToInstagram(post: SocialPost): Promise<{ ok: boolean; 
 
     // Step 2: publish the container
     const publishRes = await fetch(
-      `https://graph.facebook.com/v19.0/${igId}/media_publish`,
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media_publish`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -259,9 +267,15 @@ export async function postToInstagram(post: SocialPost): Promise<{ ok: boolean; 
 // back into the Promise.allSettled() call and set the env vars in Vercel.
 
 export async function postToAllSocial(post: SocialPost): Promise<SocialResult> {
-  const [twitter] = await Promise.allSettled([postToTwitter(post)])
+  // allSettled, not all: one network failing must never stop the others, and
+  // none of them may fail the blog generation that called this.
+  const [twitter, facebook] = await Promise.allSettled([
+    postToTwitter(post),
+    postToFacebook(post),
+  ])
 
   return {
     twitter: twitter.status === 'fulfilled' ? twitter.value : { ok: false, error: String(twitter.reason) },
+    facebook: facebook.status === 'fulfilled' ? facebook.value : { ok: false, error: String(facebook.reason) },
   }
 }

@@ -4,9 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { fetchTrendingAiTopics } from '@/lib/seo/trending'
 import { submitToIndexNow } from '@/lib/seo/indexnow'
-// Social auto-posting removed — use manual share buttons in /admin/blog instead.
-// Re-enable by importing postToAllSocial from '@/lib/social/post' once
-// Twitter Basic API plan ($100/mo) is active.
+import { postToAllSocial } from '@/lib/social/post'
 
 export const maxDuration = 60
 
@@ -407,9 +405,23 @@ export async function GET(req: NextRequest) {
       console.warn('[generate-blog] IndexNow submission failed:', indexed.error ?? indexed.status)
     }
 
+    // Announce the post. Each network is optional: a missing token or a failed
+    // call is reported back but never fails the generation that produced it.
+    const social = await postToAllSocial({
+      title: generated.title,
+      excerpt: generated.excerpt,
+      slug: finalSlug,
+      tags: generated.tags ?? [],
+      heroImageUrl: heroImage.url,
+    })
+    for (const [network, result] of Object.entries(social)) {
+      if (result && !result.ok) console.warn(`[generate-blog] ${network} post failed: ${result.error}`)
+    }
+
     return NextResponse.json({
       ok: true,
       topic,
+      social,
       trending: picked.trending,
       keywords: picked.keywords,
       indexnow: indexed,
