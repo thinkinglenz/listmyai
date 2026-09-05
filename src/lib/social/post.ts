@@ -279,3 +279,95 @@ export async function postToAllSocial(post: SocialPost): Promise<SocialResult> {
     facebook: facebook.status === 'fulfilled' ? facebook.value : { ok: false, error: String(facebook.reason) },
   }
 }
+
+// ─── Tool announcements ────────────────────────────────────────────────────────
+
+export interface ToolAnnouncement {
+  name: string
+  slug: string
+  tagline: string
+  category?: string
+}
+
+/**
+ * Announces a newly approved tool on Facebook and Instagram.
+ *
+ * Facebook gets a link post and scrapes the tool page's own OpenGraph image.
+ * Instagram cannot post links at all, so it gets the rendered square card and
+ * carries the URL in the caption instead.
+ */
+export async function announceToolToSocial(
+  tool: ToolAnnouncement
+): Promise<{ facebook: { ok: boolean; id?: string; error?: string }; instagram: { ok: boolean; id?: string; error?: string } }> {
+  const toolUrl = `https://listmyai.com/tools/${tool.slug}`
+  const imageUrl = `https://listmyai.com/api/tool-social/${tool.slug}`
+  const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
+
+  const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
+
+  const facebook = await (async () => {
+    if (!pageId || !token) return { ok: false, error: 'Facebook env vars not configured' }
+    const message = [
+      `🚀 New on ListmyAI: ${tool.name}`,
+      '',
+      truncate(tool.tagline, 200),
+      '',
+      `🔗 ${toolUrl}`,
+      '',
+      buildHashtags(tags, 5),
+    ].join('\n')
+
+    try {
+      const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/feed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, link: toolUrl, access_token: token }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) return { ok: false, error: data.error?.message ?? JSON.stringify(data) }
+      return { ok: true, id: data.id }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })()
+
+  const instagram = await (async () => {
+    if (!igId || !token) return { ok: false, error: 'Instagram env vars not configured' }
+    const caption = [
+      `🚀 New on ListmyAI: ${tool.name}`,
+      '',
+      truncate(tool.tagline, 180),
+      '',
+      `Find it at ${toolUrl}`,
+      '',
+      buildHashtags(tags, 8),
+    ].join('\n')
+
+    try {
+      const containerRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl, caption, access_token: token }),
+      })
+      const container = await containerRes.json()
+      if (!containerRes.ok || container.error) {
+        return { ok: false, error: container.error?.message ?? JSON.stringify(container) }
+      }
+
+      const publishRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media_publish`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creation_id: container.id, access_token: token }),
+      })
+      const published = await publishRes.json()
+      if (!publishRes.ok || published.error) {
+        return { ok: false, error: published.error?.message ?? JSON.stringify(published) }
+      }
+      return { ok: true, id: published.id }
+    } catch (e) {
+      return { ok: false, error: String(e) }
+    }
+  })()
+
+  return { facebook, instagram }
+}

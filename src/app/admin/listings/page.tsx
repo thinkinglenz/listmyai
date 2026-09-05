@@ -685,6 +685,8 @@ export default function AdminListingsPage() {
   const [exporting, setExporting] = useState(false)
   const [socialTool, setSocialTool] = useState<Tool | null>(null)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
+  const [announcing, setAnnouncing] = useState<string | null>(null)
+  const [announceNote, setAnnounceNote] = useState<string | null>(null)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -845,6 +847,31 @@ export default function AdminListingsPage() {
   async function approve(id: string) {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'active' } : t))
     await fetch('/api/admin/listings', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status: 'active' }) })
+
+    // Announce after the approval lands. Deliberately not awaited into the
+    // approval itself: a social failure must not make an approved tool look
+    // unapproved.
+    setAnnouncing(id)
+    try {
+      const res = await fetch(`/api/admin/tools/${id}/announce`, { method: 'POST' })
+      const data = await res.json()
+      if (data.skipped) {
+        setAnnounceNote('Approved — already announced earlier, not posted again.')
+      } else {
+        const posted = ['facebook', 'instagram'].filter(k => data[k]?.ok)
+        const failed = ['facebook', 'instagram'].filter(k => data[k] && !data[k].ok)
+        setAnnounceNote(
+          posted.length > 0
+            ? `Approved and posted to ${posted.join(' + ')}${failed.length ? ` (${failed.join(', ')} failed)` : ''}.`
+            : `Approved, but nothing posted: ${data.facebook?.error ?? data.instagram?.error ?? 'unknown error'}`
+        )
+      }
+    } catch {
+      setAnnounceNote('Approved, but the social post could not be attempted.')
+    } finally {
+      setAnnouncing(null)
+      setTimeout(() => setAnnounceNote(null), 9000)
+    }
   }
   async function reject(id: string) {
     setTools(prev => prev.map(t => t.id === id ? { ...t, status: 'rejected' } : t))
@@ -881,6 +908,9 @@ export default function AdminListingsPage() {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
   }
   async function bulkApprove() {
+    // No social posting here on purpose: approving 30 tools would fire 30
+    // posts at once, flooding followers and running straight into Meta's rate
+    // limits. Approve individually to announce.
     const ids = Array.from(selected)
     setTools(prev => prev.map(t => ids.includes(t.id) ? { ...t, status: 'active' } : t))
     setSelected(new Set())
@@ -991,6 +1021,13 @@ export default function AdminListingsPage() {
           </div>
         )}
       </div>
+
+      {announceNote && (
+        <div className="mb-4 rounded-xl border px-4 py-3 text-sm"
+          style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.08)', color: '#6ee7b7' }}>
+          {announceNote}
+        </div>
+      )}
 
       {/* Error */}
       {apiError && (
@@ -1115,9 +1152,12 @@ export default function AdminListingsPage() {
                             )}
                             {tool.status === 'pending' && (
                               <>
-                                <button onClick={() => approve(tool.id)} title="Approve"
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-500/10">
-                                  <Check className="h-3.5 w-3.5" />
+                                <button onClick={() => approve(tool.id)} disabled={announcing === tool.id}
+                                  title="Approve and announce on Facebook + Instagram"
+                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-emerald-500 transition hover:bg-emerald-500/10 disabled:opacity-50">
+                                  {announcing === tool.id
+                                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    : <Check className="h-3.5 w-3.5" />}
                                 </button>
                                 <button onClick={() => reject(tool.id)} title="Reject"
                                   className="flex h-7 w-7 items-center justify-center rounded-lg text-amber-500 transition hover:bg-amber-500/10">
