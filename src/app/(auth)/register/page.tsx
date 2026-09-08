@@ -20,6 +20,11 @@ import Script from 'next/script'
 
 const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || ''
 
+// Shown beside the checkbox and stored verbatim with the consent record, so
+// there is proof of exactly what was agreed to.
+const MARKETING_CONSENT_TEXT =
+  'Send me AI tool updates, deals and offers from ListmyAI. I can unsubscribe any time.'
+
 export default function RegisterPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
@@ -28,6 +33,9 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [agreed, setAgreed] = useState(false)
+  // Kept separate from `agreed`: bundling marketing consent into the terms
+  // checkbox would make it neither specific nor freely given.
+  const [marketingConsent, setMarketingConsent] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [emailSent, setEmailSent] = useState(false)
@@ -114,7 +122,7 @@ export default function RegisterPage() {
     fetch('/api/auth/notify-registration', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email }),
+      body: JSON.stringify({ name, email, marketingConsent, consentText: MARKETING_CONSENT_TEXT }),
     }).catch(() => {})
 
     // If session exists, email confirmation is off → auto-login
@@ -246,6 +254,21 @@ export default function RegisterPage() {
                 <Link href="/terms" className="hover:underline" style={{ color: '#e94560' }}>Terms of Service</Link>
                 {' '}and{' '}
                 <Link href="/privacy-policy" className="hover:underline" style={{ color: '#e94560' }}>Privacy Policy</Link>
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-2.5">
+              <div className="relative mt-0.5 flex-shrink-0">
+                <input type="checkbox" checked={marketingConsent}
+                  onChange={e => setMarketingConsent(e.target.checked)} className="sr-only" />
+                <div className="flex h-4 w-4 items-center justify-center rounded"
+                  style={{ background: marketingConsent ? '#e94560' : 'transparent', border: `1px solid ${marketingConsent ? '#e94560' : '#334155'}` }}>
+                  {marketingConsent && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+                </div>
+              </div>
+              <span className="text-xs text-slate-400">
+                {MARKETING_CONSENT_TEXT}{' '}
+                <span className="text-slate-600">(optional)</span>
               </span>
             </label>
 
