@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Star, LogIn, CheckCircle } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
@@ -37,34 +37,56 @@ export default function RatingWidget({ toolId, toolName, ratingAvg, ratingCount 
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
+  // A rating chosen while logged out only existed in React state, so clicking
+  // "Log in" navigated away and threw it away. Park it until they return.
+  const pendingKey = `lmai_pending_rating_${toolId}`
+
+  const submitRating = useCallback(async (value: number) => {
+    setSaving(true)
+    setSaveError('')
+    try {
+      const res = await fetch('/api/tools/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ toolId, rating: value }),
+      })
+      if (res.ok) {
+        setUserRating(value)
+        setSaved(true)
+        setShowLoginNudge(false)
+        try { localStorage.removeItem(pendingKey) } catch {}
+        return true
+      }
+      const body = await res.json().catch(() => null)
+      setSaveError(body?.error ?? 'Could not save your rating. Please try again.')
+    } catch {
+      setSaveError('Could not save your rating. Please check your connection and try again.')
+    } finally {
+      setSaving(false)
+    }
+    return false
+  }, [toolId, pendingKey])
+
+  // On return from signing in, finish what they started.
+  useEffect(() => {
+    if (!user) return
+    let pending = 0
+    try { pending = Number(localStorage.getItem(pendingKey) ?? 0) } catch {}
+    if (pending >= 1 && pending <= 5) submitRating(pending)
+  }, [user, pendingKey, submitRating])
+
   async function handleStarClick(v: number) {
     setUserRating(v)
     setSaveError('')
 
     if (!user) {
+      // Survives the trip to the login page and back.
+      try { localStorage.setItem(pendingKey, String(v)) } catch {}
       setShowLoginNudge(true)
       return
     }
 
-    // Logged in: save rating
-    setSaving(true)
-    try {
-      const res = await fetch('/api/tools/rate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolId, rating: v }),
-      })
-      if (res.ok) {
-        setSaved(true)
-        setShowLoginNudge(false)
-      } else {
-        const body = await res.json().catch(() => null)
-        setSaveError(body?.error ?? 'Could not save your rating. Please try again.')
-      }
-    } catch {
-      setSaveError('Could not save your rating. Please check your connection and try again.')
-    }
-    setSaving(false)
+    await submitRating(v)
   }
 
   return (
@@ -101,9 +123,14 @@ export default function RatingWidget({ toolId, toolName, ratingAvg, ratingCount 
           <div className="mt-3 flex items-center gap-3 rounded-lg border p-3" style={{ borderColor: 'rgba(233,69,96,0.2)', background: 'rgba(233,69,96,0.05)' }}>
             <LogIn className="h-4 w-4 flex-shrink-0" style={{ color: '#e94560' }} />
             <div className="min-w-0 flex-1">
-              <p className="text-xs text-slate-300">You selected <strong className="text-white">{userRating} star{userRating !== 1 ? 's' : ''}</strong>. Log in to save your rating.</p>
+              <p className="text-xs text-slate-300">
+                You selected <strong className="text-white">{userRating} star{userRating !== 1 ? 's' : ''}</strong>.
+                Log in and we&apos;ll save it for you — you won&apos;t have to pick again.
+              </p>
             </div>
-            <Link href="/login" className="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
+            <Link
+              href={`/login?redirect=${encodeURIComponent(typeof window !== 'undefined' ? window.location.pathname : '/')}`}
+              className="flex-shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90"
               style={{ background: '#e94560' }}>
               Log in
             </Link>
