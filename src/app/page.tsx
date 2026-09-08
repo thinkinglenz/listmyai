@@ -334,6 +334,22 @@ export default async function HomePage() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
 
+        {/* Homepage spotlight — one listing at a time, outbiddable */}
+        {spotlight && (
+          <section className="mx-auto max-w-2xl px-4 pb-10 sm:px-6">
+            <SpotlightBox
+              toolName={spotlight.name}
+              toolSlug={spotlight.slug}
+              tagline={spotlight.tagline}
+              categoryName={spotlight.categoryName}
+              bidId={spotlight.bidId}
+              isPaid={spotlight.isPaid}
+              expiresAt={spotlight.expiresAt}
+              minimumNextBidCents={minimumNextBidCents}
+            />
+          </section>
+        )}
+
         {/* Categories */}
         {categories.length > 0 && (
           <section className="py-14">
@@ -470,22 +486,6 @@ export default async function HomePage() {
                 View all blog posts <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-          </section>
-        )}
-
-        {/* Homepage spotlight — one listing at a time, outbiddable */}
-        {spotlight && (
-          <section className="mx-auto max-w-2xl px-4 pb-10 sm:px-6">
-            <SpotlightBox
-              toolName={spotlight.name}
-              toolSlug={spotlight.slug}
-              tagline={spotlight.tagline}
-              categoryName={spotlight.categoryName}
-              bidId={spotlight.bidId}
-              isPaid={spotlight.isPaid}
-              expiresAt={spotlight.expiresAt}
-              minimumNextBidCents={minimumNextBidCents}
-            />
           </section>
         )}
 
