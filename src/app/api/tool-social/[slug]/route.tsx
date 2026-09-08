@@ -44,6 +44,52 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   const category = (Array.isArray(catRel) ? catRel[0]?.name : catRel?.name) ?? 'AI Tool'
   const tagline = (tool.tagline || tool.description || '').slice(0, 120)
 
+  // The plain panel is composed for the 16:10 slot it fills, rather than being
+  // a square post cropped into it — cropping left the artwork off-centre with
+  // most of it discarded.
+  if (isPlain) {
+    const W = 1200, H = 750
+    const letter = (tool.name ?? '?').charAt(0).toUpperCase()
+    const plainPng = await new ImageResponse(
+      (
+        <div style={{
+          width: W, height: H, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          background: 'linear-gradient(150deg, #0f172a 0%, #0d1b2e 55%, #131c30 100%)',
+          fontFamily: 'system-ui, -apple-system, sans-serif',
+        }}>
+          <div style={{
+            position: 'absolute', top: -120, right: -60, width: 560, height: 560,
+            background: 'radial-gradient(circle at 50% 50%, rgba(233,69,96,0.32) 0%, rgba(233,69,96,0.10) 45%, rgba(233,69,96,0) 70%)',
+            display: 'flex',
+          }} />
+          <div style={{
+            width: 200, height: 200, borderRadius: 48, background: '#e94560',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 104, fontWeight: 900, color: 'white',
+            boxShadow: '0 30px 80px -20px rgba(233,69,96,0.6)',
+          }}>{letter}</div>
+          <div style={{
+            display: 'flex', marginTop: 40, padding: '14px 34px', borderRadius: 999,
+            border: '2px solid rgba(233,69,96,0.35)', background: 'rgba(233,69,96,0.10)',
+            fontSize: 30, color: '#e94560', fontWeight: 600,
+          }}>{category}</div>
+          <div style={{
+            position: 'absolute', bottom: 44, display: 'flex',
+            fontSize: 26, color: '#475569', fontWeight: 600,
+          }}>listmyai.com</div>
+        </div>
+      ),
+      { width: W, height: H }
+    ).arrayBuffer()
+
+    const d = PNG.sync.read(Buffer.from(plainPng))
+    const { data: plainJpeg } = jpeg.encode({ data: d.data, width: d.width, height: d.height }, 90)
+    return new NextResponse(new Uint8Array(plainJpeg), {
+      headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800, s-maxage=604800' },
+    })
+  }
+
   const png = await new ImageResponse(
     (
       <div
@@ -71,7 +117,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           </div>
         </div>
 
-        {!isPlain && <div style={{ display: 'flex', alignItems: 'center', gap: 30, marginBottom: 34 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 30, marginBottom: 34 }}>
           {/* First letter as the mark: a tool's own logo is an external URL of
               unknown format and may not load during rendering. */}
           <div style={{
@@ -84,13 +130,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
           <div style={{ display: 'flex', fontSize: 76, fontWeight: 900, color: 'white', lineHeight: 1.05 }}>
             {(tool.name ?? '').slice(0, 22)}
           </div>
-        </div>}
+        </div>
 
-        {!isPlain && (
-          <div style={{ display: 'flex', fontSize: 38, color: '#94a3b8', lineHeight: 1.45, marginBottom: 52 }}>
-            {tagline}
-          </div>
-        )}
+        <div style={{ display: 'flex', fontSize: 38, color: '#94a3b8', lineHeight: 1.45, marginBottom: 52 }}>
+          {tagline}
+        </div>
 
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{
