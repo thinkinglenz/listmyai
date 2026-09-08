@@ -40,7 +40,9 @@ function imageChain(coverUrl: string | null, website: string | null, slug: strin
   if (coverUrl) chain.push(coverUrl)
   if (website) chain.push(`/api/tools/screenshot?url=${encodeURIComponent(website)}`)
   // `plain`: the card beneath already shows the name and tagline.
-  chain.push(`/api/tool-social/${slug}?variant=plain`)
+  // The panel is cached for a week, so `v` is bumped whenever its artwork
+  // changes — without it the CDN keeps serving the previous design.
+  chain.push(`/api/tool-social/${slug}?variant=plain&v=2`)
   return chain
 }
 
