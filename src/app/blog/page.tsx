@@ -38,6 +38,15 @@ function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+/**
+ * Blog cards show the title as their heading, so the thumbnail must not repeat
+ * it. Our own generated heroes support ?variant=thumb; anything else (an
+ * uploaded or external image) is left untouched.
+ */
+function thumbSrc(url: string): string {
+  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb` : url
+}
+
 export default async function BlogIndex() {
   const { data: postsRaw } = await supabase
     .from('blog_posts')
@@ -95,7 +104,7 @@ export default async function BlogIndex() {
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="relative h-64 md:h-auto">
                 {hero.hero_image_url ? (
-                  <Image src={hero.hero_image_url} alt={hero.hero_image_alt || hero.title}
+                  <Image src={thumbSrc(hero.hero_image_url)} alt={hero.hero_image_alt || hero.title}
                     fill className="object-cover" unoptimized />
                 ) : (
                   <div className="flex h-full items-center justify-center"
@@ -140,7 +149,7 @@ export default async function BlogIndex() {
                 style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
                 <div className="relative h-44">
                   {p.hero_image_url ? (
-                    <Image src={p.hero_image_url} alt={p.hero_image_alt || p.title}
+                    <Image src={thumbSrc(p.hero_image_url)} alt={p.hero_image_alt || p.title}
                       fill className="object-cover" unoptimized />
                   ) : (
                     <div className="flex h-full items-center justify-center"

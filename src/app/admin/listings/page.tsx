@@ -29,6 +29,8 @@ interface Tool {
   description: string
   logo_url: string
   cover_url?: string | null
+  view_count?: number | null
+  click_count?: number | null
 }
 
 // ─── Social Post Modal ───────────────────────────────────────────────────────
@@ -668,6 +670,24 @@ function AddListingModal({ onClose, onAdded }: { onClose: () => void; onAdded: (
   )
 }
 
+
+/** Header cell that sorts the whole result set, not just the visible page. */
+function SortableTh({ label, field, sort, asc, onSort }: {
+  label: string; field: string; sort: string; asc: boolean; onSort: (f: string) => void
+}) {
+  const active = sort === field
+  return (
+    <th className="px-4 py-3">
+      <button onClick={() => onSort(field)}
+        className="flex items-center gap-1 transition hover:text-white"
+        style={{ color: active ? '#e94560' : undefined }}>
+        {label}
+        <span className="text-[10px]">{active ? (asc ? '\u25B2' : '\u25BC') : '\u21C5'}</span>
+      </button>
+    </th>
+  )
+}
+
 export default function AdminListingsPage() {
   const [tools, setTools] = useState<Tool[]>([])
   const [loading, setLoading] = useState(true)
@@ -685,6 +705,8 @@ export default function AdminListingsPage() {
   const [exporting, setExporting] = useState(false)
   const [socialTool, setSocialTool] = useState<Tool | null>(null)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
+  const [sort, setSort] = useState<string>('added')
+  const [sortAsc, setSortAsc] = useState(false)
   const [announcing, setAnnouncing] = useState<string | null>(null)
   const [announceNote, setAnnounceNote] = useState<string | null>(null)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
@@ -774,6 +796,8 @@ export default function AdminListingsPage() {
       if (filterStatus !== 'all') params.set('status', filterStatus)
       if (search) params.set('search', search)
       params.set('page', String(p))
+      params.set('sort', sort)
+      params.set('dir', sortAsc ? 'asc' : 'desc')
       const res = await fetch(`/api/admin/listings?${params}`)
       const data = await res.json()
       if (data.error) {
@@ -808,7 +832,7 @@ export default function AdminListingsPage() {
       setApiError(String(err))
     }
     setLoading(false)
-  }, [filterStatus, search])
+  }, [filterStatus, search, sort, sortAsc])
 
   // Load pending count separately (for the banner)
   useEffect(() => {
@@ -842,6 +866,14 @@ export default function AdminListingsPage() {
     setSelected(new Set())
     loadTools(p)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Clicking the active column flips direction; a new column starts descending,
+  // which is what you want for counts and dates.
+  function toggleSort(field: string) {
+    if (field === sort) setSortAsc(a => !a)
+    else { setSort(field); setSortAsc(false) }
+    setPage(1)
   }
 
   async function approve(id: string) {
@@ -1058,13 +1090,15 @@ export default function AdminListingsPage() {
                       onChange={e => setSelected(e.target.checked ? new Set(tools.map(t => t.id)) : new Set())}
                       checked={selected.size === tools.length && tools.length > 0} />
                   </th>
-                  <th className="px-4 py-3">Tool</th>
+                  <SortableTh label="Tool"    field="name"    sort={sort} asc={sortAsc} onSort={toggleSort} />
                   <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Status</th>
+                  <SortableTh label="Status"  field="status"  sort={sort} asc={sortAsc} onSort={toggleSort} />
                   <th className="px-4 py-3">Claimed</th>
-                  <th className="px-4 py-3">Upvotes</th>
-                  <th className="px-4 py-3">Rating</th>
-                  <th className="px-4 py-3">Added</th>
+                  <SortableTh label="Views"   field="views"   sort={sort} asc={sortAsc} onSort={toggleSort} />
+                  <SortableTh label="Clicks"  field="clicks"  sort={sort} asc={sortAsc} onSort={toggleSort} />
+                  <SortableTh label="Upvotes" field="upvotes" sort={sort} asc={sortAsc} onSort={toggleSort} />
+                  <SortableTh label="Rating"  field="rating"  sort={sort} asc={sortAsc} onSort={toggleSort} />
+                  <SortableTh label="Added"   field="added"   sort={sort} asc={sortAsc} onSort={toggleSort} />
                   <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
@@ -1101,6 +1135,8 @@ export default function AdminListingsPage() {
                             )}
                           </div>
                         </td>
+                        <td className="px-4 py-3 text-sm text-slate-300">{(tool.view_count ?? 0).toLocaleString()}</td>
+                        <td className="px-4 py-3 text-sm text-slate-400">{(tool.click_count ?? 0).toLocaleString()}</td>
                         <td className="px-4 py-3 text-sm text-slate-400">{tool.upvotes.toLocaleString()}</td>
                         <td className="px-4 py-3 text-sm text-slate-400">{tool.rating > 0 ? `${tool.rating} ★` : '—'}</td>
                         <td className="px-4 py-3 text-xs text-slate-600">{tool.added}</td>

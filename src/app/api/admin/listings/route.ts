@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { isAdminRequest } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,11 +91,28 @@ function slugify(name: string): string {
     .slice(0, 60)
 }
 
+// Sortable columns, allowlisted. A sort field goes straight into the query, so
+// it can never be taken from the caller unchecked.
+const SORTABLE: Record<string, string> = {
+  name: 'name',
+  status: 'status',
+  upvotes: 'upvotes',
+  rating: 'rating_avg',
+  views: 'view_count',
+  clicks: 'click_count',
+  added: 'created_at',
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const status = searchParams.get('status')
   const search = searchParams.get('search')
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
+
+  // Sorting runs in the database, not on the page: ordering just the 30 rows on
+  // screen would be misleading across 20,000 tools.
+  const sortColumn = SORTABLE[searchParams.get('sort') ?? ''] ?? 'created_at'
+  const sortAsc = searchParams.get('dir') === 'asc'
   const from = (page - 1) * PAGE_SIZE
   const to = from + PAGE_SIZE - 1
 
@@ -109,8 +127,8 @@ export async function GET(req: NextRequest) {
   // Data query with pagination
   let query = supabase
     .from('ai_tools')
-    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, created_at, category_id, categories(name), tagline, description, logo_url, cover_url')
-    .order('created_at', { ascending: false })
+    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, view_count, click_count, created_at, category_id, categories(name), tagline, description, logo_url, cover_url')
+    .order(sortColumn, { ascending: sortAsc })
     .range(from, to)
 
   if (status && status !== 'all') query = query.eq('status', status)
@@ -140,6 +158,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+  }
+
   const { id, ...updates } = await req.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
@@ -167,6 +189,10 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+  }
+
   const { id } = await req.json()
   const { error } = await supabase.from('ai_tools').delete().eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -175,6 +201,10 @@ export async function DELETE(req: NextRequest) {
 
 // ── POST: admin "Add Listing" — preview URL or insert tool ──────────────────
 export async function POST(req: NextRequest) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+  }
+
   const body = await req.json()
   const { action } = body
 

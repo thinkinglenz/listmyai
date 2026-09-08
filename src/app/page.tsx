@@ -38,6 +38,15 @@ function getSupabase() {
   return createClient(url, key)
 }
 
+/**
+ * Blog cards show the title as their heading, so the thumbnail must not repeat
+ * it. Our own generated heroes support ?variant=thumb; anything else (an
+ * uploaded or external image) is left untouched.
+ */
+function thumbSrc(url: string): string {
+  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb` : url
+}
+
 export default async function HomePage() {
   const supabase = getSupabase()
 
@@ -419,7 +428,7 @@ export default async function HomePage() {
                   style={{ borderColor: '#1e2a3a', background: '#0f1623' }}>
                   <div className="relative h-40">
                     {p.hero_image_url ? (
-                      <Image src={p.hero_image_url} alt={p.title} fill
+                      <Image src={thumbSrc(p.hero_image_url)} alt={p.title} fill
                         className="object-cover" unoptimized />
                     ) : (
                       <div className="flex h-full items-center justify-center"

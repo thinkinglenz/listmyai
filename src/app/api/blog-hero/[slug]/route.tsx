@@ -1,4 +1,10 @@
-// Generates a branded hero image for a blog post from its title.
+// Generates a branded image for a blog post.
+//
+// Two variants, because one image cannot serve both jobs. The default is a
+// 1200x630 social card with the title set large — right for og:image, wrong as
+// a thumbnail, where it was being cropped to 160px tall and repeating the title
+// that already sits underneath the card. `?variant=thumb` renders the same
+// brand furniture with the title omitted.
 // Deterministic: same slug → same title + same accent → identical PNG every time.
 // Used as hero_image_url for auto-generated posts (admin, blog page, og:image, PNG download).
 import { ImageResponse } from 'next/og'
@@ -34,10 +40,11 @@ function titleFromSlug(slug: string): string {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await params
+  const isThumb = new URL(req.url).searchParams.get('variant') === 'thumb'
 
   let title = titleFromSlug(slug)
   let tag = 'AI Insights'
@@ -121,19 +128,22 @@ export async function GET(
           </div>
         </div>
 
-        {/* Title */}
-        <div
-          style={{
-            display: 'flex',
-            fontSize: titleSize,
-            fontWeight: 800,
-            color: 'white',
-            lineHeight: 1.15,
-            maxWidth: '1000px',
-          }}
-        >
-          {title}
-        </div>
+        {/* Title — omitted on thumbnails, where the card heading already
+            carries it and the text would only be cropped. */}
+        {!isThumb && (
+          <div
+            style={{
+              display: 'flex',
+              fontSize: titleSize,
+              fontWeight: 800,
+              color: 'white',
+              lineHeight: 1.15,
+              maxWidth: '1000px',
+            }}
+          >
+            {title}
+          </div>
+        )}
 
         {/* Footer */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
