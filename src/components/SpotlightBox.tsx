@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles, ArrowRight, Clock } from 'lucide-react'
 
@@ -52,6 +52,18 @@ export default function SpotlightBox({
 
   const sources = imageChain(coverUrl, website, toolSlug)
   const [srcIndex, setSrcIndex] = useState(0)
+  const imgRef = useRef<HTMLImageElement>(null)
+
+  // The image is in the server-rendered HTML, so the browser starts loading it
+  // before React hydrates. If it fails in that window the error event is gone
+  // by the time onError is attached, and the fallback never runs. A finished
+  // image with no intrinsic width is one that failed.
+  useEffect(() => {
+    const el = imgRef.current
+    if (el?.complete && el.naturalWidth === 0) {
+      setSrcIndex(i => Math.min(i + 1, sources.length - 1))
+    }
+  }, [srcIndex, sources.length])
 
   useEffect(() => {
     if (!bidId) return
@@ -114,6 +126,7 @@ export default function SpotlightBox({
           <div className="aspect-[16/10] w-full">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={imgRef}
               src={sources[srcIndex]}
               alt={`${toolName} website`}
               className="h-full w-full object-cover object-top transition duration-500 group-hover:scale-[1.03]"
