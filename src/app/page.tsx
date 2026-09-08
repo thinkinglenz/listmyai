@@ -47,7 +47,7 @@ function getSupabase() {
  * uploaded or external image) is left untouched.
  */
 function thumbSrc(url: string): string {
-  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb&v=2` : url
+  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb&v=3` : url
 }
 
 export default async function HomePage() {

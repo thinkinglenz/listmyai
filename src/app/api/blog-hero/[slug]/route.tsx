@@ -63,6 +63,44 @@ export async function GET(
   const accent = ACCENTS[hashOf(slug) % ACCENTS.length]
   const titleSize = title.length > 70 ? 46 : title.length > 45 ? 54 : 62
 
+  if (isThumb) {
+    // Full-bleed gradient mesh in the post's own accent. No text and no logo:
+    // the card already prints the title, tag and date beneath, and every
+    // element removed from the social card left a hole rather than a design.
+    const W = 1200, H = 630
+    const thumbPng = await new ImageResponse(
+      (
+        <div style={{
+          width: W, height: H, display: 'flex',
+          background: `linear-gradient(135deg, #0d1117 0%, #131c2e 50%, #0d1117 100%)`,
+        }}>
+          <div style={{
+            position: 'absolute', top: -180, left: -120, width: 760, height: 760, display: 'flex',
+            background: `radial-gradient(circle at 50% 50%, ${accent.from}66 0%, ${accent.from}22 42%, ${accent.from}00 70%)`,
+          }} />
+          <div style={{
+            position: 'absolute', bottom: -260, right: -140, width: 820, height: 820, display: 'flex',
+            background: `radial-gradient(circle at 50% 50%, ${accent.to}77 0%, ${accent.to}26 45%, ${accent.to}00 72%)`,
+          }} />
+          <div style={{
+            position: 'absolute', top: 120, right: 200, width: 420, height: 420, display: 'flex',
+            background: `radial-gradient(circle at 50% 50%, ${accent.from}3a 0%, ${accent.from}00 65%)`,
+          }} />
+          {/* A single hairline keeps it from reading as an unloaded image. */}
+          <div style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, display: 'flex',
+            background: `linear-gradient(90deg, ${accent.from}, ${accent.to})`,
+          }} />
+        </div>
+      ),
+      { width: W, height: H }
+    ).arrayBuffer()
+
+    return new Response(thumbPng, {
+      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800, s-maxage=604800' },
+    })
+  }
+
   return new ImageResponse(
     (
       <div
