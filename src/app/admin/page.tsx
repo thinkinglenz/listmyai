@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import StatsOverview from '@/components/admin/StatsOverview'
 import Link from 'next/link'
 import {
   BarChart3, Users, List, Shield, TrendingUp,
@@ -85,6 +86,11 @@ export default function AdminOverviewPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-black text-white">Admin Overview</h1>
         <p className="text-sm text-slate-500">Welcome back. Here&apos;s what&apos;s happening on ListmyAI.</p>
+      </div>
+
+      {/* Spotlight + marketing + listing breakdown */}
+      <div className="mb-8">
+        <StatsOverview />
       </div>
 
       {/* Stats grid */}

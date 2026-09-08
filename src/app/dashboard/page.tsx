@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import SpotlightPanel from '@/components/dashboard/SpotlightPanel'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -390,7 +391,9 @@ export default function DashboardPage() {
 
             {/* ── LISTINGS ── */}
             {tab === 'listings' && (
-              <div className="space-y-4">
+              <div className="space-y-8">
+                <SpotlightPanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
+
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-white">My Listings ({listings.length})</h2>
                   <Link href="/submit"
