@@ -49,15 +49,49 @@ function imageChain(coverUrl: string | null, website: string | null, slug: strin
   return chain
 }
 
-export default function SpotlightBox({
-  toolName, toolSlug, tagline, categoryName, logoUrl, coverUrl, website,
-  bidId, isPaid, expiresAt, minimumNextBidCents,
-}: Props) {
+export default function SpotlightBox(props: Props) {
+  // Server-rendered values are the starting point, but the page they arrive on
+  // is cached — and a slot can be taken over or expire inside that window. The
+  // component re-checks on mount so a stale cache corrects itself rather than
+  // advertising the wrong listing.
+  const [live, setLive] = useState<Partial<Props> | null>(null)
+
+  useEffect(() => {
+    fetch('/api/spotlight')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d?.current) return
+        setLive({
+          toolName: d.current.name,
+          toolSlug: d.current.slug,
+          tagline: d.current.tagline,
+          categoryName: d.current.categoryName,
+          logoUrl: d.current.logoUrl,
+          coverUrl: d.current.coverUrl,
+          website: d.current.website,
+          bidId: d.current.bidId,
+          isPaid: d.current.isPaid,
+          expiresAt: d.current.expiresAt,
+          minimumNextBidCents: d.minimumNextBidCents,
+        })
+      })
+      .catch(() => {})
+  }, [])
+
+  const {
+    toolName, toolSlug, tagline, categoryName, logoUrl, coverUrl, website,
+    bidId, isPaid, expiresAt, minimumNextBidCents,
+  } = { ...props, ...(live ?? {}) } as Props
   const [remaining, setRemaining] = useState<string | null>(expiresAt ? timeLeft(expiresAt) : null)
   const [logoOk, setLogoOk] = useState(Boolean(logoUrl))
 
+  useEffect(() => { setLogoOk(Boolean(logoUrl)) }, [logoUrl])
+  useEffect(() => { setRemaining(expiresAt ? timeLeft(expiresAt) : null) }, [expiresAt])
+
   const sources = imageChain(coverUrl, website, toolSlug)
   const [srcIndex, setSrcIndex] = useState(0)
+  // A different listing means starting the image chain again.
+  useEffect(() => { setSrcIndex(0) }, [toolSlug])
   const imgRef = useRef<HTMLImageElement>(null)
 
   // The image is in the server-rendered HTML, so the browser starts loading it

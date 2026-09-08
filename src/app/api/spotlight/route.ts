@@ -6,6 +6,7 @@
 // gateway is added.
 
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -103,6 +104,10 @@ export async function POST(req: NextRequest) {
       }).then(() => {}, () => {})
     }
   }
+
+  // The homepage is cached for five minutes. Somebody who has just paid for
+  // the slot should not wait for that to lapse before appearing on it.
+  revalidatePath('/')
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cat = (tool as any).categories
