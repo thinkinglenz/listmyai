@@ -240,7 +240,10 @@ export default async function HomePage() {
         <div className="pointer-events-none absolute inset-0" style={{background:'radial-gradient(ellipse at 50% 0%,rgba(233,69,96,0.12) 0%,transparent 70%)'}} />
         <div className="pointer-events-none absolute -top-40 left-1/2 h-96 w-96 -translate-x-1/2 rounded-full blur-3xl" style={{background:'rgba(233,69,96,0.07)'}} />
 
-        <div className="relative mx-auto max-w-4xl px-4 py-20 text-center sm:px-6 sm:py-28">
+        <div className="relative mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
+          <div className="grid items-center gap-12 lg:grid-cols-[1.25fr_1fr]">
+            {/* Left: the pitch */}
+            <div className="text-center lg:text-left">
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm" style={{borderColor:'rgba(233,69,96,0.25)',background:'rgba(233,69,96,0.1)',color:'#e94560'}}>
             <Sparkles className="h-3.5 w-3.5" />
             {toolLabel} AI tools — growing daily
@@ -274,13 +277,32 @@ export default async function HomePage() {
             ))}
           </div>
 
-          <div className="mt-14 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            {STATS.map(s => (
-              <div key={s.label} className="rounded-2xl p-4" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
-                <div className="text-2xl font-black text-white">{s.value}</div>
-                <div className="mt-1 text-xs" style={{color:'#64748b'}}>{s.label}</div>
+            <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {STATS.map(s => (
+                <div key={s.label} className="rounded-2xl p-4" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
+                  <div className="text-2xl font-black text-white">{s.value}</div>
+                  <div className="mt-1 text-xs" style={{color:'#64748b'}}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+            </div>
+
+            {/* Right: the spotlight, balancing the hero */}
+            {spotlight && (
+              <div className="lg:pl-4">
+                <SpotlightBox
+                  toolName={spotlight.name}
+                  toolSlug={spotlight.slug}
+                  tagline={spotlight.tagline}
+                  categoryName={spotlight.categoryName}
+                  logoUrl={spotlight.logoUrl}
+                  bidId={spotlight.bidId}
+                  isPaid={spotlight.isPaid}
+                  expiresAt={spotlight.expiresAt}
+                  minimumNextBidCents={minimumNextBidCents}
+                />
               </div>
-            ))}
+            )}
           </div>
         </div>
       </section>
@@ -333,22 +355,6 @@ export default async function HomePage() {
       </section>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-
-        {/* Homepage spotlight — one listing at a time, outbiddable */}
-        {spotlight && (
-          <section className="mx-auto max-w-2xl px-4 pb-10 sm:px-6">
-            <SpotlightBox
-              toolName={spotlight.name}
-              toolSlug={spotlight.slug}
-              tagline={spotlight.tagline}
-              categoryName={spotlight.categoryName}
-              bidId={spotlight.bidId}
-              isPaid={spotlight.isPaid}
-              expiresAt={spotlight.expiresAt}
-              minimumNextBidCents={minimumNextBidCents}
-            />
-          </section>
-        )}
 
         {/* Categories */}
         {categories.length > 0 && (
