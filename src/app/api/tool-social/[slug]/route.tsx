@@ -19,8 +19,12 @@ import jpeg from 'jpeg-js'
 // single size for a card that also has to look right in a Facebook feed.
 const SIZE = 1080
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
+  // The social post needs the name and tagline set large. As a fallback image
+  // inside a card that already prints both, that same art reads as duplicated
+  // text — so `?variant=plain` keeps the brand furniture and drops the words.
+  const isPlain = new URL(req.url).searchParams.get('variant') === 'plain'
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -67,7 +71,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 30, marginBottom: 34 }}>
+        {!isPlain && <div style={{ display: 'flex', alignItems: 'center', gap: 30, marginBottom: 34 }}>
           {/* First letter as the mark: a tool's own logo is an external URL of
               unknown format and may not load during rendering. */}
           <div style={{
@@ -80,11 +84,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
           <div style={{ display: 'flex', fontSize: 76, fontWeight: 900, color: 'white', lineHeight: 1.05 }}>
             {(tool.name ?? '').slice(0, 22)}
           </div>
-        </div>
+        </div>}
 
-        <div style={{ display: 'flex', fontSize: 38, color: '#94a3b8', lineHeight: 1.45, marginBottom: 52 }}>
-          {tagline}
-        </div>
+        {!isPlain && (
+          <div style={{ display: 'flex', fontSize: 38, color: '#94a3b8', lineHeight: 1.45, marginBottom: 52 }}>
+            {tagline}
+          </div>
+        )}
 
         <div style={{ display: 'flex', gap: 16 }}>
           <div style={{

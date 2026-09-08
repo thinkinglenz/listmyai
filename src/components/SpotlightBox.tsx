@@ -39,7 +39,8 @@ function imageChain(coverUrl: string | null, website: string | null, slug: strin
   const chain: string[] = []
   if (coverUrl) chain.push(coverUrl)
   if (website) chain.push(`/api/tools/screenshot?url=${encodeURIComponent(website)}`)
-  chain.push(`/api/tool-social/${slug}`)
+  // `plain`: the card beneath already shows the name and tagline.
+  chain.push(`/api/tool-social/${slug}?variant=plain`)
   return chain
 }
 
