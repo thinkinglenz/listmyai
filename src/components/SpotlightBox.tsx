@@ -38,6 +38,9 @@ function timeLeft(expiresAt: string): string {
 function imageChain(coverUrl: string | null, website: string | null, slug: string): string[] {
   const chain: string[] = []
   if (coverUrl) chain.push(coverUrl)
+  // The tool's own share image, which most sites publish at 1200x630 and which
+  // beats a screenshot on quality. Falls through to a capture if there is none.
+  chain.push(`/api/tools/preview/${slug}`)
   if (website) chain.push(`/api/tools/screenshot?url=${encodeURIComponent(website)}`)
   // `plain`: the card beneath already shows the name and tagline.
   // The panel is cached for a week, so `v` is bumped whenever its artwork
