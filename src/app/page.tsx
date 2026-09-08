@@ -277,14 +277,6 @@ export default async function HomePage() {
             ))}
           </div>
 
-            <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {STATS.map(s => (
-                <div key={s.label} className="rounded-2xl p-4" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
-                  <div className="text-2xl font-black text-white">{s.value}</div>
-                  <div className="mt-1 text-xs" style={{color:'#64748b'}}>{s.label}</div>
-                </div>
-              ))}
-            </div>
             </div>
 
             {/* Right: the spotlight, balancing the hero */}
@@ -303,6 +295,15 @@ export default async function HomePage() {
                 />
               </div>
             )}
+          </div>
+
+          <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {STATS.map(s => (
+              <div key={s.label} className="rounded-2xl p-4" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
+                <div className="text-2xl font-black text-white">{s.value}</div>
+                <div className="mt-1 text-xs" style={{color:'#64748b'}}>{s.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
