@@ -59,7 +59,7 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Bid failed')
-      setMsg({ kind: 'ok', text: "You're on the homepage for the next 24 hours — and it's on us. Share the link while you're up there." })
+      setMsg({ kind: 'ok', text: "You're front and centre on the homepage for the next 24 hours, on us. Share the link and make it count." })
       await load()
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Bid failed' })
@@ -114,14 +114,14 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
         )}
 
         {msg && <p className="mt-3 text-xs" style={{ color: msg.kind === 'ok' ? '#6ee7b7' : '#f87171' }}>{msg.text}</p>}
-        {/* Framed as the launch offer it genuinely is. The wording stays
-            truthful — nothing is charged and nothing is owed — while the
-            admin view keeps calling these figures mock, so reported revenue
-            is never mistaken for real income. */}
+        {/* Truthful — the placement really is free and nothing is owed — while
+            leading with what the member gets rather than with what we lack.
+            The admin view keeps labelling these figures mock, so reported
+            revenue is never mistaken for income. */}
         <p className="mt-3 text-[11px] text-slate-500">
-          <strong className="text-slate-400">Free during launch.</strong> Early ListmyAI
-          members get the spotlight at no cost while we build the audience — no card needed,
-          nothing to pay. Make the most of it.
+          <strong style={{ color: '#e94560' }}>Complimentary placement.</strong> Your listing
+          has been selected for front-page promotion at no charge — no card, nothing to pay.
+          Claim it as often as you like while it&apos;s yours.
         </p>
       </div>
 

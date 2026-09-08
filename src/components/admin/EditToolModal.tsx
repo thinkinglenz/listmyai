@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { X, Loader2 } from 'lucide-react'
 import PreviewImageUpload from '@/components/PreviewImageUpload'
+import OwnerAssets, { type OwnerAssetData } from '@/components/admin/OwnerAssets'
 
 interface Tool {
   id: string
@@ -17,8 +18,10 @@ interface Tool {
   cover_url?: string | null
 }
 
+type ToolWithAssets = Tool & OwnerAssetData
+
 interface EditToolModalProps {
-  tool: Tool
+  tool: ToolWithAssets
   onClose: () => void
   onSave: (updatedTool: Tool) => void
   categories?: { id: string; name: string }[]
@@ -183,6 +186,9 @@ export default function EditToolModal({ tool, onClose, onSave, categories = [] }
               screenshot bots (Cloudflare and similar), where auto-capture would only get their block page.
             </p>
           </div>
+
+          {/* What the owner sent us — read-only, but usable */}
+          <OwnerAssets tool={tool} />
         </div>
 
         {/* Footer */}

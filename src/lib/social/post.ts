@@ -282,6 +282,31 @@ export async function postToAllSocial(post: SocialPost): Promise<SocialResult> {
 
 // ─── Tool announcements ────────────────────────────────────────────────────────
 
+/**
+ * A Facebook post id is "<pageId>_<postId>", which maps onto a public URL.
+ * Instagram returns only a media id, and its permalink needs a separate call —
+ * done at post time because it is cheap here and impossible later without
+ * storing the id anyway.
+ */
+function facebookPostUrl(postId: string): string | null {
+  const [pageId, id] = postId.split('_')
+  return pageId && id ? `https://www.facebook.com/${pageId}/posts/${id}` : null
+}
+
+async function instagramPermalink(mediaId: string, token: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/${GRAPH_API_VERSION}/${mediaId}?fields=permalink&access_token=${token}`,
+      { signal: AbortSignal.timeout(8_000) }
+    )
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.permalink ?? null
+  } catch {
+    return null
+  }
+}
+
 export interface ToolAnnouncement {
   name: string
   slug: string
@@ -298,7 +323,11 @@ export interface ToolAnnouncement {
  */
 export async function announceToolToSocial(
   tool: ToolAnnouncement
-): Promise<{ facebook: { ok: boolean; id?: string; error?: string }; instagram: { ok: boolean; id?: string; error?: string } }> {
+): Promise<{
+  facebook: { ok: boolean; id?: string; error?: string }
+  instagram: { ok: boolean; id?: string; error?: string }
+  links: { network: string; postId: string; postUrl: string | null }[]
+}> {
   const toolUrl = `https://listmyai.com/tools/${tool.slug}`
   const imageUrl = `https://listmyai.com/api/tool-social/${tool.slug}`
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
@@ -369,5 +398,18 @@ export async function announceToolToSocial(
     }
   })()
 
-  return { facebook, instagram }
+  // Permalinks, so an owner can open the actual post rather than take our word.
+  const links: { network: string; postId: string; postUrl: string | null }[] = []
+  if (facebook.ok && facebook.id) {
+    links.push({ network: 'facebook', postId: facebook.id, postUrl: facebookPostUrl(facebook.id) })
+  }
+  if (instagram.ok && instagram.id && token) {
+    links.push({
+      network: 'instagram',
+      postId: instagram.id,
+      postUrl: await instagramPermalink(instagram.id, token),
+    })
+  }
+
+  return { facebook, instagram, links }
 }

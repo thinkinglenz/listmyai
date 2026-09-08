@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import SpotlightPanel from '@/components/dashboard/SpotlightPanel'
+import PromotionPanel from '@/components/dashboard/PromotionPanel'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
@@ -257,6 +258,8 @@ export default function DashboardPage() {
             {tab === 'overview' && (
               <div className="space-y-8">
                 <SpotlightPanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
+
+                <PromotionPanel />
 
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <StatCard icon={Eye}        label="Total Views"  value={totalViews.toLocaleString()} sub="All listings" color="#e94560" />

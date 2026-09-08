@@ -49,6 +49,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     category: (Array.isArray(catRel) ? catRel[0]?.name : catRel?.name) ?? undefined,
   })
 
+  // Record what was posted where, so the owner can see it in their dashboard.
+  if (result.links.length > 0) {
+    await supabase.from('tool_social_posts').insert(
+      result.links.map(l => ({
+        tool_id: id,
+        network: l.network,
+        post_id: l.postId,
+        post_url: l.postUrl,
+        source: 'approval',
+      }))
+    ).then(() => {}, () => {}) // never fail an announcement over bookkeeping
+  }
+
   // Stamp only when something actually posted, so a misconfigured token leaves
   // the tool eligible to be announced again once it is fixed.
   if (result.facebook.ok || result.instagram.ok) {

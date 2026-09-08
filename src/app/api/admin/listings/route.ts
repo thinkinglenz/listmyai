@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
   // Data query with pagination
   let query = supabase
     .from('ai_tools')
-    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, view_count, click_count, created_at, category_id, categories(name), tagline, description, logo_url, cover_url')
+    .select('id, name, slug, website, status, claimed, claimed_by, upvotes, rating_avg, rating_count, view_count, click_count, created_at, category_id, categories(name), tagline, description, logo_url, cover_url, screenshots, creatives, brand_guidelines_url, social_promotion_consent, video_url, demo_url, twitter_url, linkedin_url, instagram_url, facebook_url, youtube_url, github_url, product_hunt_url')
     .order(sortColumn, { ascending: sortAsc })
     .range(from, to)
 

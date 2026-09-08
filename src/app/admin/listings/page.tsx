@@ -31,6 +31,20 @@ interface Tool {
   cover_url?: string | null
   view_count?: number | null
   click_count?: number | null
+  // Supplied by the listing's owner; surfaced read-only in the edit modal.
+  screenshots?: string[] | null
+  creatives?: string[] | null
+  brand_guidelines_url?: string | null
+  social_promotion_consent?: boolean | null
+  video_url?: string | null
+  demo_url?: string | null
+  twitter_url?: string | null
+  linkedin_url?: string | null
+  instagram_url?: string | null
+  facebook_url?: string | null
+  youtube_url?: string | null
+  github_url?: string | null
+  product_hunt_url?: string | null
 }
 
 // ─── Social Post Modal ───────────────────────────────────────────────────────
