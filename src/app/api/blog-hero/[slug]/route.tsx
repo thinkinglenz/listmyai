@@ -105,6 +105,23 @@ export async function GET(
           }}
         />
 
+        {/* A wash of the post's own accent, which is what gives each thumbnail
+            its distinct colour once the title is gone. */}
+        {isThumb && (
+          <div style={{
+            position: 'absolute', top: '18%', left: '52%', width: 620, height: 620,
+            background: `radial-gradient(circle at 50% 50%, ${accent.from}55 0%, ${accent.from}22 40%, ${accent.from}00 68%)`,
+            display: 'flex',
+          }} />
+        )}
+        {isThumb && (
+          <div style={{
+            position: 'absolute', bottom: '-14%', left: '-8%', width: 460, height: 460,
+            background: `radial-gradient(circle at 50% 50%, ${accent.to}44 0%, ${accent.to}00 66%)`,
+            display: 'flex',
+          }} />
+        )}
+
         {/* Header: logo + tag pill */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'baseline' }}>
@@ -145,15 +162,16 @@ export async function GET(
           </div>
         )}
 
-        {/* Footer */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Footer — omitted on thumbnails: the card crops top and bottom, and
+            this line was being sliced through the middle of its text. */}
+        {!isThumb && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', fontSize: 24, color: '#94a3b8' }}>
             The AI Tools Directory
           </div>
           <div style={{ display: 'flex', fontSize: 24, fontWeight: 700, color: accent.from }}>
             listmyai.com/blog
           </div>
-        </div>
+        </div>}
       </div>
     ),
     {
