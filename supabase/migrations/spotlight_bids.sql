@@ -143,3 +143,46 @@ BEGIN
   RETURN v_new;
 END;
 $$;
+
+-- ── Takeover update ─────────────────────────────────────────────────────────
+-- Flat price, but the slot is always available: paying the $1 takes it from
+-- whoever holds it. Refusing a claim because someone else got there first
+-- meant the spot could sit unavailable for a full day. Safe to re-run.
+CREATE OR REPLACE FUNCTION public.place_spotlight_bid(
+  p_tool_id      uuid,
+  p_user_id      uuid,
+  p_amount_cents integer,
+  p_payment_ref  text
+)
+RETURNS public.spotlight_bids
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_current public.spotlight_bids;
+  v_new     public.spotlight_bids;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('listmyai_spotlight'));
+
+  SELECT * INTO v_current
+  FROM public.spotlight_bids
+  WHERE outbid_at IS NULL AND expires_at > now()
+  LIMIT 1;
+
+  -- Claiming a spot you already hold would silently end your own run and
+  -- restart the clock, which is not what the button appears to do.
+  IF FOUND AND v_current.tool_id = p_tool_id THEN
+    RAISE EXCEPTION 'ALREADY_HELD:%', to_char(v_current.expires_at, 'YYYY-MM-DD"T"HH24:MI:SSOF');
+  END IF;
+
+  IF FOUND THEN
+    UPDATE public.spotlight_bids SET outbid_at = now() WHERE id = v_current.id;
+  END IF;
+
+  INSERT INTO public.spotlight_bids (tool_id, user_id, amount_cents, expires_at, payment_ref)
+  VALUES (p_tool_id, p_user_id, p_amount_cents, now() + interval '24 hours', p_payment_ref)
+  RETURNING * INTO v_new;
+
+  RETURN v_new;
+END;
+$$;

@@ -68,7 +68,10 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
     }
   }
 
-  const taken = Boolean(holder?.isPaid)
+  // The slot is always claimable; only re-claiming a listing that already holds
+  // it is blocked, since that would just restart its own clock.
+  const holdsIt = Boolean(holder?.isPaid) && listings.some(l => l.name === holder?.name)
+  void holdsIt
   const card = 'rounded-xl border p-4'
   const cardStyle = { borderColor: '#1e2a3a', background: '#161b27' }
 
@@ -81,14 +84,14 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
 
       <div className="rounded-2xl border p-5" style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.04)' }}>
         <p className="mb-1 text-sm text-slate-300">
-          {taken
-            ? <>Currently held by <strong className="text-white">{holder!.name}</strong>
-                {holder!.expiresAt && <> until {new Date(holder!.expiresAt).toLocaleString()}</>}.</>
+          {holder?.isPaid
+            ? <>Currently held by <strong className="text-white">{holder.name}</strong>.
+                Take it over for <strong className="text-white">{money(minNext)}</strong> and the 24 hours restart with your listing.</>
             : <>The spot is free right now. Claim it for <strong className="text-white">{money(minNext)}</strong> — 24 hours on the homepage.</>}
         </p>
         <p className="mb-4 text-xs text-slate-500">
-          One listing at a time, top of the homepage, for 24 hours. Always {money(minNext)} — no bidding
-          wars, first to claim it gets it.
+          One listing at a time, top of the homepage, for 24 hours. Always {money(minNext)} — and always
+          available: anyone can take it over, including from you.
         </p>
 
         {listings.length === 0 ? (
@@ -103,12 +106,11 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
                 {listings.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <button onClick={placeBid} disabled={bidding || !toolId || taken}
-              title={taken ? 'Someone else holds the spot until it expires' : undefined}
+            <button onClick={placeBid} disabled={bidding || !toolId}
               className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
               style={{ background: '#e94560' }}>
               {bidding && <Loader2 className="h-4 w-4 animate-spin" />}
-              {taken ? 'Spot taken' : `Claim the spot — ${money(minNext)}`}
+              {holder?.isPaid ? `Take it over — ${money(minNext)}` : `Claim the spot — ${money(minNext)}`}
             </button>
           </div>
         )}

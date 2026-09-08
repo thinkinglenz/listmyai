@@ -74,10 +74,10 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     // The function raises this when the bid does not beat the live one.
-    const held = error.message.match(/SLOT_HELD:(\S+)/)
-    if (held) {
+    const already = error.message.match(/ALREADY_HELD:(\S+)/)
+    if (already) {
       return NextResponse.json(
-        { error: 'The spotlight is taken right now', heldUntil: held[1] },
+        { error: 'This listing already holds the spotlight', heldUntil: already[1] },
         { status: 409 }
       )
     }

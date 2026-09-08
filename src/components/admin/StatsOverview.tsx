@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2, Sparkles, Layers, Users, Eye, MousePointerClick, DollarSign, Gavel } from 'lucide-react'
+import SpotlightDetail from '@/components/admin/SpotlightDetail'
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`
 
@@ -110,6 +111,8 @@ export default function StatsOverview() {
               <Stat icon={MousePointerClick} label="Clicks"      value={spotlight.data.totalClicks} sub={`CTR ${ctr}`} />
               <Stat icon={DollarSign}        label="Highest bid" value={money(spotlight.data.highestBidCents)} />
             </div>
+            <div className="mt-4"><SpotlightDetail /></div>
+
             {spotlight.data.currentHolder && (
               <div className="mt-3 rounded-xl border px-4 py-3 text-sm"
                 style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.05)' }}>
