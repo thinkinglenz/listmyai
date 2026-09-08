@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import NewsletterSignup from '@/components/NewsletterSignup'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar } from 'lucide-react'
@@ -518,6 +519,11 @@ export default async function HomePage() {
               </Link>
             </div>
           </div>
+        </section>
+
+        {/* Newsletter */}
+        <section className="mx-auto max-w-2xl px-4 pb-20 sm:px-6">
+          <NewsletterSignup />
         </section>
 
       </div>

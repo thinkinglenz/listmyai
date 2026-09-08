@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
+import { notifyOwnerOfEdit } from '@/lib/notify-owner'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,5 +44,9 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 400 })
   }
 
-  return NextResponse.json(data)
+  // Best-effort: the owner should know, but a failed notification must not make
+  // a successful edit look like it failed.
+  const notified = await notifyOwnerOfEdit(id, Object.keys(body)).catch(() => null)
+
+  return NextResponse.json({ ...data, _owner_notified: notified?.ok ?? false })
 }

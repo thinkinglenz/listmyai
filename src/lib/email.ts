@@ -6,9 +6,15 @@ interface SendOptions {
   to: string
   subject: string
   html: string
+  /**
+   * Extra SMTP headers. Marketing sends use this for List-Unsubscribe, which
+   * Gmail and Yahoo have required from bulk senders since 2024 — without it,
+   * deliverability suffers regardless of content.
+   */
+  headers?: Record<string, string>
 }
 
-export async function sendEmail({ to, subject, html }: SendOptions) {
+export async function sendEmail({ to, subject, html, headers }: SendOptions) {
   const key = process.env.RESEND_API_KEY
   if (!key) {
     console.log('[email] No RESEND_API_KEY — would send to', to, ':', subject)
@@ -18,7 +24,7 @@ export async function sendEmail({ to, subject, html }: SendOptions) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: FROM, to, subject, html }),
+    body: JSON.stringify({ from: FROM, to, subject, html, ...(headers && { headers }) }),
   })
 
   if (!res.ok) {
