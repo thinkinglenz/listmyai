@@ -288,6 +288,8 @@ export default async function HomePage() {
                   tagline={spotlight.tagline}
                   categoryName={spotlight.categoryName}
                   logoUrl={spotlight.logoUrl}
+                  coverUrl={spotlight.coverUrl}
+                  website={spotlight.website}
                   bidId={spotlight.bidId}
                   isPaid={spotlight.isPaid}
                   expiresAt={spotlight.expiresAt}
