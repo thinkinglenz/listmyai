@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import MediaUpload from '@/components/MediaUpload'
 import Link from 'next/link'
 import {
   CheckCircle2, Sparkles, Clock, Star, Zap, LogIn,
@@ -159,6 +160,12 @@ function CollapsibleSection({ title, subtitle, children }: { title: string; subt
 
 export default function SubmitPage() {
   const { user } = useAuth()
+
+  // Checked at step 1 rather than on submit. The server checks again when the
+  // form is sent — this exists purely so nobody fills in eight more fields
+  // before being told the tool is already listed.
+  const [duplicate, setDuplicate] = useState<{ exists: boolean; name?: string; slug?: string; claimable?: boolean } | null>(null)
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false)
   const [step, setStep] = useState(1)
   const [done, setDone] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -186,6 +193,29 @@ export default function SubmitPage() {
     }
     prefill()
   }, [user, prefilled])
+
+  // Debounced: the field is checked as it is typed, not on every keystroke.
+  useEffect(() => {
+    const website = form.website.trim()
+    if (website.length < 5) { setDuplicate(null); return }
+
+    let cancelled = false
+    setCheckingDuplicate(true)
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/tools/check-duplicate?website=${encodeURIComponent(website)}`)
+        const data = await res.json()
+        if (!cancelled) setDuplicate(data)
+      } catch {
+        // A failed check must not block submission; the server checks again.
+        if (!cancelled) setDuplicate(null)
+      } finally {
+        if (!cancelled) setCheckingDuplicate(false)
+      }
+    }, 600)
+
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [form.website])
 
   function set(k: keyof FormState, v: string | boolean | string[]) {
     setForm(f => ({ ...f, [k]: v }))
@@ -372,6 +402,24 @@ export default function SubmitPage() {
               <Field label="Official Website" required>
                 <input type="url" value={form.website} onChange={e => set('website', e.target.value)}
                   placeholder="https://example.com" required className={inputCls} style={inputStyle} />
+                {checkingDuplicate && (
+                  <p className="mt-1.5 text-xs text-slate-500">Checking if it&apos;s already listed…</p>
+                )}
+                {duplicate?.exists && (
+                  <div className="mt-2 rounded-lg border px-3 py-2.5 text-xs leading-relaxed"
+                    style={{ borderColor: 'rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.08)', color: '#fbbf24' }}>
+                    <strong>{duplicate.name}</strong> is already on ListmyAI.{' '}
+                    {duplicate.claimable ? (
+                      <>If it&apos;s yours,{' '}
+                        <a href={`/tools/${duplicate.slug}`} target="_blank" rel="noreferrer" className="underline">
+                          open the listing
+                        </a>{' '}and click <strong>Claim Listing</strong> — you&apos;ll get to edit it without starting over.
+                      </>
+                    ) : (
+                      <>It&apos;s awaiting review. Contact us if it&apos;s yours and we&apos;ll transfer it to you.</>
+                    )}
+                  </div>
+                )}
               </Field>
 
               <Field label="Category" required>
@@ -402,16 +450,16 @@ export default function SubmitPage() {
             {step === 2 && <>
               <SectionHeader icon={<Video className="h-4 w-4" style={{color:'#e94560'}} />} title="Media & Demos" desc="Showcase your product — all optional" />
 
-              <Field label="Logo URL">
-                <input type="url" value={form.logo_url} onChange={e => set('logo_url', e.target.value)}
-                  placeholder="https://example.com/logo.png" className={inputCls} style={inputStyle} />
-                <p className="mt-1 text-xs text-slate-600">Square image, at least 200x200px recommended</p>
+              <Field label="Logo">
+                <MediaUpload value={form.logo_url} onChange={v => set('logo_url', v)} aspect="square"
+                  placeholder="Upload your logo, or paste a link" />
+                <p className="mt-1 text-xs text-slate-600">Square image, at least 200x200px. PNG, JPG or WebP, up to 5MB.</p>
               </Field>
 
               <Field label="Product Video URL">
                 <input type="url" value={form.video_url} onChange={e => set('video_url', e.target.value)}
                   placeholder="https://youtube.com/watch?v=... or https://vimeo.com/..." className={inputCls} style={inputStyle} />
-                <p className="mt-1 text-xs text-slate-600">YouTube or Vimeo link to a product demo, intro, or walkthrough</p>
+                <p className="mt-1 text-xs text-slate-600">Paste a YouTube or Vimeo link — we embed the player, so the video streams from there rather than being re-hosted.</p>
               </Field>
 
               <Field label="Live Demo URL">
@@ -420,11 +468,9 @@ export default function SubmitPage() {
                 <p className="mt-1 text-xs text-slate-600">Link to an interactive demo or sandbox users can try</p>
               </Field>
 
-              <Field label="Screenshot URLs">
-                <textarea value={form.screenshots} onChange={e => set('screenshots', e.target.value)}
-                  rows={3} placeholder={"Paste image URLs separated by commas\ne.g. https://example.com/screen1.png, https://example.com/screen2.png"}
-                  className={`${inputCls} resize-none`} style={inputStyle} />
-                <p className="mt-1 text-xs text-slate-600">Comma-separated image URLs showing your product in action</p>
+              <Field label="Screenshots">
+                <MediaUpload multiple value={form.screenshots} onChange={v => set('screenshots', v)} />
+                <p className="mt-1 text-xs text-slate-600">Add as many as you like — these appear on your listing page.</p>
               </Field>
 
               <NavButtons step={step} setStep={setStep} canNext={canNext(step)} />
@@ -657,9 +703,7 @@ export default function SubmitPage() {
                 {form.social_promotion_consent && (
                   <div className="space-y-3 pl-7">
                     <Field label="Creative Assets for Promotion">
-                      <textarea value={form.creatives} onChange={e => set('creatives', e.target.value)}
-                        rows={2} placeholder={"Paste image/asset URLs separated by commas\ne.g. https://example.com/banner.png, https://example.com/logo-dark.png"}
-                        className={`${inputCls} resize-none`} style={inputStyle} />
+                      <MediaUpload multiple value={form.creatives} onChange={v => set('creatives', v)} />
                       <p className="mt-1 text-xs text-slate-600">Logos, banners, product shots we can use in social posts (will go through approval)</p>
                     </Field>
                     <Field label="Brand Guidelines URL">

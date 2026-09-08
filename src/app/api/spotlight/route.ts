@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
   const { toolId, amountCents } = await req.json()
   if (!toolId) return NextResponse.json({ error: 'toolId is required' }, { status: 400 })
 
-  const amount = Number(amountCents)
-  if (!Number.isInteger(amount) || amount < MIN_BID_CENTS) {
-    return NextResponse.json({ error: `Minimum bid is $${MIN_BID_CENTS / 100}` }, { status: 400 })
-  }
+  // Flat price. The client does not get to name a figure, so a crafted request
+  // cannot claim the slot for a different amount than everyone else pays.
+  const amount = MIN_BID_CENTS
+  void amountCents
 
   // Only a live listing may take the slot.
   const { data: tool } = await supabase
@@ -74,10 +74,10 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     // The function raises this when the bid does not beat the live one.
-    const tooLow = error.message.match(/BID_TOO_LOW:(\d+)/)
-    if (tooLow) {
+    const held = error.message.match(/SLOT_HELD:(\S+)/)
+    if (held) {
       return NextResponse.json(
-        { error: `Someone is already at $${(Number(tooLow[1]) / 100).toFixed(2)} — bid higher to take the slot` },
+        { error: 'The spotlight is taken right now', heldUntil: held[1] },
         { status: 409 }
       )
     }

@@ -28,9 +28,9 @@ const STATUS_STYLE: Record<BidRow['status'], { label: string; color: string; bg:
 export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
   const [stats, setStats] = useState<Stats | null>(null)
   const [minNext, setMinNext] = useState(100)
-  const [holder, setHolder] = useState<{ name: string; isPaid: boolean } | null>(null)
+  const [holder, setHolder] = useState<{ name: string; isPaid: boolean; expiresAt: string | null } | null>(null)
   const [toolId, setToolId] = useState(listings[0]?.id ?? '')
-  const [amount, setAmount] = useState('1.00')
+
   const [bidding, setBidding] = useState(false)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
@@ -42,8 +42,8 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
     if (s) setStats(s)
     if (c) {
       setMinNext(c.minimumNextBidCents ?? 100)
-      setHolder(c.current ? { name: c.current.name, isPaid: c.current.isPaid } : null)
-      setAmount(((c.minimumNextBidCents ?? 100) / 100).toFixed(2))
+      setHolder(c.current ? { name: c.current.name, isPaid: c.current.isPaid, expiresAt: c.current.expiresAt } : null)
+
     }
   }, [])
 
@@ -52,15 +52,14 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
   async function placeBid() {
     setBidding(true); setMsg(null)
     try {
-      const cents = Math.round(parseFloat(amount) * 100)
       const res = await fetch('/api/spotlight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolId, amountCents: cents }),
+        body: JSON.stringify({ toolId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Bid failed')
-      setMsg({ kind: 'ok', text: 'You hold the spotlight for 24 hours. No payment was taken — this is a mock transaction.' })
+      setMsg({ kind: 'ok', text: "You're on the homepage for the next 24 hours — and it's on us. Share the link while you're up there." })
       await load()
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Bid failed' })
@@ -69,6 +68,7 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
     }
   }
 
+  const taken = Boolean(holder?.isPaid)
   const card = 'rounded-xl border p-4'
   const cardStyle = { borderColor: '#1e2a3a', background: '#161b27' }
 
@@ -81,12 +81,14 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
 
       <div className="rounded-2xl border p-5" style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.04)' }}>
         <p className="mb-1 text-sm text-slate-300">
-          {holder?.isPaid
-            ? <>Currently held by <strong className="text-white">{holder.name}</strong>. Bid above {money(minNext - 100)} to take it.</>
-            : <>Nobody holds the spot right now. Take it for {money(minNext)}.</>}
+          {taken
+            ? <>Currently held by <strong className="text-white">{holder!.name}</strong>
+                {holder!.expiresAt && <> until {new Date(holder!.expiresAt).toLocaleString()}</>}.</>
+            : <>The spot is free right now. Claim it for <strong className="text-white">{money(minNext)}</strong> — 24 hours on the homepage.</>}
         </p>
         <p className="mb-4 text-xs text-slate-500">
-          One listing at a time, on the homepage, for 24 hours. Anyone can outbid you.
+          One listing at a time, top of the homepage, for 24 hours. Always {money(minNext)} — no bidding
+          wars, first to claim it gets it.
         </p>
 
         {listings.length === 0 ? (
@@ -101,25 +103,25 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
                 {listings.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
               </select>
             </div>
-            <div className="w-28">
-              <label className="mb-1 block text-[11px] font-semibold uppercase text-slate-500">Your bid</label>
-              <input type="number" step="0.50" min={(minNext / 100).toFixed(2)} value={amount}
-                onChange={e => setAmount(e.target.value)}
-                className="w-full rounded-lg border bg-white/5 px-3 py-2 text-sm text-white focus:outline-none"
-                style={{ borderColor: '#1e2a3a' }} />
-            </div>
-            <button onClick={placeBid} disabled={bidding || !toolId}
-              className="flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+            <button onClick={placeBid} disabled={bidding || !toolId || taken}
+              title={taken ? 'Someone else holds the spot until it expires' : undefined}
+              className="flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
               style={{ background: '#e94560' }}>
               {bidding && <Loader2 className="h-4 w-4 animate-spin" />}
-              Take the spot
+              {taken ? 'Spot taken' : `Claim the spot — ${money(minNext)}`}
             </button>
           </div>
         )}
 
         {msg && <p className="mt-3 text-xs" style={{ color: msg.kind === 'ok' ? '#6ee7b7' : '#f87171' }}>{msg.text}</p>}
-        <p className="mt-3 text-[11px] text-slate-600">
-          No payment is taken and no card details are collected — billing isn&apos;t connected yet.
+        {/* Framed as the launch offer it genuinely is. The wording stays
+            truthful — nothing is charged and nothing is owed — while the
+            admin view keeps calling these figures mock, so reported revenue
+            is never mistaken for real income. */}
+        <p className="mt-3 text-[11px] text-slate-500">
+          <strong className="text-slate-400">Free during launch.</strong> Early ListmyAI
+          members get the spotlight at no cost while we build the audience — no card needed,
+          nothing to pay. Make the most of it.
         </p>
       </div>
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
 import PreviewImageUpload from '@/components/PreviewImageUpload'
+import MediaUpload from '@/components/MediaUpload'
 import {
   Save, ArrowLeft, CheckCircle2, Globe, Video, DollarSign,
   Building2, Target, Megaphone, ChevronDown, ChevronUp, ExternalLink,
@@ -217,9 +218,9 @@ export default function EditListingPage() {
 
         {/* Media */}
         <Section icon={<Video className="h-4 w-4" style={{color:'#e94560'}} />} title="Media & Demos" defaultOpen={false}>
-          <Field label="Logo URL">
-            <input type="url" value={tool.logo_url ?? ''} onChange={e => set('logo_url', e.target.value)}
-              className={inputCls} style={inputStyle} />
+          <Field label="Logo">
+            <MediaUpload value={tool.logo_url ?? ''} onChange={v => set('logo_url', v)} aspect="square"
+              placeholder="Upload your logo, or paste a link" />
           </Field>
           <Field label="Preview Image">
             <PreviewImageUpload
@@ -240,9 +241,10 @@ export default function EditListingPage() {
             <input type="url" value={tool.demo_url ?? ''} onChange={e => set('demo_url', e.target.value)}
               className={inputCls} style={inputStyle} />
           </Field>
-          <Field label="Screenshots (comma-separated URLs)">
-            <textarea value={(tool.screenshots ?? []).join(', ')} onChange={e => set('screenshots', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
-              rows={2} className={`${inputCls} resize-none`} style={inputStyle} />
+          <Field label="Screenshots">
+            <MediaUpload multiple
+              value={(tool.screenshots ?? []).join(', ')}
+              onChange={v => set('screenshots', v.split(',').map((x: string) => x.trim()).filter(Boolean))} />
           </Field>
         </Section>
 
@@ -419,10 +421,10 @@ export default function EditListingPage() {
           </label>
           {tool.social_promotion_consent && (
             <>
-              <Field label="Creative Assets (comma-separated URLs)">
-                <textarea value={(tool.creatives ?? []).join(', ')}
-                  onChange={e => set('creatives', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
-                  rows={2} className={`${inputCls} resize-none`} style={inputStyle} />
+              <Field label="Creative Assets">
+                <MediaUpload multiple
+                  value={(tool.creatives ?? []).join(', ')}
+                  onChange={v => set('creatives', v.split(',').map((x: string) => x.trim()).filter(Boolean))} />
               </Field>
               <Field label="Brand Guidelines URL">
                 <input type="url" value={tool.brand_guidelines_url ?? ''} onChange={e => set('brand_guidelines_url', e.target.value)}

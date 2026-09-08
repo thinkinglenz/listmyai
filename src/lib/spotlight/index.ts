@@ -95,8 +95,7 @@ export async function getCurrentSpotlight(): Promise<Spotlight | null> {
   }
 }
 
-/** What the next bid must beat, in cents. */
+/** The price is flat, so this is always the same figure. */
 export async function getMinimumNextBid(): Promise<number> {
-  const current = await getCurrentSpotlight()
-  return current?.isPaid ? current.amountCents + MIN_BID_CENTS : MIN_BID_CENTS
+  return MIN_BID_CENTS
 }

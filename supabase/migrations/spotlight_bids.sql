@@ -63,12 +63,10 @@ BEGIN
   ORDER BY amount_cents DESC, created_at DESC
   LIMIT 1;
 
-  IF FOUND AND p_amount_cents <= v_current.amount_cents THEN
-    RAISE EXCEPTION 'BID_TOO_LOW:%', v_current.amount_cents;
-  END IF;
-
+  -- Flat price, so there is no outbidding: whoever claims a free slot holds it
+  -- for the full 24 hours and the next person waits.
   IF FOUND THEN
-    UPDATE public.spotlight_bids SET outbid_at = now() WHERE id = v_current.id;
+    RAISE EXCEPTION 'SLOT_HELD:%', to_char(v_current.expires_at, 'YYYY-MM-DD"T"HH24:MI:SSOF');
   END IF;
 
   INSERT INTO public.spotlight_bids (tool_id, user_id, amount_cents, expires_at, payment_ref)
@@ -107,5 +105,41 @@ BEGIN
   ELSIF p_column = 'clicks' THEN
     UPDATE public.spotlight_bids SET clicks = clicks + 1 WHERE id = p_bid_id;
   END IF;
+END;
+$$;
+
+-- ── Flat-price update ───────────────────────────────────────────────────────
+-- Re-run this block on an existing database to switch from outbidding to a
+-- fixed price. Safe to run more than once.
+CREATE OR REPLACE FUNCTION public.place_spotlight_bid(
+  p_tool_id      uuid,
+  p_user_id      uuid,
+  p_amount_cents integer,
+  p_payment_ref  text
+)
+RETURNS public.spotlight_bids
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_current public.spotlight_bids;
+  v_new     public.spotlight_bids;
+BEGIN
+  PERFORM pg_advisory_xact_lock(hashtext('listmyai_spotlight'));
+
+  SELECT * INTO v_current
+  FROM public.spotlight_bids
+  WHERE outbid_at IS NULL AND expires_at > now()
+  LIMIT 1;
+
+  IF FOUND THEN
+    RAISE EXCEPTION 'SLOT_HELD:%', to_char(v_current.expires_at, 'YYYY-MM-DD"T"HH24:MI:SSOF');
+  END IF;
+
+  INSERT INTO public.spotlight_bids (tool_id, user_id, amount_cents, expires_at, payment_ref)
+  VALUES (p_tool_id, p_user_id, p_amount_cents, now() + interval '24 hours', p_payment_ref)
+  RETURNING * INTO v_new;
+
+  RETURN v_new;
 END;
 $$;

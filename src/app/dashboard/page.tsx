@@ -255,7 +255,9 @@ export default function DashboardPage() {
 
             {/* ── OVERVIEW ── */}
             {tab === 'overview' && (
-              <div className="space-y-6">
+              <div className="space-y-8">
+                <SpotlightPanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
+
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <StatCard icon={Eye}        label="Total Views"  value={totalViews.toLocaleString()} sub="All listings" color="#e94560" />
                   <StatCard icon={TrendingUp}  label="Upvotes"      value={totalUpvotes}                sub="All time"    color="#a855f7" />
@@ -391,9 +393,7 @@ export default function DashboardPage() {
 
             {/* ── LISTINGS ── */}
             {tab === 'listings' && (
-              <div className="space-y-8">
-                <SpotlightPanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
-
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h2 className="font-bold text-white">My Listings ({listings.length})</h2>
                   <Link href="/submit"

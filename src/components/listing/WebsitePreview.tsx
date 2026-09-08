@@ -6,6 +6,7 @@ import { ExternalLink, Globe } from 'lucide-react'
 interface Props {
   website: string
   toolName: string
+  slug: string
   outboundUrl: string
   /**
    * Admin/owner-supplied preview image. Sites behind a bot firewall can never
@@ -15,13 +16,15 @@ interface Props {
   coverUrl?: string | null
 }
 
-export default function WebsitePreview({ website, toolName, outboundUrl, coverUrl }: Props) {
+export default function WebsitePreview({ website, toolName, slug, outboundUrl, coverUrl }: Props) {
   const [imgError, setImgError] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
 
-  const previewSrc = coverUrl
-    ? coverUrl
-    : `/api/tools/screenshot?url=${encodeURIComponent(website)}`
+  // Same resolver the homepage spotlight uses: an admin cover, then the site's
+  // own og:image, then a screenshot. Screenshots alone left this panel empty
+  // for every site that blocks capture bots, even when the tool published a
+  // perfectly good share image.
+  const previewSrc = coverUrl ? coverUrl : `/api/tools/preview/${slug}`
 
   return (
     <a href={outboundUrl} target="_blank" rel="noopener noreferrer"
