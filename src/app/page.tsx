@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import NewsletterSignup from '@/components/NewsletterSignup'
+import SpotlightBox from '@/components/SpotlightBox'
+import { getCurrentSpotlight, getMinimumNextBid } from '@/lib/spotlight'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar } from 'lucide-react'
@@ -49,6 +51,10 @@ function thumbSrc(url: string): string {
 }
 
 export default async function HomePage() {
+  const [spotlight, minimumNextBidCents] = await Promise.all([
+    getCurrentSpotlight(),
+    getMinimumNextBid(),
+  ])
   const supabase = getSupabase()
 
   // ── Fetch real data ─────────────────────────────────────────────────────────
@@ -464,6 +470,22 @@ export default async function HomePage() {
                 View all blog posts <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
+          </section>
+        )}
+
+        {/* Homepage spotlight — one listing at a time, outbiddable */}
+        {spotlight && (
+          <section className="mx-auto max-w-2xl px-4 pb-10 sm:px-6">
+            <SpotlightBox
+              toolName={spotlight.name}
+              toolSlug={spotlight.slug}
+              tagline={spotlight.tagline}
+              categoryName={spotlight.categoryName}
+              bidId={spotlight.bidId}
+              isPaid={spotlight.isPaid}
+              expiresAt={spotlight.expiresAt}
+              minimumNextBidCents={minimumNextBidCents}
+            />
           </section>
         )}
 
