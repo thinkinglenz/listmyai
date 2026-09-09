@@ -10,6 +10,7 @@ interface BidRow {
   status: 'live' | 'outbid' | 'finished'
 }
 interface Stats {
+  marketingConsent?: boolean
   bids: BidRow[]
   totalSpendCents: number; totalImpressions: number; totalClicks: number
   shareOfVoice: number
@@ -18,6 +19,11 @@ interface Stats {
 interface Listing { id: string; name: string }
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`
+
+// Stored verbatim with the consent record, so there is proof of what was
+// agreed to rather than a bare boolean.
+const CONSENT_TEXT =
+  'Email me about new promotion slots, deals and features on ListmyAI. I can unsubscribe any time.'
 
 const STATUS_STYLE: Record<BidRow['status'], { label: string; color: string; bg: string }> = {
   live:     { label: 'Live',     color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
@@ -32,6 +38,9 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
   const [toolId, setToolId] = useState(listings[0]?.id ?? '')
 
   const [bidding, setBidding] = useState(false)
+  const [consented, setConsented] = useState(false)   // already on file
+  // Unticked. A pre-ticked box is not consent — the person has to act.
+  const [optIn, setOptIn] = useState(false)
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   const load = useCallback(async () => {
@@ -39,7 +48,10 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
       fetch('/api/spotlight/my-bids').then(r => (r.ok ? r.json() : null)).catch(() => null),
       fetch('/api/spotlight').then(r => r.json()).catch(() => null),
     ])
-    if (s) setStats(s)
+    if (s) {
+      setStats(s)
+      setConsented(Boolean(s.marketingConsent))
+    }
     if (c) {
       setMinNext(c.minimumNextBidCents ?? 100)
       setHolder(c.current ? { name: c.current.name, isPaid: c.current.isPaid, expiresAt: c.current.expiresAt } : null)
@@ -55,7 +67,11 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
       const res = await fetch('/api/spotlight', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolId }),
+        body: JSON.stringify({
+          toolId,
+          marketingConsent: consented ? undefined : optIn,
+          consentText: CONSENT_TEXT,
+        }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Bid failed')
@@ -113,6 +129,20 @@ export default function SpotlightPanel({ listings }: { listings: Listing[] }) {
               {holder?.isPaid ? `Take it over — ${money(minNext)}` : `Claim the spot — ${money(minNext)}`}
             </button>
           </div>
+        )}
+
+        {!consented && (
+          <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-lg border p-3"
+            style={{ borderColor: 'rgba(233,69,96,0.25)', background: 'rgba(233,69,96,0.05)' }}>
+            <input type="checkbox" checked={optIn} onChange={e => setOptIn(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 rounded accent-red-500" />
+            <span className="text-xs leading-relaxed text-slate-300">
+              {CONSENT_TEXT}
+              <span className="block text-[11px] text-slate-500">
+                Optional — leave it unticked and you still get the spotlight.
+              </span>
+            </span>
+          </label>
         )}
 
         {msg && <p className="mt-3 text-xs" style={{ color: msg.kind === 'ok' ? '#6ee7b7' : '#f87171' }}>{msg.text}</p>}

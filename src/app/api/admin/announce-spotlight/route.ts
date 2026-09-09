@@ -52,18 +52,25 @@ function body(firstName: string, toolName: string, email: string): string {
       Claim the spotlight
     </a>
 
-    <div style="margin-top:30px;padding-top:20px;border-top:1px solid #1e2a3a">
-      <p style="color:#94a3b8;margin:0 0 10px;font-size:13px;line-height:1.6">
-        Want to hear about new promotion slots, deals and features as we add them?
+    <!-- Above the footer, where it is actually read. -->
+    <div style="margin-top:26px;background:rgba(233,69,96,0.06);border:1px solid rgba(233,69,96,0.25);border-radius:10px;padding:16px 18px">
+      <p style="color:#e2e8f0;margin:0 0 8px;font-size:14px;font-weight:600">
+        Want first refusal on the next slot?
       </p>
-      <a href="${optIn}" style="color:#e94560;font-size:13px;font-weight:600;text-decoration:none">
+      <p style="color:#94a3b8;margin:0 0 12px;font-size:13px;line-height:1.6">
+        We're adding more promotion placements. Tell us to keep you posted and you'll hear
+        about them before they go public.
+      </p>
+      <a href="${optIn}"
+         style="display:inline-block;background:rgba(233,69,96,0.15);border:1px solid rgba(233,69,96,0.4);color:#e94560;text-decoration:none;padding:9px 18px;border-radius:7px;font-weight:600;font-size:13px">
         Yes, keep me posted &rarr;
       </a>
-      <p style="color:#475569;margin:14px 0 0;font-size:11px;line-height:1.6">
-        This email is about a listing you own on ListmyAI, so we've sent it whether or not you've
-        signed up for marketing. We'll only send you offers if you tap the link above.
-      </p>
     </div>
+
+    <p style="color:#475569;margin:22px 0 0;font-size:11px;line-height:1.6">
+      This email is about a listing you own on ListmyAI, so we've sent it whether or not you've
+      signed up for marketing. We'll only send you offers if you tap the link above.
+    </p>
   </div>`
 }
 
@@ -106,6 +113,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       dryRun: true,
       recipientCount: recipients.length,
+      // Why the number is what it is: most registered users never listed
+      // anything, and this email is about a listing you own.
+      ownedListings: (tools ?? []).length,
+      distinctOwners: byUser.size,
+      ownersWithoutEmail: byUser.size - recipients.length,
       sample: recipients.slice(0, 5).map(r => ({ email: r.email, tool: r.tool })),
       previewHtml: recipients[0]
         ? body(recipients[0].name, recipients[0].tool, recipients[0].email)

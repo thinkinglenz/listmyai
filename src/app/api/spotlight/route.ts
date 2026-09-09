@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await sbUser.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Please sign in to bid' }, { status: 401 })
 
-  const { toolId, amountCents } = await req.json()
+  const { toolId, amountCents, marketingConsent, consentText } = await req.json()
   if (!toolId) return NextResponse.json({ error: 'toolId is required' }, { status: 400 })
 
   // Flat price. The client does not get to name a figure, so a crafted request
@@ -103,6 +103,19 @@ export async function POST(req: NextRequest) {
         link: '/dashboard#spotlight',
       }).then(() => {}, () => {})
     }
+  }
+
+  // Consent offered alongside the claim, never required for it: making a free
+  // placement conditional on accepting marketing is exactly the bundling that
+  // makes consent invalid, so an unticked box still gets the spotlight.
+  if (marketingConsent === true && user.email) {
+    const { recordConsent } = await import('@/lib/marketing/contacts')
+    await recordConsent({
+      email: user.email,
+      consentText: consentText ?? 'Marketing consent given when claiming the homepage spotlight',
+      source: 'admin',
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null,
+    }).catch(() => {})
   }
 
   // The homepage is cached for five minutes. Somebody who has just paid for
