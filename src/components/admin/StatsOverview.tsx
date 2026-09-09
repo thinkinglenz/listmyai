@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Loader2, Sparkles, Layers, Users, Eye, MousePointerClick, DollarSign, Gavel } from 'lucide-react'
 import SpotlightDetail from '@/components/admin/SpotlightDetail'
+import AnnounceSpotlight from '@/components/admin/AnnounceSpotlight'
 
 const money = (c: number) => `$${(c / 100).toFixed(2)}`
 
@@ -125,6 +126,8 @@ export default function StatsOverview() {
           </>
         ))}
       </SectionShell>
+
+      <div><AnnounceSpotlight /></div>
 
       <SectionShell title="Marketing list" icon={Users} failed={audience.failed} loading={!audience.data}>
         {audience.data && (audience.data.unavailable ? (
