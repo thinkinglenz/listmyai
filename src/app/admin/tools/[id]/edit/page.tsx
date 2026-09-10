@@ -10,6 +10,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
+// The shape this form works with. It is NOT the ai_tools row: the table
+// stores rating_avg and created_at, and the category arrives as a joined
+// object. normaliseTool() below is the only place that translates.
 interface Tool {
   id: string
   name: string
@@ -25,10 +28,30 @@ interface Tool {
   upvotes: number
   rating: number
   added: string
-  claimed: boolean
-  claimed_by: string | null
-  claimed_by_email: string | null
-  is_auto_enrolled: boolean
+}
+
+// Supabase hands back `any`, so nothing here is checked at compile time —
+// every field has to be defended at runtime. Nulls become empty strings
+// because these all feed controlled inputs, which must never see null.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function normaliseTool(row: any): Tool {
+  const cat = Array.isArray(row.categories) ? row.categories[0] : row.categories
+  return {
+    id: row.id,
+    name: row.name ?? '',
+    slug: row.slug ?? '',
+    tagline: row.tagline ?? '',
+    description: row.description ?? '',
+    website: row.website ?? '',
+    logo_url: row.logo_url ?? '',
+    category_id: row.category_id ?? '',
+    category: cat?.name ?? '',
+    status: row.status ?? 'pending',
+    pricing_model: row.pricing_model ?? 'free',
+    upvotes: Number(row.upvotes ?? 0),
+    rating: Number(row.rating_avg ?? 0),
+    added: row.created_at ?? '',
+  }
 }
 
 interface Category {
@@ -60,7 +83,7 @@ export default function EditToolPage() {
           .single()
 
         if (toolError) throw toolError
-        setTool(toolData)
+        setTool(normaliseTool(toolData))
 
         // Fetch categories
         const { data: catData, error: catError } = await supabase
@@ -322,7 +345,9 @@ export default function EditToolPage() {
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Added</p>
-              <p className="text-sm text-slate-300">{new Date(tool.added).toLocaleDateString()}</p>
+              <p className="text-sm text-slate-300">
+                {tool.added ? new Date(tool.added).toLocaleDateString() : '—'}
+              </p>
             </div>
           </div>
         </div>
