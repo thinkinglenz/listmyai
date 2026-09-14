@@ -6,11 +6,27 @@ import { useAuth } from '@/components/AuthProvider'
 
 const DIR_LINKS = [
   { href: '/directory',  label: 'Browse All AI Tools' },
+  { href: '/best',       label: 'Best AI Tools Guides' },
   { href: '/find',       label: 'Find My AI Tool' },
   { href: '/compare',    label: 'Compare Tools' },
   { href: '/deals',      label: 'Deals & Promotions' },
   { href: '/categories', label: 'Categories' },
   { href: '/submit',     label: 'Submit Your AI' },
+]
+
+// Sitewide links to the highest-volume keyword guides. This is a client
+// component, so the list is written out rather than importing the generated
+// page data into every visitor's bundle. Every slug here is in the first
+// release batch (LIVE_COUNT in src/lib/seo/best-pages.ts).
+const GUIDE_LINKS = [
+  { href: '/best/free-ai-tools',              label: 'Free AI Tools' },
+  { href: '/best/ai-tools-for-students',      label: 'AI Tools for Students' },
+  { href: '/best/ai-tools-for-business',      label: 'AI Tools for Business' },
+  { href: '/best/ai-tools-for-freelancers',   label: 'AI Tools for Freelancers' },
+  { href: '/best/free-ai-writing-tools',      label: 'Free AI Writing Tools' },
+  { href: '/best/free-ai-chatbots',           label: 'Free AI Chatbots' },
+  { href: '/best/free-ai-coding-tools',       label: 'Free AI Coding Tools' },
+  { href: '/best/free-ai-image-generators',   label: 'Free AI Image Generators' },
 ]
 
 const LEGAL_LINKS = [
@@ -101,6 +117,17 @@ export default function Footer() {
             </ul>
           </div>
         </div>
+
+        <nav aria-label="Popular guides" className="mt-10 border-t border-brand-border pt-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Popular guides</p>
+          <ul className="flex flex-wrap gap-x-5 gap-y-2">
+            {GUIDE_LINKS.map(l => (
+              <li key={l.href}>
+                <Link href={l.href} className="text-sm text-slate-400 transition-colors hover:text-white">{l.label}</Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <div className="mt-10 border-t border-brand-border pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-slate-500">

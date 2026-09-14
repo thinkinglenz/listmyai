@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { LIVE_PAGES } from '@/lib/seo/best-pages'
 
 const BASE_URL = 'https://listmyai.com'
 
@@ -179,10 +180,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }))
 
+  // Keyword guides. Released in batches (LIVE_COUNT) and placed straight after
+  // the blog so crawlers reach them early.
+  const bestPages: MetadataRoute.Sitemap = [
+    { url: `${BASE_URL}/best`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.9 },
+    ...LIVE_PAGES.map(p => ({
+      url: `${BASE_URL}/best/${p.slug}`,
+      lastModified: new Date(),
+      changeFrequency: 'daily' as const,
+      priority: 0.9,
+    })),
+  ]
+
   return [
     // Blog posts lead the file. Crawlers work top-down, and these were
     // previously last of 63,392 URLs, so they were never reached.
     ...blogPages,
+    ...bestPages,
     ...staticPages,
     { url: `${BASE_URL}/alternatives`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.8 },
     { url: `${BASE_URL}/use-case`, lastModified: new Date(), changeFrequency: 'weekly' as const, priority: 0.8 },
