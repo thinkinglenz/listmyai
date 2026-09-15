@@ -12,7 +12,7 @@ import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
 // Brand-compatible accent gradients — picked deterministically per slug
@@ -74,17 +74,22 @@ export async function GET(
           width: W, height: H, display: 'flex',
           background: `linear-gradient(135deg, #0d1117 0%, #131c2e 50%, #0d1117 100%)`,
         }}>
+          {/* Each glow is a full-canvas layer with the gradient positioned
+              inside it. They used to be oversized boxes pushed off the edge,
+              and Satori clamps an absolute child to its parent's size — the
+              gradient kept its original falloff, so it was sliced off in a
+              visible straight line where the shrunken box ended. */}
           <div style={{
-            position: 'absolute', top: -180, left: -120, width: 760, height: 760, display: 'flex',
-            background: `radial-gradient(circle at 50% 50%, ${accent.from}66 0%, ${accent.from}22 42%, ${accent.from}00 70%)`,
+            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
+            background: `radial-gradient(circle at 260px 200px, ${accent.from}66 0%, ${accent.from}22 16%, ${accent.from}00 36%)`,
           }} />
           <div style={{
-            position: 'absolute', bottom: -260, right: -140, width: 820, height: 820, display: 'flex',
-            background: `radial-gradient(circle at 50% 50%, ${accent.to}77 0%, ${accent.to}26 45%, ${accent.to}00 72%)`,
+            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
+            background: `radial-gradient(circle at 930px 480px, ${accent.to}77 0%, ${accent.to}26 20%, ${accent.to}00 44%)`,
           }} />
           <div style={{
-            position: 'absolute', top: 120, right: 200, width: 420, height: 420, display: 'flex',
-            background: `radial-gradient(circle at 50% 50%, ${accent.from}3a 0%, ${accent.from}00 65%)`,
+            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
+            background: `radial-gradient(circle at 790px 330px, ${accent.from}3a 0%, ${accent.from}00 22%)`,
           }} />
           {/* A single hairline keeps it from reading as an unloaded image. */}
           <div style={{
@@ -115,18 +120,17 @@ export async function GET(
           position: 'relative',
         }}
       >
-        {/* Accent glow */}
+        {/* Accent glow. A full-canvas gradient rather than a blurred circle
+            hanging off the corner: Satori clipped that circle's blur at its
+            box, which showed as a straight vertical edge through the glow. */}
         <div
           style={{
             position: 'absolute',
-            top: '-200px',
-            right: '-160px',
-            width: '620px',
-            height: '620px',
-            borderRadius: '9999px',
-            background: `linear-gradient(135deg, ${accent.from}, ${accent.to})`,
-            opacity: 0.28,
-            filter: 'blur(20px)',
+            top: 0,
+            left: 0,
+            width: '1200px',
+            height: '630px',
+            background: `radial-gradient(circle at 1050px 110px, ${accent.from}55 0%, ${accent.to}33 18%, ${accent.to}00 40%)`,
             display: 'flex',
           }}
         />
