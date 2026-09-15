@@ -45,7 +45,7 @@ function imageChain(coverUrl: string | null, website: string | null, slug: strin
   // `plain`: the card beneath already shows the name and tagline.
   // The panel is cached for a week, so `v` is bumped whenever its artwork
   // changes — without it the CDN keeps serving the previous design.
-  chain.push(`/api/tool-social/${slug}?variant=plain&v=2`)
+  chain.push(`/api/tool-social/${slug}?variant=plain&v=3`)
   return chain
 }
 

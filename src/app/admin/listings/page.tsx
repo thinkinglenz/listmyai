@@ -48,6 +48,10 @@ interface Tool {
 }
 
 // ─── Social Post Modal ───────────────────────────────────────────────────────
+// Mirrors the server flag, so the caption and the image never disagree about
+// whether commenting gets you a DM.
+const COMMENT_DM_ON = process.env.NEXT_PUBLIC_INSTAGRAM_COMMENT_DM === 'on'
+
 function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
@@ -59,7 +63,9 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
   const captions: Record<string, string> = {
     twitter: `🚀 ${tool.name} is now listed on ListMyAI!\n\n${tool.tagline || tool.description?.split(/[.!?]/)[0] || ''}\n\n👉 ${toolUrl}\n\n${catTag} #AI #AITools #ArtificialIntelligence #ListMyAI`.trim(),
     linkedin: `🚀 ${tool.name} is now listed on ListMyAI — the directory of 20,000+ AI tools!\n\n${tool.tagline || ''}\n\n${tool.description ? tool.description.slice(0, 250) + (tool.description.length > 250 ? '…' : '') : ''}\n\n👉 Check it out: ${toolUrl}\n\n${catTag} #AI #ArtificialIntelligence #AITools #TechInnovation #ListMyAI`.trim(),
-    instagram: `🚀 New AI tool alert!\n\n${tool.name} — ${tool.tagline || tool.description?.split(/[.!?]/)[0] || ''}\n\n🔗 Link in bio → listmyai.com\n\n${catTag} #AI #AITools #ArtificialIntelligence #MachineLearning #TechCommunity #ListMyAI #NewTool #Innovation #Startup`.trim(),
+    // Instagram captions cannot hold a clickable link. The URL still goes in:
+    // the comment-to-DM automation reads it to know which tool a post is about.
+    instagram: `🚀 New AI tool alert!\n\n${tool.name} — ${tool.tagline || tool.description?.split(/[.!?]/)[0] || ''}\n\n${COMMENT_DM_ON ? "💬 Comment LINK and we'll DM you the link (follow @listmyai so it reaches you)" : '🔗 Link in bio → listmyai.com'}\n\n${toolUrl}\n\n${catTag} #AI #AITools #ArtificialIntelligence #MachineLearning #TechCommunity #ListMyAI #NewTool #Innovation #Startup`.trim(),
     facebook: `🚀 ${tool.name} has just been listed on ListMyAI!\n\n${tool.tagline || ''}\n\n${tool.description ? tool.description.slice(0, 200) + (tool.description.length > 200 ? '…' : '') : ''}\n\n👉 Explore: ${toolUrl}\n\n${catTag} #AI #AITools #ListMyAI`.trim(),
   }
 
@@ -316,6 +322,31 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
     }
   }, [tool])
 
+  // Rendered server-side at Instagram's portrait size. `v` busts the week-long
+  // CDN cache whenever the artwork changes.
+  const instagramImageUrl = `/api/tool-social/${tool.slug}?format=portrait&v=1`
+  const [igLoaded, setIgLoaded] = useState(false)
+  const [igDownloading, setIgDownloading] = useState(false)
+
+  async function downloadInstagram() {
+    setIgDownloading(true)
+    try {
+      const blob = await fetch(instagramImageUrl).then(r => {
+        if (!r.ok) throw new Error(`Image failed (${r.status})`)
+        return r.blob()
+      })
+      const href = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.download = `listmyai-${tool.slug}-instagram.jpg`
+      link.href = href
+      link.click()
+      URL.revokeObjectURL(href)
+    } catch (err) {
+      alert(String(err))
+    }
+    setIgDownloading(false)
+  }
+
   function downloadImage() {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -361,11 +392,39 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
 
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
 
+          {/* Instagram creative — its own size and call to action */}
+          <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(225,48,108,0.35)', background: 'rgba(225,48,108,0.05)' }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: '#e1306c' }}>
+                <ImageIcon className="h-3.5 w-3.5" /> Instagram post (1080×1350 portrait)
+              </span>
+              <button onClick={downloadInstagram} disabled={!igLoaded || igDownloading}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+                style={{ background: '#e1306c' }}>
+                {igDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Download JPG
+              </button>
+            </div>
+            <div className="flex flex-col gap-4 sm:flex-row">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={instagramImageUrl} alt={`${tool.name} Instagram post`} onLoad={() => setIgLoaded(true)}
+                className="w-full rounded-lg border sm:w-56" style={{ borderColor: '#1e2a3a', aspectRatio: '4 / 5', background: '#0d1117' }} />
+              <div className="flex-1 space-y-2 text-xs leading-relaxed text-slate-400">
+                <p><span className="font-semibold text-slate-200">Post this one on Instagram.</span> The 1200×630 image below is for X, LinkedIn and Facebook — Instagram crops its sides.</p>
+                {COMMENT_DM_ON ? (
+                  <p>It carries a <span className="font-semibold text-white">Comment LINK</span> call to action. Anyone who comments gets a DM, and followers of @listmyai are sent this tool&apos;s link.</p>
+                ) : (
+                  <p>The comment-to-DM automation is <span className="font-semibold text-amber-300">off</span>, so the image says &ldquo;Find it on listmyai.com&rdquo; instead of promising a DM.</p>
+                )}
+                <p>Use the Instagram caption below: it contains the tool&apos;s URL, which is how the automation knows which tool the post is about.</p>
+              </div>
+            </div>
+          </div>
+
           {/* Image Preview */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" /> Social media image (1200×630)
+                <ImageIcon className="h-3.5 w-3.5" /> Link preview image (1200×630) — X, LinkedIn, Facebook
               </span>
               <button onClick={downloadImage} disabled={!imageReady}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
