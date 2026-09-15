@@ -775,6 +775,8 @@ export default function AdminListingsPage() {
             website: t.website ?? '', status: t.status ?? 'pending',
             claimed: t.claimed ?? false, claimed_by: t.claimed_by ?? null, claimed_by_email: t.claimed_by_email ?? null,
             upvotes: t.upvotes ?? 0,
+            view_count: t.view_count ?? 0,
+            click_count: t.click_count ?? 0,
             rating: t.rating_avg ?? 0,
             added: t.created_at ? new Date(t.created_at).toISOString().split('T')[0] : '',
             tagline: t.tagline ?? '', description: t.description ?? '',
@@ -784,9 +786,9 @@ export default function AdminListingsPage() {
         p++
       }
       const esc = (v: string) => `"${String(v).replace(/"/g, '""')}"`
-      const header = 'Name,Slug,Category,Website,Status,Claimed,Upvotes,Rating,Tagline,Description,Added'
+      const header = 'Name,Slug,Category,Website,Status,Claimed,Views,Clicks,Upvotes,Rating,Tagline,Description,Added'
       const rows = allTools.map(t =>
-        [esc(t.name), esc(t.slug), esc(t.category), esc(t.website), t.status, t.claimed, t.upvotes, t.rating, esc(t.tagline), esc(t.description), t.added].join(',')
+        [esc(t.name), esc(t.slug), esc(t.category), esc(t.website), t.status, t.claimed, t.view_count, t.click_count, t.upvotes, t.rating, esc(t.tagline), esc(t.description), t.added].join(',')
       )
       const csv = [header, ...rows].join('\n')
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -830,6 +832,10 @@ export default function AdminListingsPage() {
           claimed_by: t.claimed_by ?? null,
           claimed_by_email: t.claimed_by_email ?? null,
           upvotes: t.upvotes ?? 0,
+          // The API returns these; without copying them here the Views and
+          // Clicks columns read undefined and showed 0 on every row.
+          view_count: t.view_count ?? 0,
+          click_count: t.click_count ?? 0,
           rating: t.rating_avg ?? 0,
           added: t.created_at
             ? new Date(t.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
