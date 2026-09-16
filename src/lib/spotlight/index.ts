@@ -66,12 +66,15 @@ export async function getCurrentSpotlight(): Promise<Spotlight | null> {
     }
   }
 
-  // Free fallback: newest approved listing.
+  // Free fallback: the listing that most recently went live. Ordering by
+  // created_at meant approving a tool that had waited in the queue never
+  // reached the spotlight, because an older-approved but newer-submitted
+  // listing still sorted first.
   const { data: newest } = await supabase
     .from('ai_tools')
     .select('id, name, slug, tagline, website, logo_url, cover_url, categories(name)')
     .eq('status', 'active')
-    .order('created_at', { ascending: false })
+    .order('published_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle()
 
