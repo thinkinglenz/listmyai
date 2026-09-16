@@ -184,6 +184,16 @@ export async function PATCH(req: NextRequest) {
     if (key in updates) patch[key] = updates[key]
   }
 
+  // Stamp the moment a listing first goes live. "Recently Added" orders by
+  // this, not by submission date, so approving a tool that waited in the queue
+  // puts it at the top where the admin expects to see it. Only set once, so a
+  // deactivate/reactivate does not push an old listing back to the front.
+  if (updates.status === 'active') {
+    const { data: existing } = await supabase
+      .from('ai_tools').select('published_at').eq('id', id).maybeSingle()
+    if (!existing?.published_at) patch.published_at = new Date().toISOString()
+  }
+
   const { error } = await supabase.from('ai_tools').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

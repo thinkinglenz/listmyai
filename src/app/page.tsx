@@ -72,7 +72,7 @@ export default async function HomePage() {
       .select('id, slug, name, icon, color')
       .order('name')
 
-    const TOOL_COLS = 'id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by'
+    const TOOL_COLS = 'published_at, id, slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, status, is_featured, is_sponsored, upvotes, rating_avg, rating_count, view_count, click_count, platforms, promo_code, promo_desc, created_at, updated_at, category_id, claimed, submitted_by'
 
     // Phase 2: run ALL remaining queries in parallel
     const [
@@ -96,7 +96,8 @@ export default async function HomePage() {
       // Blog posts
       supabase.from('blog_posts').select('slug, title, excerpt, hero_image_url, tags, published_at').eq('status', 'published').order('published_at', { ascending: false }).limit(3),
       // Recent tools
-      supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active').order('created_at', { ascending: false }).limit(5),
+      // Newest by when it went live, not when it was submitted.
+      supabase.from('ai_tools').select(TOOL_COLS).eq('status', 'active').order('published_at', { ascending: false, nullsFirst: false }).limit(5),
       // Per-category counts (head-only, no row data transferred — replaces fetching 20k+ rows)
       ...(cats ?? []).map(c =>
         supabase.from('ai_tools').select('*', { count: 'exact', head: true }).eq('status', 'active').eq('category_id', c.id)
