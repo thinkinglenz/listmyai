@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
 
@@ -185,6 +186,20 @@ export async function PATCH(req: NextRequest) {
 
   const { error } = await supabase.from('ai_tools').update(patch).eq('id', id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // The homepage and directory are cached for minutes at a time, so an
+  // approved listing was invisible until that window lapsed and an admin
+  // reasonably concluded the approval had not worked. Rebuild them now.
+  if ('status' in updates) {
+    const { data: row } = await supabase.from('ai_tools').select('slug').eq('id', id).maybeSingle()
+    revalidatePath('/')
+    revalidatePath('/directory')
+    if (row?.slug) {
+      revalidatePath(`/tools/${row.slug}`)
+      revalidatePath(`/alternatives/${row.slug}`)
+    }
+  }
+
   return NextResponse.json({ success: true })
 }
 
