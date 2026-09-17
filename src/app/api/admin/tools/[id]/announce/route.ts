@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
 import { announceToolToSocial } from '@/lib/social/post'
+import { getSocialHook } from '@/lib/social/hook'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,7 +43,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const catRel = (tool as any).categories
+  // Written before posting so the image and caption both carry it. A failure
+  // here just means the post goes out with the tagline instead.
+  const hook = await getSocialHook(id).catch(() => null)
+
   const result = await announceToolToSocial({
+    hook,
     name: tool.name,
     slug: tool.slug,
     tagline: tool.tagline || tool.description || '',

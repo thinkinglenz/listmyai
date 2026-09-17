@@ -22,6 +22,8 @@ import crypto from 'crypto'
  * to a retired one starts failing rather than silently degrading. Keeping it
  * in one place makes the periodic bump a one-line change.
  */
+import { instagramCaption, instagramImagePath } from './copy'
+
 const GRAPH_API_VERSION = 'v23.0'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -312,6 +314,8 @@ export interface ToolAnnouncement {
   slug: string
   tagline: string
   category?: string
+  /** Headline for the Instagram creative and caption; see lib/social/hook. */
+  hook?: string | null
 }
 
 /**
@@ -332,8 +336,7 @@ export async function announceToolToSocial(
   const imageUrl = `https://listmyai.com/api/tool-social/${tool.slug}`
   // Instagram gets the portrait card: it fills more of the feed than a square,
   // and carries the comment call to action when that automation is on.
-  const instagramImageUrl = `https://listmyai.com/api/tool-social/${tool.slug}?format=portrait&v=1`
-  const commentDmOn = process.env.NEXT_PUBLIC_INSTAGRAM_COMMENT_DM === 'on'
+  const instagramImageUrl = instagramImagePath(tool.slug, tool.hook, 'https://listmyai.com')
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
 
   const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
@@ -366,17 +369,10 @@ export async function announceToolToSocial(
 
   const instagram = await (async () => {
     if (!igId || !token) return { ok: false, error: 'Instagram env vars not configured' }
-    const caption = [
-      `🚀 New on ListmyAI: ${tool.name}`,
-      '',
-      truncate(tool.tagline, 180),
-      '',
-      ...(commentDmOn ? [`💬 Comment LINK and we'll DM you the link (follow @listmyai so it reaches you)`, ''] : []),
-      // Kept even with the DM flow: it is how a comment is matched to this tool.
-      `Find it at ${toolUrl}`,
-      '',
-      buildHashtags(tags, 8),
-    ].join('\n')
+    const caption = instagramCaption({
+      name: tool.name, tagline: truncate(tool.tagline, 180), hook: tool.hook,
+      slug: tool.slug, category: tool.category,
+    })
 
     try {
       const containerRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media`, {

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac, timingSafeEqual } from 'crypto'
-import { handleComment, handleLinkRequest, LINK_PAYLOAD } from '@/lib/social/instagram-dm'
+import { handleComment, handleLinkRequest, toolNamedIn, LINK_PAYLOAD } from '@/lib/social/instagram-dm'
 
 export async function GET(req: NextRequest) {
   const q = new URL(req.url).searchParams
@@ -61,8 +61,15 @@ export async function POST(req: NextRequest) {
       const payload: string | undefined = m.postback?.payload
       if (payload?.startsWith(LINK_PAYLOAD)) {
         results.push(await handleLinkRequest(senderId, payload.slice(LINK_PAYLOAD.length) || null).catch(e => `error: ${e}`))
-      } else if (m.message?.text && ASKS_FOR_LINK.test(m.message.text)) {
-        results.push(await handleLinkRequest(senderId, null).catch(e => `error: ${e}`))
+      } else if (m.message?.text) {
+        // "Short.now" → that tool's link. Otherwise a "yes"/"link" reply means
+        // the tool from their most recent comment.
+        const slug = await toolNamedIn(m.message.text).catch(() => null)
+        if (slug) {
+          results.push(await handleLinkRequest(senderId, slug).catch(e => `error: ${e}`))
+        } else if (ASKS_FOR_LINK.test(m.message.text)) {
+          results.push(await handleLinkRequest(senderId, null).catch(e => `error: ${e}`))
+        }
       }
     }
   }

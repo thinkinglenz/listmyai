@@ -145,7 +145,7 @@ export async function handleComment(ev: CommentEvent): Promise<string> {
   const who = ev.username ? `@${ev.username}` : 'there'
 
   const text = tool
-    ? `Hey ${who}! 👋 Thanks for commenting. Tap below and we'll send you the link to ${tool.name}.`
+    ? `Hey ${who}! 👋 Thanks for commenting. Tap below (or just reply "${tool.name}") and we'll send you the link.`
     : `Hey ${who}! 👋 Thanks for commenting. Tap below and we'll send you the link.`
 
   try {
@@ -232,4 +232,35 @@ export async function handleLinkRequest(senderId: string, slug: string | null): 
   })
   await setStatus('link_sent')
   return 'link sent'
+}
+
+// ── DM a tool's name ────────────────────────────────────────────────────────
+
+// Posts say: DM us "Short.now" for the link. People type it loosely — quoted,
+// lower-case, with a "please" — so compare on letters and digits only.
+const squash = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+
+export async function toolNamedIn(text: string): Promise<string | null> {
+  const cleaned = text.replace(/["“”'‘’]/g, ' ').replace(/\b(link|please|pls|send|me|the|for|to)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+  if (!cleaned || cleaned.length > 60) return null
+  const target = squash(cleaned)
+  if (target.length < 2) return null
+
+  const supabase = db()
+  // Exact name first (case-insensitive), then the slug form.
+  const escaped = cleaned.replace(/[%_\\]/g, m => `\\${m}`)
+  const { data: byName } = await supabase.from('ai_tools').select('slug, name')
+    .eq('status', 'active').ilike('name', escaped).limit(5)
+  const hit = (byName ?? []).find(t => squash(t.name) === target) ?? byName?.[0]
+  if (hit) return hit.slug
+
+  const { data: bySlug } = await supabase.from('ai_tools').select('slug')
+    .eq('status', 'active').in('slug', [target, cleaned.toLowerCase().replace(/\s+/g, '-')]).limit(1)
+  if (bySlug?.[0]) return bySlug[0].slug
+
+  // Names like "Short.now" squash to "shortnow"; compare against tools whose
+  // name starts the same way rather than scanning the whole catalogue.
+  const { data: similar } = await supabase.from('ai_tools').select('slug, name')
+    .eq('status', 'active').ilike('name', `${escaped.slice(0, 3)}%`).limit(200)
+  return (similar ?? []).find(t => squash(t.name) === target)?.slug ?? null
 }

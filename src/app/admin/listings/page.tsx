@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import EditToolModal from '@/components/admin/EditToolModal'
+import { COMMENT_DM_ON, instagramCaption, instagramImagePath } from '@/lib/social/copy'
 
 const LinkedInIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5">
@@ -48,14 +49,27 @@ interface Tool {
 }
 
 // ─── Social Post Modal ───────────────────────────────────────────────────────
-// Mirrors the server flag, so the caption and the image never disagree about
-// whether commenting gets you a DM.
-const COMMENT_DM_ON = process.env.NEXT_PUBLIC_INSTAGRAM_COMMENT_DM === 'on'
 
 function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [imageReady, setImageReady] = useState(false)
+
+  // The Instagram headline, written by the model on first open and stored.
+  const [hook, setHook] = useState<string | null>(null)
+  const [hookState, setHookState] = useState<'loading' | 'ready' | 'working'>('loading')
+  useEffect(() => {
+    fetch(`/api/admin/tools/${tool.id}/hook`)
+      .then(r => r.json()).then(d => setHook(d.hook ?? null))
+      .catch(() => {}).finally(() => setHookState('ready'))
+  }, [tool.id])
+  async function regenerateHook() {
+    setHookState('working')
+    try {
+      const d = await fetch(`/api/admin/tools/${tool.id}/hook`, { method: 'POST' }).then(r => r.json())
+      if (d.hook) { setHook(d.hook); setIgLoaded(false) }
+    } finally { setHookState('ready') }
+  }
 
   const toolUrl = `https://listmyai.com/tools/${tool.slug}`
   const catTag = tool.category !== '—' ? `#${tool.category.replace(/[\s&\/]/g, '')}` : ''
@@ -63,9 +77,13 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
   const captions: Record<string, string> = {
     twitter: `🚀 ${tool.name} is now listed on ListMyAI!\n\n${tool.tagline || tool.description?.split(/[.!?]/)[0] || ''}\n\n👉 ${toolUrl}\n\n${catTag} #AI #AITools #ArtificialIntelligence #ListMyAI`.trim(),
     linkedin: `🚀 ${tool.name} is now listed on ListMyAI — the directory of 20,000+ AI tools!\n\n${tool.tagline || ''}\n\n${tool.description ? tool.description.slice(0, 250) + (tool.description.length > 250 ? '…' : '') : ''}\n\n👉 Check it out: ${toolUrl}\n\n${catTag} #AI #ArtificialIntelligence #AITools #TechInnovation #ListMyAI`.trim(),
-    // Instagram captions cannot hold a clickable link. The URL still goes in:
-    // the comment-to-DM automation reads it to know which tool a post is about.
-    instagram: `🚀 New AI tool alert!\n\n${tool.name} — ${tool.tagline || tool.description?.split(/[.!?]/)[0] || ''}\n\n${COMMENT_DM_ON ? "💬 Comment LINK and we'll DM you the link (follow @listmyai so it reaches you)" : '🔗 Link in bio → listmyai.com'}\n\n${toolUrl}\n\n${catTag} #AI #AITools #ArtificialIntelligence #MachineLearning #TechCommunity #ListMyAI #NewTool #Innovation #Startup`.trim(),
+    instagram: instagramCaption({
+      name: tool.name,
+      tagline: tool.tagline || tool.description?.split(/[.!?]/)[0] || '',
+      hook,
+      slug: tool.slug,
+      category: tool.category !== '—' ? tool.category : null,
+    }),
     facebook: `🚀 ${tool.name} has just been listed on ListMyAI!\n\n${tool.tagline || ''}\n\n${tool.description ? tool.description.slice(0, 200) + (tool.description.length > 200 ? '…' : '') : ''}\n\n👉 Explore: ${toolUrl}\n\n${catTag} #AI #AITools #ListMyAI`.trim(),
   }
 
@@ -324,7 +342,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
 
   // Rendered server-side at Instagram's portrait size. `v` busts the week-long
   // CDN cache whenever the artwork changes.
-  const instagramImageUrl = `/api/tool-social/${tool.slug}?format=portrait&v=1`
+  const instagramImageUrl = instagramImagePath(tool.slug, hook)
   const [igLoaded, setIgLoaded] = useState(false)
   const [igDownloading, setIgDownloading] = useState(false)
 
@@ -406,12 +424,22 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
             </div>
             <div className="flex flex-col gap-4 sm:flex-row">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={instagramImageUrl} alt={`${tool.name} Instagram post`} onLoad={() => setIgLoaded(true)}
+              <img src={hookState === 'loading' ? undefined : instagramImageUrl} alt={`${tool.name} Instagram post`} onLoad={() => setIgLoaded(true)}
                 className="w-full rounded-lg border sm:w-56" style={{ borderColor: '#1e2a3a', aspectRatio: '4 / 5', background: '#0d1117' }} />
               <div className="flex-1 space-y-2 text-xs leading-relaxed text-slate-400">
+                <div className="rounded-lg border p-2.5" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Headline</span>
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {hookState === 'loading' ? 'Writing…' : hook ?? 'No headline — the tool name is used'}
+                  </p>
+                  <button onClick={regenerateHook} disabled={hookState !== 'ready'}
+                    className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold disabled:opacity-40" style={{ color: '#e1306c' }}>
+                    {hookState === 'working' ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Write a new one
+                  </button>
+                </div>
                 <p><span className="font-semibold text-slate-200">Post this one on Instagram.</span> The 1200×630 image below is for X, LinkedIn and Facebook — Instagram crops its sides.</p>
                 {COMMENT_DM_ON ? (
-                  <p>It carries a <span className="font-semibold text-white">Comment LINK</span> call to action. Anyone who comments gets a DM, and followers of @listmyai are sent this tool&apos;s link.</p>
+                  <p>It asks people to <span className="font-semibold text-white">DM &ldquo;{tool.name}&rdquo;</span>. Anyone who does gets this tool&apos;s link — followers straight away, others after they follow.</p>
                 ) : (
                   <p>The comment-to-DM automation is <span className="font-semibold text-amber-300">off</span>, so the image says &ldquo;Find it on listmyai.com&rdquo; instead of promising a DM.</p>
                 )}

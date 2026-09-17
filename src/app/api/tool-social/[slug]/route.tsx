@@ -37,7 +37,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   const { data: tool } = await supabase
     .from('ai_tools')
-    .select('name, tagline, description, categories(name)')
+    .select('name, tagline, description, social_hook, categories(name)')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     })
   }
 
-  if (isPortrait) return portraitCard(tool.name ?? '', tagline, category)
+  if (isPortrait) return portraitCard(tool.name ?? '', tagline, category, tool.social_hook ?? null)
 
   const png = await new ImageResponse(
     (
@@ -186,24 +186,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 // within 80px of the left or right edge.
 const COMMENT_DM_ON = process.env.NEXT_PUBLIC_INSTAGRAM_COMMENT_DM === 'on'
 
-async function portraitCard(name: string, tagline: string, category: string) {
+async function portraitCard(name: string, tagline: string, category: string, hook: string | null) {
   const W = 1080, H = 1350
-  const nameSize = name.length > 22 ? 70 : name.length > 14 ? 92 : 116
+  // The headline carries the post; the name and tagline sit beneath it. With
+  // no headline yet, the name takes the headline's place.
+  const headline = (hook || name).slice(0, 80)
+  const headSize = headline.length > 48 ? 70 : headline.length > 30 ? 82 : 98
+  const dmName = name.length > 22 ? `${name.slice(0, 21)}…` : name
   const png = await new ImageResponse(
     (
       <div style={{
         width: W, height: H, display: 'flex', flexDirection: 'column',
-        padding: '110px 96px 90px',
+        padding: '100px 90px 90px',
         background: 'linear-gradient(160deg, #0f172a 0%, #0d1b2e 50%, #1a1430 100%)',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}>
+        {/* Full-canvas glow layers: Satori clamps an off-canvas box to its
+            parent and the gradient then shows a straight cut edge. */}
         <div style={{
           position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
           background: 'radial-gradient(circle at 880px 180px, rgba(233,69,96,0.34) 0%, rgba(233,69,96,0.10) 18%, rgba(233,69,96,0) 36%)',
         }} />
         <div style={{
           position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
-          background: 'radial-gradient(circle at 150px 1250px, rgba(99,102,241,0.22) 0%, rgba(99,102,241,0) 32%)',
+          background: 'radial-gradient(circle at 150px 1250px, rgba(99,102,241,0.24) 0%, rgba(99,102,241,0) 32%)',
         }} />
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -213,50 +219,47 @@ async function portraitCard(name: string, tagline: string, category: string) {
           </div>
         </div>
 
-        {/* Content fills the space between the header and the call to action,
-            centred, so short names do not leave a hole above the CTA. */}
-        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center', paddingBottom: 190 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, justifyContent: 'center', paddingBottom: 200 }}>
+          <div style={{ display: 'flex', fontSize: headSize, fontWeight: 900, color: 'white', lineHeight: 1.08, letterSpacing: -1 }}>
+            {headline}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginTop: 56 }}>
+            <div style={{
+              display: 'flex', width: 104, height: 104, borderRadius: 28, background: '#e94560',
+              alignItems: 'center', justifyContent: 'center', fontSize: 58, fontWeight: 900, color: 'white',
+              boxShadow: '0 24px 60px -18px rgba(233,69,96,0.6)',
+            }}>
+              {name.charAt(0).toUpperCase() || '?'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', fontSize: 46, fontWeight: 800, color: 'white' }}>{name.slice(0, 32)}</div>
+              <div style={{ display: 'flex', marginTop: 6, fontSize: 28, color: '#ff6b85', fontWeight: 600 }}>{category}</div>
+            </div>
+          </div>
+
+          {hook && tagline && (
+            <div style={{ display: 'flex', marginTop: 34, fontSize: 36, color: '#a5b4c8', lineHeight: 1.4 }}>
+              {tagline.slice(0, 110)}
+            </div>
+          )}
+        </div>
+
+        {/* The call to action the DM automation answers. It only promises a
+            DM once that automation is switched on. */}
         <div style={{
-          display: 'flex', width: 190, height: 190, borderRadius: 48, background: '#e94560',
-          alignItems: 'center', justifyContent: 'center', fontSize: 108, fontWeight: 900, color: 'white',
-          boxShadow: '0 30px 80px -20px rgba(233,69,96,0.55)',
-        }}>
-          {name.charAt(0).toUpperCase() || '?'}
-        </div>
-
-        <div style={{ display: 'flex', marginTop: 56, fontSize: nameSize, fontWeight: 900, color: 'white', lineHeight: 1.04 }}>
-          {name.slice(0, 40)}
-        </div>
-
-        <div style={{ display: 'flex', marginTop: 34, fontSize: 46, color: '#a5b4c8', lineHeight: 1.4 }}>
-          {tagline.slice(0, 110)}
-        </div>
-
-        <div style={{ display: 'flex', marginTop: 40 }}>
-          <div style={{
-            display: 'flex', padding: '14px 32px', borderRadius: 999,
-            border: '2px solid rgba(233,69,96,0.4)', background: 'rgba(233,69,96,0.12)',
-            fontSize: 30, color: '#ff6b85', fontWeight: 600,
-          }}>{category}</div>
-        </div>
-        </div>
-
-        {/* The call to action the comment-to-DM automation answers. It only
-            promises a DM once that automation is switched on; before Meta
-            approves messaging, a commenter would get nothing. */}
-        <div style={{
-          position: 'absolute', left: 96, right: 96, bottom: 150, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', gap: 18, padding: '30px 36px', borderRadius: 28,
+          position: 'absolute', left: 90, right: 90, bottom: 150, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', gap: 16, padding: '30px 32px', borderRadius: 28,
           background: 'linear-gradient(90deg, #e94560 0%, #b8348f 100%)',
         }}>
           {COMMENT_DM_ON ? (
             <>
-              <div style={{ display: 'flex', fontSize: 40, color: 'white', fontWeight: 500 }}>Comment</div>
+              <div style={{ display: 'flex', fontSize: 40, color: 'white', fontWeight: 500 }}>DM us</div>
               <div style={{
-                display: 'flex', padding: '6px 22px', borderRadius: 14, background: 'white',
-                fontSize: 40, color: '#e94560', fontWeight: 900, letterSpacing: 2,
-              }}>LINK</div>
-              <div style={{ display: 'flex', fontSize: 40, color: 'white', fontWeight: 500 }}>to get it in your DMs</div>
+                display: 'flex', padding: '6px 20px', borderRadius: 14, background: 'white',
+                fontSize: 38, color: '#e94560', fontWeight: 900,
+              }}>{dmName}</div>
+              <div style={{ display: 'flex', fontSize: 40, color: 'white', fontWeight: 500 }}>for the link</div>
             </>
           ) : (
             <div style={{ display: 'flex', fontSize: 40, color: 'white', fontWeight: 600 }}>Find it on listmyai.com</div>
@@ -264,11 +267,11 @@ async function portraitCard(name: string, tagline: string, category: string) {
         </div>
 
         <div style={{
-          position: 'absolute', left: 96, right: 96, bottom: 70, display: 'flex', justifyContent: 'space-between',
+          position: 'absolute', left: 90, right: 90, bottom: 70, display: 'flex', justifyContent: 'space-between',
           fontSize: 28, color: '#64748b', fontWeight: 600,
         }}>
           <div style={{ display: 'flex' }}>listmyai.com</div>
-          <div style={{ display: 'flex' }}>@listmyai</div>
+          <div style={{ display: 'flex' }}>Follow @listmyai</div>
         </div>
       </div>
     ),
