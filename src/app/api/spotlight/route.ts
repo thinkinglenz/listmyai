@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { randomUUID } from 'crypto'
-import { getCurrentSpotlight, getMinimumNextBid, getNewestListing, MIN_BID_CENTS } from '@/lib/spotlight'
+import { getCurrentSpotlight, getMinimumNextBid, MIN_BID_CENTS } from '@/lib/spotlight'
 import { announceToolToSocial } from '@/lib/social/post'
 
 const supabase = createClient(
@@ -20,8 +20,8 @@ const supabase = createClient(
 )
 
 export async function GET() {
-  const [current, minNext, newest] = await Promise.all([getCurrentSpotlight(), getMinimumNextBid(), getNewestListing()])
-  return NextResponse.json({ current, minimumNextBidCents: minNext, newest })
+  const [current, minNext] = await Promise.all([getCurrentSpotlight(), getMinimumNextBid()])
+  return NextResponse.json({ current, minimumNextBidCents: minNext })
 }
 
 export async function POST(req: NextRequest) {
