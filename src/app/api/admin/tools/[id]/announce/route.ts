@@ -46,7 +46,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .from('tool_social_posts').select('network').eq('tool_id', id)
   const done = [...new Set((existing ?? []).map(r => r.network))] as Network[]
   const all: Network[] = ['facebook', 'instagram', 'facebook_story', 'instagram_story',
-    ...(process.env.THREADS_ACCESS_TOKEN ? ['threads' as Network] : [])]
+    ...(process.env.THREADS_ACCESS_TOKEN ? ['threads' as Network] : []),
+    ...(process.env.TWITTER_ACCESS_TOKEN ? ['x' as Network] : [])]
   if (all.every(n => done.includes(n))) {
     return NextResponse.json({ skipped: true, reason: 'Already posted everywhere', announced_at: tool.announced_at })
   }

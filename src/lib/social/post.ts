@@ -368,6 +368,60 @@ async function igPublish(igId: string, token: string, body: Record<string, unkno
   }
 }
 
+// X: upload the card, then post it with the link. Multipart bodies are not
+// part of the OAuth 1.0a signature, so the upload is signed with no params.
+async function postToXWithImage(text: string, imageUrl: string): Promise<NetResult> {
+  const {
+    TWITTER_API_KEY: apiKey, TWITTER_API_SECRET: apiSecret,
+    TWITTER_ACCESS_TOKEN: accessToken, TWITTER_ACCESS_TOKEN_SECRET: accessSecret,
+  } = process.env
+  if (!apiKey || !apiSecret || !accessToken || !accessSecret) return { ok: false, error: 'X env vars not configured' }
+  const sign = (method: string, url: string) =>
+    twitterAuthHeader(method, url, {}, apiKey, apiSecret, accessToken, accessSecret)
+
+  try {
+    const img = await fetch(imageUrl, { signal: AbortSignal.timeout(45_000) })
+    if (!img.ok) throw new Error(`card image ${img.status}`)
+    const bytes = new Blob([await img.arrayBuffer()], { type: 'image/jpeg' })
+
+    // v2 media upload; the v1.1 endpoint is kept as a fallback for accounts
+    // on API tiers where v2 upload is not yet enabled.
+    let mediaId: string | undefined
+    const v2 = 'https://api.x.com/2/media/upload'
+    const form = new FormData()
+    form.append('media', bytes, 'card.jpg')
+    form.append('media_category', 'tweet_image')
+    const up = await fetch(v2, { method: 'POST', headers: { Authorization: sign('POST', v2) }, body: form })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const upData: any = await up.json().catch(() => ({}))
+    mediaId = upData?.data?.id ?? upData?.id
+    if (!up.ok || !mediaId) {
+      const v1 = 'https://upload.twitter.com/1.1/media/upload.json'
+      const form1 = new FormData()
+      form1.append('media', bytes, 'card.jpg')
+      const up1 = await fetch(v1, { method: 'POST', headers: { Authorization: sign('POST', v1) }, body: form1 })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const d1: any = await up1.json().catch(() => ({}))
+      mediaId = d1?.media_id_string
+      if (!mediaId) throw new Error(`media upload failed: ${JSON.stringify(upData).slice(0, 200)} / ${JSON.stringify(d1).slice(0, 200)}`)
+    }
+
+    const tweetUrl = 'https://api.twitter.com/2/tweets'
+    const res = await fetch(tweetUrl, {
+      method: 'POST',
+      headers: { Authorization: sign('POST', tweetUrl), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, media: { media_ids: [mediaId] } }),
+    })
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data: any = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(JSON.stringify(data).slice(0, 300))
+    const id = data.data?.id
+    return { ok: true, id, url: id ? `https://x.com/i/web/status/${id}` : null }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
 // Threads accepts clickable links, so its post carries the URL. It needs its
 // own token (Threads use case), read from THREADS_ACCESS_TOKEN.
 async function postToThreads(text: string, imageUrl: string): Promise<NetResult> {
@@ -406,7 +460,7 @@ async function postToThreads(text: string, imageUrl: string): Promise<NetResult>
  * Threads also carry the link, which Instagram cannot make clickable.
  * Networks are independent: one failing never stops the others.
  */
-export type Network = 'facebook' | 'instagram' | 'facebook_story' | 'instagram_story' | 'threads'
+export type Network = 'facebook' | 'instagram' | 'facebook_story' | 'instagram_story' | 'threads' | 'x'
 
 export async function announceToolToSocial(
   tool: ToolAnnouncement,
@@ -417,6 +471,7 @@ export async function announceToolToSocial(
   facebookStory: NetResult
   instagramStory: NetResult
   threads: NetResult
+  x: NetResult
   links: { network: string; postId: string; postUrl: string | null }[]
 }> {
   const toolUrl = `https://listmyai.com/tools/${tool.slug}`
@@ -483,7 +538,12 @@ export async function announceToolToSocial(
 
   const threads = skip.has('threads') ? Promise.resolve(skipped) : postToThreads(threadsText, fbPostImage)
 
-  const [fb, fbs, ig, igs, th] = await Promise.all([facebook, facebookStory, instagram, instagramStory, threads])
+  // 280 characters, with any URL counted as 23.
+  const xTags = buildHashtags(tags, 3)
+  const xText = `${truncate(headline, 280 - 23 - xTags.length - 4)}\n\n${toolUrl}\n${xTags}`
+  const x = skip.has('x') ? Promise.resolve(skipped) : postToXWithImage(xText, fbPostImage)
+
+  const [fb, fbs, ig, igs, th, xr] = await Promise.all([facebook, facebookStory, instagram, instagramStory, threads, x])
 
   // Permalinks, so an owner can open the actual post rather than take our word.
   const links: { network: string; postId: string; postUrl: string | null }[] = []
@@ -492,10 +552,11 @@ export async function announceToolToSocial(
   if (igs.ok && igs.id) links.push({ network: 'instagram_story', postId: igs.id, postUrl: null })
   if (fbs.ok && fbs.id) links.push({ network: 'facebook_story', postId: fbs.id, postUrl: null })
   if (th.ok && th.id) links.push({ network: 'threads', postId: th.id, postUrl: th.url ?? null })
+  if (xr.ok && xr.id) links.push({ network: 'x', postId: xr.id, postUrl: xr.url ?? null })
 
-  for (const [name, r] of Object.entries({ facebook: fb, facebookStory: fbs, instagram: ig, instagramStory: igs, threads: th })) {
+  for (const [name, r] of Object.entries({ facebook: fb, facebookStory: fbs, instagram: ig, instagramStory: igs, threads: th, x: xr })) {
     if (!r.ok && r !== skipped) console.warn(`[announce] ${name} failed: ${r.error}`)
   }
 
-  return { facebook: fb, instagram: ig, facebookStory: fbs, instagramStory: igs, threads: th, links }
+  return { facebook: fb, instagram: ig, facebookStory: fbs, instagramStory: igs, threads: th, x: xr, links }
 }

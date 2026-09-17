@@ -51,9 +51,7 @@ interface Tool {
 // ─── Social Post Modal ───────────────────────────────────────────────────────
 
 function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
-  const [imageReady, setImageReady] = useState(false)
 
   // Publish (or retry) straight from here. The route skips every network that
   // already has a post, so pressing it twice never double-posts.
@@ -67,7 +65,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
       if (d.error) { setPublishResult([`✗ ${d.error}`]); return }
       const label: Record<string, string> = {
         facebook: 'Facebook post', facebookStory: 'Facebook Story', instagram: 'Instagram post',
-        instagramStory: 'Instagram Story', threads: 'Threads',
+        instagramStory: 'Instagram Story', threads: 'Threads', x: 'X',
       }
       setPublishResult(Object.entries(label).map(([k, name]) => {
         const r = d[k]
@@ -117,256 +115,6 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
 
   const handles = '@ListMyAI (X/Twitter) · ListMyAI (LinkedIn) · @listmyai (Instagram) · ListMyAI (Facebook)'
 
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const W = 1200, H = 630
-    canvas.width = W
-    canvas.height = H
-
-    // Background
-    const bg = ctx.createLinearGradient(0, 0, W, H)
-    bg.addColorStop(0, '#0f0f1a')
-    bg.addColorStop(0.5, '#1a1a2e')
-    bg.addColorStop(1, '#16213e')
-    ctx.fillStyle = bg
-    ctx.fillRect(0, 0, W, H)
-
-    // Glow circles
-    const glow = ctx.createRadialGradient(950, 150, 0, 950, 150, 200)
-    glow.addColorStop(0, 'rgba(108,99,255,0.25)')
-    glow.addColorStop(1, 'rgba(60,223,255,0)')
-    ctx.fillStyle = glow
-    ctx.fillRect(0, 0, W, H)
-    const glow2 = ctx.createRadialGradient(200, 500, 0, 200, 500, 150)
-    glow2.addColorStop(0, 'rgba(108,99,255,0.2)')
-    glow2.addColorStop(1, 'rgba(60,223,255,0)')
-    ctx.fillStyle = glow2
-    ctx.fillRect(0, 0, W, H)
-
-    // Left accent bar
-    const accent = ctx.createLinearGradient(60, 40, 60, 590)
-    accent.addColorStop(0, '#6C63FF')
-    accent.addColorStop(1, '#3CDFFF')
-    ctx.fillStyle = accent
-    ctx.beginPath()
-    ctx.roundRect(60, 40, 4, 550, 2)
-    ctx.fill()
-
-    // "NEW ON LISTMYAI" label
-    ctx.font = '500 15px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#3CDFFF'
-    ctx.letterSpacing = '4px'
-    ctx.fillText('NEW ON LISTMYAI', 90, 95)
-    ctx.letterSpacing = '0px'
-
-    // Accent line under label
-    const lineGrad = ctx.createLinearGradient(90, 110, 170, 110)
-    lineGrad.addColorStop(0, '#6C63FF')
-    lineGrad.addColorStop(1, '#3CDFFF')
-    ctx.fillStyle = lineGrad
-    ctx.beginPath()
-    ctx.roundRect(90, 110, 80, 3, 1.5)
-    ctx.fill()
-
-    // Tool name
-    ctx.font = '700 72px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#FFFFFF'
-    const nameText = tool.name.length > 18 ? tool.name.slice(0, 18) + '…' : tool.name
-    ctx.fillText(nameText, 90, 200)
-
-    // Tagline (wrap to 2 lines)
-    ctx.font = '400 24px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#a0a0c0'
-    const tagline = tool.tagline || tool.description?.split(/[.!?]/)[0] || tool.category
-    const words = tagline.split(' ')
-    let line1 = '', line2 = ''
-    for (const w of words) {
-      const test = line1 ? line1 + ' ' + w : w
-      if (ctx.measureText(test).width < 550 && !line2) {
-        line1 = test
-      } else {
-        line2 = line2 ? line2 + ' ' + w : w
-      }
-    }
-    ctx.fillText(line1, 90, 260)
-    if (line2) {
-      if (line2.length > 45) line2 = line2.slice(0, 45) + '…'
-      ctx.fillText(line2, 90, 295)
-    }
-
-    // "Explore now" button
-    const btnGrad = ctx.createLinearGradient(90, 340, 290, 340)
-    btnGrad.addColorStop(0, '#6C63FF')
-    btnGrad.addColorStop(1, '#3CDFFF')
-    ctx.fillStyle = btnGrad
-    ctx.beginPath()
-    ctx.roundRect(90, 340, 200, 46, 23)
-    ctx.fill()
-    ctx.font = '600 16px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#FFFFFF'
-    ctx.textAlign = 'center'
-    ctx.fillText('Explore now →', 190, 369)
-
-    // "listmyai.com" button
-    ctx.strokeStyle = '#6C63FF'
-    ctx.lineWidth = 1.5
-    ctx.beginPath()
-    ctx.roundRect(310, 340, 180, 46, 23)
-    ctx.stroke()
-    ctx.font = '500 16px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#6C63FF'
-    ctx.fillText('listmyai.com', 400, 369)
-    ctx.textAlign = 'start'
-
-    // Divider
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(90, 430)
-    ctx.lineTo(700, 430)
-    ctx.stroke()
-
-    // Bullet points
-    const bullets = [
-      { color: '#3CDFFF', text: tool.category !== '—' ? tool.category : 'AI Tool' },
-      { color: '#6C63FF', text: tool.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '') },
-      { color: '#3CDFFF', text: tool.claimed ? 'Verified & Claimed' : 'Available to Claim' },
-    ]
-    bullets.forEach((b, i) => {
-      const y = 460 + i * 32
-      ctx.fillStyle = b.color
-      ctx.beginPath()
-      ctx.roundRect(90, y, 10, 10, 2)
-      ctx.fill()
-      ctx.font = '400 14px system-ui, -apple-system, sans-serif'
-      ctx.fillStyle = '#8888aa'
-      ctx.fillText(b.text, 115, y + 10)
-    })
-
-    // Right card
-    ctx.fillStyle = '#1e1e36'
-    ctx.strokeStyle = 'rgba(108,99,255,0.4)'
-    ctx.lineWidth = 0.5
-    ctx.beginPath()
-    ctx.roundRect(830, 140, 300, 340, 16)
-    ctx.fill()
-    ctx.stroke()
-
-    // Logo placeholder
-    ctx.fillStyle = 'rgba(108,99,255,0.2)'
-    ctx.strokeStyle = 'rgba(108,99,255,0.5)'
-    ctx.lineWidth = 0.5
-    ctx.beginPath()
-    ctx.roundRect(860, 175, 60, 60, 12)
-    ctx.fill()
-    ctx.stroke()
-    ctx.font = '700 28px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#6C63FF'
-    ctx.textAlign = 'center'
-    const initials = tool.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase()
-    ctx.fillText(initials, 890, 215)
-    ctx.textAlign = 'start'
-
-    // Card tool name
-    ctx.font = '600 20px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#FFFFFF'
-    ctx.fillText(tool.name.length > 16 ? tool.name.slice(0, 16) + '…' : tool.name, 935, 200)
-    ctx.font = '400 12px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#8888aa'
-    const shortUrl = tool.website.replace(/https?:\/\/(www\.)?/, '').replace(/\/$/, '')
-    ctx.fillText(shortUrl.length > 25 ? shortUrl.slice(0, 25) + '…' : shortUrl, 935, 222)
-
-    // Card divider
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)'
-    ctx.beginPath()
-    ctx.moveTo(860, 260)
-    ctx.lineTo(1100, 260)
-    ctx.stroke()
-
-    // Card fields
-    const fields = [
-      { label: 'STATUS', value: tool.status === 'active' ? 'Active' : 'Pending', valueBg: tool.status === 'active' ? '#1a3a2a' : '#3a3a1a', valueColor: tool.status === 'active' ? '#4ade80' : '#facc15' },
-      { label: 'LISTED', value: tool.added },
-      { label: 'CATEGORY', value: tool.category !== '—' ? tool.category : 'AI Tool' },
-    ]
-    fields.forEach((f, i) => {
-      const y = 290 + i * 40
-      ctx.font = '400 11px system-ui, -apple-system, sans-serif'
-      ctx.fillStyle = '#6C63FF'
-      ctx.letterSpacing = '2px'
-      ctx.fillText(f.label, 860, y)
-      ctx.letterSpacing = '0px'
-      if (f.valueBg) {
-        ctx.fillStyle = f.valueBg
-        ctx.beginPath()
-        ctx.roundRect(940, y - 14, 65, 22, 11)
-        ctx.fill()
-        ctx.font = '500 11px system-ui, -apple-system, sans-serif'
-        ctx.fillStyle = f.valueColor!
-        ctx.textAlign = 'center'
-        ctx.fillText(f.value, 972, y + 1)
-        ctx.textAlign = 'start'
-      } else {
-        ctx.font = '400 13px system-ui, -apple-system, sans-serif'
-        ctx.fillStyle = '#ccccdd'
-        ctx.fillText(f.value.length > 18 ? f.value.slice(0, 18) + '…' : f.value, 940, y)
-      }
-    })
-
-    // Card tags
-    const tags = [
-      { text: 'AI Tool', color: '#6C63FF', bg: 'rgba(108,99,255,0.15)' },
-      { text: tool.category !== '—' ? tool.category.split(' ')[0] : 'Listed', color: '#3CDFFF', bg: 'rgba(60,223,255,0.15)' },
-    ]
-    tags.forEach((t, i) => {
-      const x = 860 + i * 115
-      ctx.fillStyle = t.bg
-      ctx.beginPath()
-      ctx.roundRect(x, 410, 100, 30, 6)
-      ctx.fill()
-      ctx.font = '400 12px system-ui, -apple-system, sans-serif'
-      ctx.fillStyle = t.color
-      ctx.textAlign = 'center'
-      ctx.fillText(t.text.length > 12 ? t.text.slice(0, 12) + '…' : t.text, x + 50, 430)
-      ctx.textAlign = 'start'
-    })
-
-    // Footer
-    ctx.font = '600 18px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = 'rgba(255,255,255,0.9)'
-    ctx.fillText('ListMyAI', 90, 595)
-    ctx.font = '400 14px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#8888aa'
-    ctx.fillText('Discover 20,000+ AI tools', 200, 595)
-    ctx.font = '400 13px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#6C63FF'
-    ctx.textAlign = 'end'
-    ctx.fillText('listmyai.com', 1110, 595)
-    ctx.textAlign = 'start'
-
-    // If logo URL exists, load and draw it
-    if (tool.logo_url) {
-      const img = new Image()
-      img.crossOrigin = 'anonymous'
-      img.onload = () => {
-        ctx.save()
-        ctx.beginPath()
-        ctx.roundRect(860, 175, 60, 60, 12)
-        ctx.clip()
-        ctx.drawImage(img, 860, 175, 60, 60)
-        ctx.restore()
-        setImageReady(true)
-      }
-      img.onerror = () => setImageReady(true)
-      img.src = tool.logo_url
-    } else {
-      setImageReady(true)
-    }
-  }, [tool])
 
   // Rendered server-side at Instagram's portrait size. `v` busts the week-long
   // CDN cache whenever the artwork changes.
@@ -374,16 +122,21 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
   const [igLoaded, setIgLoaded] = useState(false)
   const [igDownloading, setIgDownloading] = useState(false)
 
-  async function downloadInstagram() {
+  // X, LinkedIn and Facebook get the same card, with a button that points at
+  // the link in the post rather than asking for a comment.
+  const linkCardUrl = `${instagramImageUrl}&cta=caption`
+  const [linkLoaded, setLinkLoaded] = useState(false)
+
+  async function downloadCard(url: string, filename: string) {
     setIgDownloading(true)
     try {
-      const blob = await fetch(instagramImageUrl).then(r => {
+      const blob = await fetch(url).then(r => {
         if (!r.ok) throw new Error(`Image failed (${r.status})`)
         return r.blob()
       })
       const href = URL.createObjectURL(blob)
       const link = document.createElement('a')
-      link.download = `listmyai-${tool.slug}-instagram.jpg`
+      link.download = filename
       link.href = href
       link.click()
       URL.revokeObjectURL(href)
@@ -391,15 +144,6 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
       alert(String(err))
     }
     setIgDownloading(false)
-  }
-
-  function downloadImage() {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const link = document.createElement('a')
-    link.download = `listmyai-${tool.slug}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
   }
 
   async function copyCaption(platform: string) {
@@ -443,7 +187,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-bold text-white">Post to social now</p>
-                <p className="text-xs text-slate-400">Facebook post + Story, Instagram post + Story, Threads. Networks that already have this tool are skipped.</p>
+                <p className="text-xs text-slate-400">Facebook post + Story, Instagram post + Story, X, Threads. Networks that already have this tool are skipped.</p>
               </div>
               <button onClick={publishNow} disabled={publishing}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
@@ -466,7 +210,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
               <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: '#e1306c' }}>
                 <ImageIcon className="h-3.5 w-3.5" /> Instagram post (1080×1350 portrait)
               </span>
-              <button onClick={downloadInstagram} disabled={!igLoaded || igDownloading}
+              <button onClick={() => downloadCard(instagramImageUrl, `listmyai-${tool.slug}-instagram.jpg`)} disabled={!igLoaded || igDownloading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
                 style={{ background: '#e1306c' }}>
                 {igDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Download JPG
@@ -498,20 +242,25 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
             </div>
           </div>
 
-          {/* Image Preview */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" /> Link preview image (1200×630) — X, LinkedIn, Facebook
+          {/* Same design for X, LinkedIn and Facebook */}
+          <div className="rounded-xl border p-4" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                <ImageIcon className="h-3.5 w-3.5" /> X, LinkedIn &amp; Facebook (1080×1350)
               </span>
-              <button onClick={downloadImage} disabled={!imageReady}
+              <button onClick={() => downloadCard(linkCardUrl, `listmyai-${tool.slug}-x-linkedin.jpg`)} disabled={!linkLoaded || igDownloading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
                 style={{ background: '#6C63FF' }}>
-                <Download className="h-3.5 w-3.5" /> Download PNG
+                {igDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />} Download JPG
               </button>
             </div>
-            <div className="rounded-xl overflow-hidden border" style={{ borderColor: '#1e2a3a' }}>
-              <canvas ref={canvasRef} className="w-full h-auto" style={{ display: 'block' }} />
+            <div className="flex flex-col gap-4 sm:flex-row">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={hookState === 'loading' ? undefined : linkCardUrl} alt={`${tool.name} post image`} onLoad={() => setLinkLoaded(true)}
+                className="w-full rounded-lg border sm:w-56" style={{ borderColor: '#1e2a3a', aspectRatio: '4 / 5', background: '#0d1117' }} />
+              <p className="flex-1 text-xs leading-relaxed text-slate-400">
+                The same card as Instagram, but its button says <span className="font-semibold text-white">&ldquo;Tap the link in the post&rdquo;</span> — these networks make links clickable, so paste the caption below with it. Facebook and X are posted automatically on approval; LinkedIn is by hand for now.
+              </p>
             </div>
           </div>
 
@@ -1047,7 +796,7 @@ export default function AdminListingsPage() {
       if (data.skipped) {
         setAnnounceNote('Approved — already announced earlier, not posted again.')
       } else {
-        const nets = ['facebook', 'instagram', 'instagramStory', 'facebookStory', 'threads']
+        const nets = ['facebook', 'instagram', 'instagramStory', 'facebookStory', 'threads', 'x']
         const posted = nets.filter(k => data[k]?.ok)
         const failed = nets.filter(k => data[k] && !data[k].ok)
         setAnnounceNote(
