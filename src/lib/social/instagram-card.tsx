@@ -18,7 +18,7 @@ const LAYOUT = {
   post:  { H: 1350, MEDIA_H: 600, padTop: 64,  ctaBottom: 88,  footBottom: 30 },
   story: { H: 1920, MEDIA_H: 740, padTop: 230, ctaBottom: 300, footBottom: 240 },
 } as const
-export type CardFormat = keyof typeof LAYOUT
+export type CardFormat = keyof typeof LAYOUT | 'wide'
 
 /**
  * What the button says. Only Instagram has the comment-to-DM flow;
@@ -118,7 +118,15 @@ const fullLayer = (background: string, H: number) => ({
   position: 'absolute' as const, top: 0, left: 0, width: W, height: H, display: 'flex', background,
 })
 
+/** Cut at a word boundary with an ellipsis, rather than mid-word. */
+function clip(text: string, max: number): string {
+  if (text.length <= max) return text
+  const cut = text.slice(0, max - 1)
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), max * 0.6)).trimEnd()}…`
+}
+
 export async function renderInstagramCard(tool: CardTool, origin: string, format: CardFormat = 'post', cta: CardCta = 'comment'): Promise<NextResponse> {
+  if (format === 'wide') return renderWide(tool, origin, cta)
   const { H, MEDIA_H, padTop, ctaBottom, footBottom } = LAYOUT[format]
   const [media, logo, fontData] = await Promise.all([
     findMedia(tool, origin),
@@ -212,7 +220,7 @@ export async function renderInstagramCard(tool: CardTool, origin: string, format
           )}
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
             {tool.hook && <div style={{ display: 'flex', fontSize: 34, fontWeight: 800, color: 'white' }}>{tool.name.slice(0, 34)}</div>}
-            <div style={{ display: 'flex', fontSize: 26, color: '#a5b4c8', lineHeight: 1.3 }}>{tool.tagline.slice(0, 80)}</div>
+            <div style={{ display: 'flex', fontSize: 26, color: '#a5b4c8', lineHeight: 1.3 }}>{clip(tool.tagline, 90)}</div>
           </div>
         </div>
 
@@ -253,10 +261,136 @@ export async function renderInstagramCard(tool: CardTool, origin: string, format
     { width: W, height: H, fonts: fontData },
   ).arrayBuffer()
 
-  // Instagram's publishing API accepts JPEG only.
+  return jpegResponse(png)
+}
+
+// Instagram's publishing API accepts JPEG only; the others are fine with it.
+function jpegResponse(png: ArrayBuffer): NextResponse {
   const decoded = PNG.sync.read(Buffer.from(png))
   const { data } = jpeg.encode({ data: decoded.data, width: decoded.width, height: decoded.height }, 92)
   return new NextResponse(new Uint8Array(data), {
     headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=604800, s-maxage=604800' },
   })
+}
+
+// 1200x630: the size Facebook, X and LinkedIn show uncropped in the feed.
+// The listing's visual on the left, the words on the right.
+async function renderWide(tool: CardTool, origin: string, cta: CardCta): Promise<NextResponse> {
+  const WW = 1200, WH = 630
+  // Media area inside the browser frame: the card's inner height (550)
+  // minus the 40px title bar and the 2px borders.
+  const MW = 640, MH = 506
+  const [media, logo, fontData] = await Promise.all([
+    findMedia(tool, origin),
+    tool.logoUrl ? imageAsDataUri(tool.logoUrl, 5000) : Promise.resolve(null),
+    fonts(),
+  ])
+  const headline = clip(tool.hook || tool.name, 80)
+  const headSize = headline.length > 56 ? 36 : headline.length > 36 ? 42 : 50
+  const letter = tool.name.charAt(0).toUpperCase() || '?'
+  const layer = (background: string) => ({
+    position: 'absolute' as const, top: 0, left: 0, width: WW, height: WH, display: 'flex', background,
+  })
+  const ctaText = cta === 'comment' && COMMENT_DM_ON ? 'Comment LINK for the link' : cta === 'site' ? 'listmyai.com' : 'Link in the post  ↑'
+
+  const png = await new ImageResponse(
+    (
+      <div style={{
+        width: WW, height: WH, display: 'flex', padding: 40, gap: 40, fontFamily: 'Inter',
+        background: 'linear-gradient(135deg, #0b1020 0%, #111a33 50%, #1c1033 100%)',
+      }}>
+        <div style={layer('radial-gradient(circle at 1080px 90px, rgba(233,69,96,0.40) 0%, rgba(233,69,96,0.10) 22%, rgba(233,69,96,0) 42%)')} />
+        <div style={layer('radial-gradient(circle at 120px 600px, rgba(99,102,241,0.32) 0%, rgba(99,102,241,0) 40%)')} />
+
+        {/* The listing, framed */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', width: MW + 4, borderRadius: 24, overflow: 'hidden',
+          border: '2px solid rgba(255,255,255,0.14)', background: '#0d1426',
+          boxShadow: '0 30px 70px -25px rgba(0,0,0,0.9)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: 40, padding: '0 16px', gap: 8, background: 'rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 999, background: '#ff5f57' }} />
+            <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 999, background: '#febc2e' }} />
+            <div style={{ display: 'flex', width: 12, height: 12, borderRadius: 999, background: '#28c840' }} />
+            <div style={{ display: 'flex', marginLeft: 14, padding: '4px 16px', borderRadius: 999, fontSize: 15, color: '#94a3b8', background: 'rgba(255,255,255,0.06)' }}>
+              {hostOf(tool.website)}
+            </div>
+          </div>
+          <div style={{ display: 'flex', position: 'relative', width: MW, height: MH }}>
+            {media ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={media.uri} width={MW} height={MH} style={{ width: MW, height: MH, objectFit: 'cover' }} />
+            ) : (
+              <div style={{
+                display: 'flex', width: MW, height: MH, alignItems: 'center', justifyContent: 'center',
+                background: 'linear-gradient(135deg, #e94560 0%, #7c3aed 55%, #2563eb 100%)',
+                fontSize: 200, fontWeight: 900, color: 'rgba(255,255,255,0.92)',
+              }}>{letter}</div>
+            )}
+            {media?.isVideo && (
+              <div style={{
+                position: 'absolute', top: MH / 2 - 50, left: MW / 2 - 50, width: 100, height: 100, borderRadius: 999,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(233,69,96,0.92)',
+              }}>
+                <svg width="40" height="46" viewBox="0 0 56 64"><polygon points="4,0 56,32 4,64" fill="white" /></svg>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Words */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', borderRadius: 999,
+                background: 'rgba(233,69,96,0.14)', border: '1.5px solid rgba(233,69,96,0.45)',
+                fontSize: 14, fontWeight: 800, letterSpacing: 2.5, color: '#ff8fa3',
+              }}>
+                <div style={{ display: 'flex', width: 8, height: 8, borderRadius: 999, background: '#ff4d6d' }} />
+                NEW ON LISTMYAI
+              </div>
+              <div style={{
+                display: 'flex', padding: '7px 14px', borderRadius: 999, fontSize: 14, fontWeight: 600,
+                color: '#c7d2fe', background: 'rgba(99,102,241,0.16)', border: '1.5px solid rgba(99,102,241,0.4)',
+              }}>{clip(tool.category, 22)}</div>
+            </div>
+            <div style={{ display: 'flex', marginTop: 26, fontSize: headSize, fontWeight: 900, color: 'white', lineHeight: 1.08, letterSpacing: -1 }}>
+              {headline}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logo} width={52} height={52} style={{ width: 52, height: 52, borderRadius: 14, objectFit: 'cover', background: 'white' }} />
+              ) : (
+                <div style={{
+                  display: 'flex', width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+                  background: '#e94560', fontSize: 28, fontWeight: 900, color: 'white',
+                }}>{letter}</div>
+              )}
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                {tool.hook && <div style={{ display: 'flex', fontSize: 22, fontWeight: 800, color: 'white' }}>{clip(tool.name, 28)}</div>}
+                <div style={{ display: 'flex', fontSize: 16, color: '#a5b4c8', lineHeight: 1.3 }}>{clip(tool.tagline, 70)}</div>
+              </div>
+            </div>
+            <div style={{
+              display: 'flex', height: 64, alignItems: 'center', justifyContent: 'center', borderRadius: 18,
+              background: 'linear-gradient(90deg, #e94560 0%, #c2338f 55%, #7c3aed 100%)',
+              fontSize: 24, fontWeight: 800, color: 'white',
+            }}>{ctaText}</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, color: '#64748b' }}>
+              <div style={{ display: 'flex' }}>20,000+ AI tools</div>
+              <div style={{ display: 'flex' }}>listmyai.com</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    ),
+    { width: WW, height: WH, fonts: fontData },
+  ).arrayBuffer()
+
+  return jpegResponse(png)
 }

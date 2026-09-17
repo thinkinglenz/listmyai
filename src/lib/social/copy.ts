@@ -36,5 +36,5 @@ export function instagramCaption(t: {
 export function instagramImagePath(slug: string, hook?: string | null, origin = ''): string {
   let h = 0
   for (const ch of hook ?? '') h = (h * 31 + ch.charCodeAt(0)) | 0
-  return `${origin}/api/tool-social/${slug}?format=portrait&v=5&h=${(h >>> 0).toString(36)}`
+  return `${origin}/api/tool-social/${slug}?format=portrait&v=6&h=${(h >>> 0).toString(36)}`
 }

@@ -30,7 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   // card was being posted by hand from a 1200x630 download, which Instagram
   // crops at both sides.
   const format = new URL(req.url).searchParams.get('format')
-  const isPortrait = format === 'portrait' || format === 'story'
+  const isPortrait = format === 'portrait' || format === 'story' || format === 'wide'
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       slug: tool.slug, name: tool.name ?? '', tagline, category,
       hook: tool.social_hook ?? null, website: tool.website ?? null,
       logoUrl: tool.logo_url ?? null, coverUrl: tool.cover_url ?? null, videoUrl: tool.video_url ?? null,
-    }, new URL(req.url).origin, format === 'story' ? 'story' : 'post', ctaParam(new URL(req.url).searchParams.get('cta')))
+    }, new URL(req.url).origin, format === 'story' ? 'story' : format === 'wide' ? 'wide' : 'post', ctaParam(new URL(req.url).searchParams.get('cta')))
   }
 
   const png = await new ImageResponse(

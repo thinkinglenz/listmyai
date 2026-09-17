@@ -124,7 +124,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
 
   // X, LinkedIn and Facebook get the same card, with a button that points at
   // the link in the post rather than asking for a comment.
-  const linkCardUrl = `${instagramImageUrl}&cta=caption`
+  const linkCardUrl = `${instagramImageUrl.replace('format=portrait', 'format=wide')}&cta=caption`
   const [linkLoaded, setLinkLoaded] = useState(false)
 
   async function downloadCard(url: string, filename: string) {
@@ -246,7 +246,7 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
           <div className="rounded-xl border p-4" style={{ borderColor: '#1e2a3a', background: '#0d1117' }}>
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                <ImageIcon className="h-3.5 w-3.5" /> X, LinkedIn &amp; Facebook (1080×1350)
+                <ImageIcon className="h-3.5 w-3.5" /> X, LinkedIn &amp; Facebook (1200×630)
               </span>
               <button onClick={() => downloadCard(linkCardUrl, `listmyai-${tool.slug}-x-linkedin.jpg`)} disabled={!linkLoaded || igDownloading}
                 className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-40"
@@ -257,9 +257,9 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
             <div className="flex flex-col gap-4 sm:flex-row">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={hookState === 'loading' ? undefined : linkCardUrl} alt={`${tool.name} post image`} onLoad={() => setLinkLoaded(true)}
-                className="w-full rounded-lg border sm:w-56" style={{ borderColor: '#1e2a3a', aspectRatio: '4 / 5', background: '#0d1117' }} />
+                className="w-full rounded-lg border sm:w-80" style={{ borderColor: '#1e2a3a', aspectRatio: '1200 / 630', background: '#0d1117' }} />
               <p className="flex-1 text-xs leading-relaxed text-slate-400">
-                The same card as Instagram, but its button says <span className="font-semibold text-white">&ldquo;Tap the link in the post&rdquo;</span> — these networks make links clickable, so paste the caption below with it. Facebook and X are posted automatically on approval; LinkedIn is by hand for now.
+                The same design as Instagram in the landscape size these feeds show uncropped. Its button says <span className="font-semibold text-white">&ldquo;Tap the link in the post&rdquo;</span> — these networks make links clickable, so paste the caption below with it. Facebook and X are posted automatically on approval; LinkedIn is by hand for now.
               </p>
             </div>
           </div>

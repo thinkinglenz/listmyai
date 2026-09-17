@@ -478,7 +478,9 @@ export async function announceToolToSocial(
   // One card design, with the button wording each network can deliver on.
   const postImage = instagramImagePath(tool.slug, tool.hook, 'https://listmyai.com')
   const storyImage = postImage.replace('format=portrait', 'format=story')
-  const fbPostImage = `${postImage}&cta=caption`
+  // Facebook and X show 1200x630 uncropped; Threads, like Instagram, suits 4:5.
+  const fbPostImage = `${postImage.replace('format=portrait', 'format=wide')}&cta=caption`
+  const threadsImage = `${postImage}&cta=caption`
   const fbStoryImage = `${storyImage}&cta=site`
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
   const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
@@ -489,7 +491,7 @@ export async function announceToolToSocial(
 
   // The cards take seconds to render cold. Build both first so the networks'
   // downloads hit the cached copies instead of timing out.
-  await Promise.all([postImage, storyImage, fbPostImage, fbStoryImage].map(u =>
+  await Promise.all([postImage, storyImage, fbPostImage, fbStoryImage, threadsImage].map(u =>
     fetch(u, { signal: AbortSignal.timeout(45_000) }).catch(() => null)))
 
   const headline = tool.hook ? `${tool.hook} ⚡` : `🚀 New on ListmyAI: ${tool.name}`
@@ -536,7 +538,7 @@ export async function announceToolToSocial(
     : !igId || !token ? Promise.resolve(noMeta)
     : igPublish(igId, token, { image_url: storyImage, media_type: 'STORIES' })
 
-  const threads = skip.has('threads') ? Promise.resolve(skipped) : postToThreads(threadsText, fbPostImage)
+  const threads = skip.has('threads') ? Promise.resolve(skipped) : postToThreads(threadsText, threadsImage)
 
   // 280 characters, with any URL counted as 23.
   const xTags = buildHashtags(tags, 3)
