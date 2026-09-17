@@ -16,6 +16,7 @@ interface Props {
   isPaid: boolean
   expiresAt: string | null
   minimumNextBidCents: number
+  newest?: { name: string; slug: string; tagline: string } | null
 }
 
 function timeLeft(expiresAt: string): string {
@@ -73,6 +74,7 @@ export default function SpotlightBox(props: Props) {
           isPaid: d.current.isPaid,
           expiresAt: d.current.expiresAt,
           minimumNextBidCents: d.minimumNextBidCents,
+          newest: d.newest ?? null,
         })
       })
       .catch(() => {})
@@ -80,7 +82,7 @@ export default function SpotlightBox(props: Props) {
 
   const {
     toolName, toolSlug, tagline, categoryName, logoUrl, coverUrl, website,
-    bidId, isPaid, expiresAt, minimumNextBidCents,
+    bidId, isPaid, expiresAt, minimumNextBidCents, newest,
   } = { ...props, ...(live ?? {}) } as Props
   const [remaining, setRemaining] = useState<string | null>(expiresAt ? timeLeft(expiresAt) : null)
   const [logoOk, setLogoOk] = useState(Boolean(logoUrl))
@@ -202,6 +204,22 @@ export default function SpotlightBox(props: Props) {
             {categoryName}
           </span>
         </div>
+      )}
+
+      {/* A paid holder keeps the slot for a day; the newest approved listing
+          still gets a line here so approving a tool always shows up. */}
+      {isPaid && newest && newest.slug !== toolSlug && (
+        <Link href={`/tools/${newest.slug}`}
+          className="relative mx-5 mt-4 flex items-center gap-2 rounded-xl border px-3 py-2.5 text-xs transition hover:bg-white/5"
+          style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.06)' }}>
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300"
+            style={{ background: 'rgba(16,185,129,0.15)' }}>Just added</span>
+          <span className="min-w-0 flex-1 truncate">
+            <strong className="text-white">{newest.name}</strong>
+            {newest.tagline && <span className="text-slate-400"> — {newest.tagline}</span>}
+          </span>
+          <ArrowRight className="h-3.5 w-3.5 flex-shrink-0 text-emerald-300" />
+        </Link>
       )}
 
       <div className="relative mt-4 flex items-center justify-between gap-3 border-t px-5 py-4"

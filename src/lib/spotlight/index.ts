@@ -98,6 +98,23 @@ export async function getCurrentSpotlight(): Promise<Spotlight | null> {
   }
 }
 
+export interface NewestListing { name: string; slug: string; tagline: string }
+
+/**
+ * The listing that most recently went live. Shown beneath a paid spotlight so
+ * that a paying holder never hides the tools that were just approved.
+ */
+export async function getNewestListing(): Promise<NewestListing | null> {
+  const { data } = await supabase
+    .from('ai_tools')
+    .select('name, slug, tagline')
+    .eq('status', 'active')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(1)
+    .maybeSingle()
+  return data ? { name: data.name, slug: data.slug, tagline: data.tagline ?? '' } : null
+}
+
 /** The price is flat, so this is always the same figure. */
 export async function getMinimumNextBid(): Promise<number> {
   return MIN_BID_CENTS

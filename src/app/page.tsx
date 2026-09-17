@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import NewsletterSignup from '@/components/NewsletterSignup'
 import SpotlightBox from '@/components/SpotlightBox'
-import { getCurrentSpotlight, getMinimumNextBid } from '@/lib/spotlight'
+import { getCurrentSpotlight, getMinimumNextBid, getNewestListing } from '@/lib/spotlight'
 import Image from 'next/image'
 import type { Metadata } from 'next'
 import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar } from 'lucide-react'
@@ -51,9 +51,10 @@ function thumbSrc(url: string): string {
 }
 
 export default async function HomePage() {
-  const [spotlight, minimumNextBidCents] = await Promise.all([
+  const [spotlight, minimumNextBidCents, newestListing] = await Promise.all([
     getCurrentSpotlight(),
     getMinimumNextBid(),
+    getNewestListing(),
   ])
   const supabase = getSupabase()
 
@@ -295,6 +296,7 @@ export default async function HomePage() {
                   isPaid={spotlight.isPaid}
                   expiresAt={spotlight.expiresAt}
                   minimumNextBidCents={minimumNextBidCents}
+                  newest={newestListing}
                 />
               </div>
             )}
