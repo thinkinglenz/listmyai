@@ -375,6 +375,11 @@ export async function announceToolToSocial(
     })
 
     try {
+      // The card takes several seconds to render the first time (it fetches
+      // the listing's screenshot or video frame). Build it now, so Instagram's
+      // download hits the cached copy instead of timing out on a cold render.
+      await fetch(instagramImageUrl, { signal: AbortSignal.timeout(45_000) }).catch(() => {})
+
       const containerRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

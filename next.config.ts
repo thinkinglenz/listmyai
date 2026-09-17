@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The Instagram card reads these with fs at request time.
+  outputFileTracingIncludes: {
+    '/api/tool-social/[slug]': ['./assets/fonts/**/*'],
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: '**' },
