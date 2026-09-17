@@ -55,6 +55,7 @@ export default function SpotlightBox(props: Props) {
   // component re-checks on mount so a stale cache corrects itself rather than
   // advertising the wrong listing.
   const [live, setLive] = useState<Partial<Props> | null>(null)
+  const [checked, setChecked] = useState(false)
 
   useEffect(() => {
     fetch('/api/spotlight')
@@ -76,6 +77,7 @@ export default function SpotlightBox(props: Props) {
         })
       })
       .catch(() => {})
+      .finally(() => setChecked(true))
   }, [])
 
   const {
@@ -105,20 +107,21 @@ export default function SpotlightBox(props: Props) {
     }
   }, [srcIndex, sources.length])
 
+  // One impression per page view — the usual meaning for an ad. Counting once
+  // per browser session made ten refreshes show as one. Waits for the live
+  // check so a stale cached holder is never credited with a view it did not
+  // get, and the ref stops a re-render from counting the same view twice.
+  const viewCounted = useRef<string | null>(null)
   useEffect(() => {
-    if (!bidId) return
-    const key = `lmai_spotlight_seen_${bidId}`
-    try {
-      if (sessionStorage.getItem(key)) return
-      sessionStorage.setItem(key, '1')
-    } catch { /* private mode — count it rather than lose it */ }
+    if (!checked || !bidId || viewCounted.current === bidId) return
+    viewCounted.current = bidId
 
     fetch('/api/spotlight/impression', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bidId, kind: 'impression' }),
     }).catch(() => {})
-  }, [bidId])
+  }, [bidId, checked])
 
   useEffect(() => {
     if (!expiresAt) return
@@ -126,8 +129,11 @@ export default function SpotlightBox(props: Props) {
     return () => clearInterval(t)
   }, [expiresAt])
 
+  // At most one click per view, so click-through can never exceed 100%.
+  const clickCounted = useRef<string | null>(null)
   function trackClick() {
-    if (!bidId) return
+    if (!bidId || clickCounted.current === bidId) return
+    clickCounted.current = bidId
     fetch('/api/spotlight/impression', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

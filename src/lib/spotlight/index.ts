@@ -1,8 +1,14 @@
 // Homepage spotlight.
 //
-// One tool holds the slot for 24 hours. Anyone can take it by bidding above the
-// current holder. With no live bid, the newest approved listing occupies it for
-// free, so the box is never empty and every new tool gets some exposure.
+// Priority 1: a paid holder keeps the slot for 24 hours.
+// Priority 2: with nobody paying, newly approved listings take turns, oldest
+//             approval first, FREE_TURN_MS each, so every new tool gets its
+//             own time in the box however many are approved in a day.
+// Otherwise:  the most recently featured listing stays, so the box is never
+//             empty.
+//
+// A turn starts the first time the box is served with that tool, so turns are
+// never used up while nobody is looking, and a paid holder pauses the queue.
 
 import { createClient } from '@supabase/supabase-js'
 
@@ -66,36 +72,101 @@ export async function getCurrentSpotlight(): Promise<Spotlight | null> {
     }
   }
 
-  // Free fallback: the listing that most recently went live. Ordering by
-  // created_at meant approving a tool that had waited in the queue never
-  // reached the spotlight, because an older-approved but newer-submitted
-  // listing still sorted first.
+  return freeTurn()
+}
+
+/** How long each newly approved listing holds the free slot. */
+export const FREE_TURN_MS = 6 * 60 * 60 * 1000
+
+// Listings approved before the queue existed are not owed a turn; without a
+// cut-off all 20,000 would line up.
+const QUEUE_SINCE = '2026-09-16T00:00:00Z'
+
+const FREE_COLS = 'id, name, slug, tagline, website, logo_url, cover_url, spotlight_turn_at, categories(name)'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toFree(t: any, turnStartedAt: string | null): Spotlight {
+  const cat = t.categories
+  return {
+    toolId: t.id,
+    name: t.name,
+    slug: t.slug,
+    tagline: t.tagline ?? '',
+    categoryName: (Array.isArray(cat) ? cat[0]?.name : cat?.name) ?? null,
+    logoUrl: t.logo_url || null,
+    website: t.website || null,
+    coverUrl: t.cover_url || null,
+    bidId: null,
+    amountCents: 0,
+    // Shown as a countdown, so visitors see the slot rotate.
+    expiresAt: turnStartedAt ? new Date(new Date(turnStartedAt).getTime() + FREE_TURN_MS).toISOString() : null,
+    isPaid: false,
+  }
+}
+
+async function currentTurn() {
+  const { data } = await supabase
+    .from('ai_tools')
+    .select(FREE_COLS)
+    .eq('status', 'active')
+    .gt('spotlight_turn_at', new Date(Date.now() - FREE_TURN_MS).toISOString())
+    .order('spotlight_turn_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return data
+}
+
+async function freeTurn(): Promise<Spotlight | null> {
+  const live = await currentTurn()
+  if (live) return toFree(live, live.spotlight_turn_at)
+
+  // Next in line: the earliest-approved listing that has not had a turn.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: next } = await supabase
+      .from('ai_tools')
+      .select(FREE_COLS)
+      .eq('status', 'active')
+      .is('spotlight_turn_at', null)
+      .gte('published_at', QUEUE_SINCE)
+      .order('published_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+    if (!next) break
+
+    // Only claims the turn if nobody else did in the meantime; two visitors
+    // arriving together must not start two turns.
+    const startedAt = new Date().toISOString()
+    const { data: claimed } = await supabase
+      .from('ai_tools')
+      .update({ spotlight_turn_at: startedAt })
+      .eq('id', next.id)
+      .is('spotlight_turn_at', null)
+      .select('id')
+    if (claimed?.length) return toFree(next, startedAt)
+
+    const raced = await currentTurn()
+    if (raced) return toFree(raced, raced.spotlight_turn_at)
+  }
+
+  // Queue empty: keep the last featured listing rather than an empty box.
+  const { data: last } = await supabase
+    .from('ai_tools')
+    .select(FREE_COLS)
+    .eq('status', 'active')
+    .not('spotlight_turn_at', 'is', null)
+    .order('spotlight_turn_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (last) return toFree(last, null)
+
   const { data: newest } = await supabase
     .from('ai_tools')
-    .select('id, name, slug, tagline, website, logo_url, cover_url, categories(name)')
+    .select(FREE_COLS)
     .eq('status', 'active')
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(1)
     .maybeSingle()
-
-  if (!newest) return null
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const cat = (newest as any).categories
-  return {
-    toolId: newest.id,
-    name: newest.name,
-    slug: newest.slug,
-    tagline: newest.tagline ?? '',
-    categoryName: (Array.isArray(cat) ? cat[0]?.name : cat?.name) ?? null,
-    logoUrl: newest.logo_url || null,
-    website: newest.website || null,
-    coverUrl: newest.cover_url || null,
-    bidId: null,
-    amountCents: 0,
-    expiresAt: null,
-    isPaid: false,
-  }
+  return newest ? toFree(newest, null) : null
 }
 
 /** The price is flat, so this is always the same figure. */
