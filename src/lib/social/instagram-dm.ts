@@ -78,12 +78,13 @@ export async function toolForMedia(mediaId: string): Promise<Tool | null> {
     tool = data
   }
   if (!tool) {
-    // "🚀 New AI tool alert!\n\nNeverApply — You sleep, the agent applies."
-    const name = caption.match(/^\s*([^\n—–]{2,60}?)\s+[—–]\s/m)?.[1]?.trim()
-    if (name) {
+    // Captions carry a "Name — tagline" line. The headline above it may also
+    // contain a dash, so every such line is tried against real listings.
+    const names = [...caption.matchAll(/^\s*(?:🚀\s*)?([^\n—–]{2,60}?)\s+[—–]\s/gm)].map(m => m[1].trim())
+    for (const name of names) {
       const { data } = await supabase.from('ai_tools').select(TOOL_SELECT)
-        .ilike('name', name).eq('status', 'active').limit(1).maybeSingle()
-      tool = data
+        .ilike('name', name.replace(/[%_\\]/g, c => `\\${c}`)).eq('status', 'active').limit(1).maybeSingle()
+      if (data) { tool = data; break }
     }
   }
 
@@ -106,6 +107,22 @@ function linkButtonMessage(text: string, payload: string) {
         template_type: 'button',
         text: text.slice(0, 640),
         buttons: [{ type: 'postback', title: 'Send me the link', payload }],
+      },
+    },
+  }
+}
+
+const UTM = 'utm_source=instagram&utm_medium=dm&utm_campaign=comment_to_dm'
+
+function linkMessage(text: string, tool: Tool | null) {
+  const url = tool ? `${SITE}/tools/${tool.slug}?${UTM}` : `${SITE}/?${UTM}`
+  return {
+    attachment: {
+      type: 'template',
+      payload: {
+        template_type: 'button',
+        text: text.slice(0, 640),
+        buttons: [{ type: 'web_url', url, title: tool ? `Open ${tool.name}`.slice(0, 20) : 'Open ListmyAI' }],
       },
     },
   }
@@ -144,14 +161,31 @@ export async function handleComment(ev: CommentEvent): Promise<string> {
   const tool = await toolForMedia(ev.mediaId)
   const who = ev.username ? `@${ev.username}` : 'there'
 
-  const text = tool
-    ? `Hey ${who}! 👋 Thanks for commenting. Tap below (or just reply "${tool.name}") and we'll send you the link.`
-    : `Hey ${who}! 👋 Thanks for commenting. Tap below and we'll send you the link.`
+  // Checking whether someone follows the account needs Advanced Access to
+  // instagram_manage_messages ("recipient user does not have role on app"
+  // otherwise), so until Meta grants it every commenter gets the link now,
+  // with a nudge to follow. INSTAGRAM_FOLLOW_GATE=on restores the
+  // tap-to-check flow for followers only.
+  const gated = process.env.INSTAGRAM_FOLLOW_GATE === 'on'
 
   try {
-    await sendMessage({ comment_id: ev.commentId }, linkButtonMessage(text, `${LINK_PAYLOAD}${tool?.slug ?? ''}`))
+    if (gated || !tool) {
+      const text = tool
+        ? `Hey ${who}! 👋 Thanks for commenting. Tap below (or just reply "${tool.name}") and we'll send you the link.`
+        : `Hey ${who}! 👋 Thanks for commenting. Tap below and we'll send you the link.`
+      await sendMessage({ comment_id: ev.commentId }, linkButtonMessage(text, `${LINK_PAYLOAD}${tool?.slug ?? ''}`))
+    } else {
+      await sendMessage({ comment_id: ev.commentId }, linkMessage(
+        `Hey ${who}! 👋 Here's ${tool.name}${tool.tagline ? ` — ${tool.tagline}` : ''}\n\nFollow @listmyai so you never miss a new AI tool 🚀`,
+        tool,
+      ))
+    }
     await supabase.from('instagram_comment_dms')
-      .update({ tool_id: tool?.id ?? null, status: tool ? 'invited' : 'no_tool', updated_at: new Date().toISOString() })
+      .update({
+        tool_id: tool?.id ?? null,
+        status: !tool ? 'no_tool' : gated ? 'invited' : 'link_sent',
+        updated_at: new Date().toISOString(),
+      })
       .eq('comment_id', ev.commentId)
   } catch (e) {
     await supabase.from('instagram_comment_dms')
@@ -166,7 +200,7 @@ export async function handleComment(ev: CommentEvent): Promise<string> {
     body: { message: `Sent to your DMs ${who} 📩` },
   }).catch(() => {})
 
-  return 'invited'
+  return tool && !gated ? 'link sent' : 'invited'
 }
 
 // ── Step 2: they tapped "Send me the link" (or replied in the DM) ──────────
@@ -216,20 +250,12 @@ export async function handleLinkRequest(senderId: string, slug: string | null): 
     return 'asked to follow'
   }
 
-  const utm = 'utm_source=instagram&utm_medium=dm&utm_campaign=comment_to_dm'
-  const url = tool ? `${SITE}/tools/${tool.slug}?${utm}` : `${SITE}/?${utm}`
-  await sendMessage({ id: senderId }, {
-    attachment: {
-      type: 'template',
-      payload: {
-        template_type: 'button',
-        text: tool
-          ? `Here you go! 🚀 ${tool.name}${tool.tagline ? ` — ${tool.tagline}` : ''}`.slice(0, 640)
-          : `Here you go! 🚀 Discover 20,000+ AI tools on ListmyAI.`,
-        buttons: [{ type: 'web_url', url, title: tool ? `Open ${tool.name}`.slice(0, 20) : 'Open ListmyAI' }],
-      },
-    },
-  })
+  await sendMessage({ id: senderId }, linkMessage(
+    tool
+      ? `Here you go! 🚀 ${tool.name}${tool.tagline ? ` — ${tool.tagline}` : ''}`
+      : `Here you go! 🚀 Discover 20,000+ AI tools on ListmyAI.`,
+    tool,
+  ))
   await setStatus('link_sent')
   return 'link sent'
 }

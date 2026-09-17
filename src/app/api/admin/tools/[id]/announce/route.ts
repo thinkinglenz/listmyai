@@ -10,6 +10,9 @@ import { isAdminRequest } from '@/lib/admin-auth'
 import { announceToolToSocial } from '@/lib/social/post'
 import { getSocialHook } from '@/lib/social/hook'
 
+// Five networks, two cold image renders and a Threads processing wait.
+export const maxDuration = 120
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -70,7 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // Stamp only when something actually posted, so a misconfigured token leaves
   // the tool eligible to be announced again once it is fixed.
-  if (result.facebook.ok || result.instagram.ok) {
+  if (result.links.length > 0) {
     await supabase
       .from('ai_tools')
       .update({ announced_at: new Date().toISOString() })

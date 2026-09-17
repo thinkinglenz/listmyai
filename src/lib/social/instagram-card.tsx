@@ -10,10 +10,17 @@ import { PNG } from 'pngjs'
 import jpeg from 'jpeg-js'
 
 const W = 1080
-const H = 1350
-const MEDIA_H = 600
 
-const COMMENT_DM_ON = process.env.NEXT_PUBLIC_INSTAGRAM_COMMENT_DM === 'on'
+// Feed posts are 4:5. Stories are 9:16, and Instagram draws its own header
+// and reply bar over the top and bottom ~250px, so the story layout keeps
+// clear of both.
+const LAYOUT = {
+  post:  { H: 1350, MEDIA_H: 600, padTop: 64,  ctaBottom: 88,  footBottom: 30 },
+  story: { H: 1920, MEDIA_H: 740, padTop: 230, ctaBottom: 300, footBottom: 240 },
+} as const
+export type CardFormat = keyof typeof LAYOUT
+
+import { COMMENT_DM_ON } from './copy'
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
@@ -101,11 +108,12 @@ function fonts() {
   return fontCache
 }
 
-const fullLayer = (background: string) => ({
+const fullLayer = (background: string, H: number) => ({
   position: 'absolute' as const, top: 0, left: 0, width: W, height: H, display: 'flex', background,
 })
 
-export async function renderInstagramCard(tool: CardTool, origin: string): Promise<NextResponse> {
+export async function renderInstagramCard(tool: CardTool, origin: string, format: CardFormat = 'post'): Promise<NextResponse> {
+  const { H, MEDIA_H, padTop, ctaBottom, footBottom } = LAYOUT[format]
   const [media, logo, fontData] = await Promise.all([
     findMedia(tool, origin),
     tool.logoUrl ? imageAsDataUri(tool.logoUrl, 5000) : Promise.resolve(null),
@@ -114,21 +122,20 @@ export async function renderInstagramCard(tool: CardTool, origin: string): Promi
 
   const headline = (tool.hook || tool.name).slice(0, 80)
   const headSize = headline.length > 52 ? 54 : headline.length > 34 ? 64 : 80
-  const dmName = tool.name.length > 20 ? `${tool.name.slice(0, 19)}…` : tool.name
   const letter = tool.name.charAt(0).toUpperCase() || '?'
 
   const png = await new ImageResponse(
     (
       <div style={{
         width: W, height: H, display: 'flex', flexDirection: 'column',
-        padding: '64px 70px 0', fontFamily: 'Inter',
+        padding: `${padTop}px 70px 0`, fontFamily: 'Inter',
         background: 'linear-gradient(165deg, #0b1020 0%, #111a33 45%, #1c1033 100%)',
       }}>
         {/* Full-canvas glows: an off-canvas box gets clamped by Satori and
             shows a straight cut edge. */}
-        <div style={fullLayer('radial-gradient(circle at 900px 260px, rgba(233,69,96,0.45) 0%, rgba(233,69,96,0.12) 20%, rgba(233,69,96,0) 40%)')} />
-        <div style={fullLayer('radial-gradient(circle at 120px 520px, rgba(99,102,241,0.35) 0%, rgba(99,102,241,0) 34%)')} />
-        <div style={fullLayer('radial-gradient(circle at 540px 1350px, rgba(184,52,143,0.35) 0%, rgba(184,52,143,0) 40%)')} />
+        <div style={fullLayer('radial-gradient(circle at 900px 260px, rgba(233,69,96,0.45) 0%, rgba(233,69,96,0.12) 20%, rgba(233,69,96,0) 40%)', H)} />
+        <div style={fullLayer('radial-gradient(circle at 120px 520px, rgba(99,102,241,0.35) 0%, rgba(99,102,241,0) 34%)', H)} />
+        <div style={fullLayer('radial-gradient(circle at 540px 1350px, rgba(184,52,143,0.35) 0%, rgba(184,52,143,0) 40%)', H)} />
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -205,26 +212,29 @@ export async function renderInstagramCard(tool: CardTool, origin: string): Promi
 
         {/* Call to action */}
         <div style={{
-          position: 'absolute', left: 70, right: 70, bottom: 88, height: 108, display: 'flex', alignItems: 'center',
+          position: 'absolute', left: 70, right: 70, bottom: ctaBottom, height: 108, display: 'flex', alignItems: 'center',
           justifyContent: 'center', gap: 16, borderRadius: 30,
           background: 'linear-gradient(90deg, #e94560 0%, #c2338f 55%, #7c3aed 100%)',
           boxShadow: '0 24px 60px -20px rgba(233,69,96,0.7)',
         }}>
           {COMMENT_DM_ON ? (
             <>
-              <div style={{ display: 'flex', fontSize: 38, fontWeight: 600, color: 'white' }}>DM us</div>
+              <div style={{ display: 'flex', fontSize: 38, fontWeight: 600, color: 'white' }}>Comment</div>
               <div style={{
-                display: 'flex', padding: '6px 20px', borderRadius: 14, background: 'white',
-                fontSize: 36, fontWeight: 900, color: '#e94560',
-              }}>{dmName}</div>
-              <div style={{ display: 'flex', fontSize: 38, fontWeight: 600, color: 'white' }}>for the link</div>
+                // Satori does not apply the row gap across a fragment.
+                display: 'flex', padding: '6px 20px', margin: '0 18px', borderRadius: 14, background: 'white',
+                fontSize: 36, fontWeight: 900, color: '#e94560', letterSpacing: 2,
+              }}>LINK</div>
+              <div style={{ display: 'flex', fontSize: 38, fontWeight: 600, color: 'white' }}>
+                {format === 'story' ? 'on our post for the link' : 'to get it in your DMs'}
+              </div>
             </>
           ) : (
             <div style={{ display: 'flex', fontSize: 38, fontWeight: 800, color: 'white' }}>Explore it on listmyai.com  →</div>
           )}
         </div>
         <div style={{
-          position: 'absolute', left: 70, right: 70, bottom: 30, display: 'flex', justifyContent: 'space-between',
+          position: 'absolute', left: 70, right: 70, bottom: footBottom, display: 'flex', justifyContent: 'space-between',
           fontSize: 24, fontWeight: 600, color: '#64748b',
         }}>
           <div style={{ display: 'flex' }}>20,000+ AI tools · listmyai.com</div>

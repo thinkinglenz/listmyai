@@ -997,8 +997,9 @@ export default function AdminListingsPage() {
       if (data.skipped) {
         setAnnounceNote('Approved — already announced earlier, not posted again.')
       } else {
-        const posted = ['facebook', 'instagram'].filter(k => data[k]?.ok)
-        const failed = ['facebook', 'instagram'].filter(k => data[k] && !data[k].ok)
+        const nets = ['facebook', 'instagram', 'instagramStory', 'facebookStory', 'threads']
+        const posted = nets.filter(k => data[k]?.ok)
+        const failed = nets.filter(k => data[k] && !data[k].ok)
         setAnnounceNote(
           posted.length > 0
             ? `Approved and posted to ${posted.join(' + ')}${failed.length ? ` (${failed.join(', ')} failed)` : ''}.`

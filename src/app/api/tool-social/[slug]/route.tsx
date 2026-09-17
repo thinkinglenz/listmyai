@@ -29,7 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
   // `?format=portrait`: 1080x1350, Instagram's tallest feed size. The square
   // card was being posted by hand from a 1200x630 download, which Instagram
   // crops at both sides.
-  const isPortrait = new URL(req.url).searchParams.get('format') === 'portrait'
+  const format = new URL(req.url).searchParams.get('format')
+  const isPortrait = format === 'portrait' || format === 'story'
 
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -101,7 +102,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       slug: tool.slug, name: tool.name ?? '', tagline, category,
       hook: tool.social_hook ?? null, website: tool.website ?? null,
       logoUrl: tool.logo_url ?? null, coverUrl: tool.cover_url ?? null, videoUrl: tool.video_url ?? null,
-    }, new URL(req.url).origin)
+    }, new URL(req.url).origin, format === 'story' ? 'story' : 'post')
   }
 
   const png = await new ImageResponse(

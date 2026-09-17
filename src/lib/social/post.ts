@@ -318,105 +318,145 @@ export interface ToolAnnouncement {
   hook?: string | null
 }
 
+type NetResult = { ok: boolean; id?: string; error?: string; url?: string | null }
+
+async function graphPost(path: string, body: Record<string, unknown>) {
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = await res.json().catch(() => ({}))
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? `HTTP ${res.status}`)
+  return data
+}
+
+async function igPublish(igId: string, token: string, body: Record<string, unknown>): Promise<NetResult> {
+  try {
+    const container = await graphPost(`${igId}/media`, { ...body, access_token: token })
+    const published = await graphPost(`${igId}/media_publish`, { creation_id: container.id, access_token: token })
+    return { ok: true, id: published.id }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
+// Threads accepts clickable links, so its post carries the URL. It needs its
+// own token (Threads use case), read from THREADS_ACCESS_TOKEN.
+async function postToThreads(text: string, imageUrl: string): Promise<NetResult> {
+  const token = process.env.THREADS_ACCESS_TOKEN
+  if (!token) return { ok: false, error: 'THREADS_ACCESS_TOKEN not configured' }
+  const base = 'https://graph.threads.net/v1.0'
+  try {
+    const call = async (path: string, init?: RequestInit) => {
+      const res = await fetch(`${base}/${path}`, init)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await res.json().catch(() => ({}))
+      if (!res.ok || data.error) throw new Error(data.error?.message ?? `HTTP ${res.status}`)
+      return data
+    }
+    const form = (o: Record<string, string>) => ({ method: 'POST', body: new URLSearchParams({ ...o, access_token: token }) })
+    const container = await call('me/threads', form({ media_type: 'IMAGE', image_url: imageUrl, text: text.slice(0, 500) }))
+    // Threads fetches the image asynchronously; publishing before it is
+    // ready fails, so wait for the container to finish.
+    for (let i = 0; i < 10; i++) {
+      const st = await call(`${container.id}?fields=status,error_message&access_token=${token}`)
+      if (st.status === 'FINISHED') break
+      if (st.status === 'ERROR') throw new Error(st.error_message ?? 'Threads could not process the image')
+      await new Promise(r => setTimeout(r, 3000))
+    }
+    const published = await call('me/threads_publish', form({ creation_id: container.id }))
+    const meta = await call(`${published.id}?fields=permalink&access_token=${token}`).catch(() => null)
+    return { ok: true, id: published.id, url: meta?.permalink ?? null }
+  } catch (e) {
+    return { ok: false, error: String(e) }
+  }
+}
+
 /**
- * Announces a newly approved tool on Facebook and Instagram.
- *
- * Facebook gets a link post and scrapes the tool page's own OpenGraph image.
- * Instagram cannot post links at all, so it gets the rendered square card and
- * carries the URL in the caption instead.
+ * Announces a newly approved tool: Facebook post and story, Instagram post
+ * and story, and Threads. Every network gets the designed card; Facebook and
+ * Threads also carry the link, which Instagram cannot make clickable.
+ * Networks are independent: one failing never stops the others.
  */
 export async function announceToolToSocial(
   tool: ToolAnnouncement
 ): Promise<{
-  facebook: { ok: boolean; id?: string; error?: string }
-  instagram: { ok: boolean; id?: string; error?: string }
+  facebook: NetResult
+  instagram: NetResult
+  facebookStory: NetResult
+  instagramStory: NetResult
+  threads: NetResult
   links: { network: string; postId: string; postUrl: string | null }[]
 }> {
   const toolUrl = `https://listmyai.com/tools/${tool.slug}`
-  const imageUrl = `https://listmyai.com/api/tool-social/${tool.slug}`
-  // Instagram gets the portrait card: it fills more of the feed than a square,
-  // and carries the comment call to action when that automation is on.
-  const instagramImageUrl = instagramImagePath(tool.slug, tool.hook, 'https://listmyai.com')
+  const postImage = instagramImagePath(tool.slug, tool.hook, 'https://listmyai.com')
+  const storyImage = postImage.replace('format=portrait', 'format=story')
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
-
   const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
+  const noMeta: NetResult = { ok: false, error: 'Facebook/Instagram env vars not configured' }
 
-  const facebook = await (async () => {
-    if (!pageId || !token) return { ok: false, error: 'Facebook env vars not configured' }
-    const message = [
-      `🚀 New on ListmyAI: ${tool.name}`,
-      '',
-      truncate(tool.tagline, 200),
-      '',
-      `🔗 ${toolUrl}`,
-      '',
-      buildHashtags(tags, 5),
-    ].join('\n')
+  // The cards take seconds to render cold. Build both first so the networks'
+  // downloads hit the cached copies instead of timing out.
+  await Promise.all([postImage, storyImage].map(u =>
+    fetch(u, { signal: AbortSignal.timeout(45_000) }).catch(() => null)))
 
+  const headline = tool.hook ? `${tool.hook} ⚡` : `🚀 New on ListmyAI: ${tool.name}`
+  const fbMessage = [
+    headline, '', `${tool.name} — ${truncate(tool.tagline, 200)}`, '',
+    `👉 ${toolUrl}`, '', buildHashtags(tags, 5),
+  ].join('\n')
+  const threadsText = [
+    headline, '', `${tool.name} — ${truncate(tool.tagline, 180)}`, '', toolUrl,
+  ].join('\n')
+
+  const facebook = (async (): Promise<NetResult> => {
+    if (!pageId || !token) return noMeta
     try {
-      const res = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${pageId}/feed`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, link: toolUrl, access_token: token }),
-      })
-      const data = await res.json()
-      if (!res.ok || data.error) return { ok: false, error: data.error?.message ?? JSON.stringify(data) }
-      return { ok: true, id: data.id }
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
+      // A photo post shows our card; a link post would show whatever image
+      // the tool page's own metadata points at.
+      const r = await graphPost(`${pageId}/photos`, { url: postImage, caption: fbMessage, access_token: token })
+      const postId = r.post_id ?? r.id
+      return { ok: true, id: postId, url: facebookPostUrl(postId) }
+    } catch (e) { return { ok: false, error: String(e) } }
   })()
 
-  const instagram = await (async () => {
-    if (!igId || !token) return { ok: false, error: 'Instagram env vars not configured' }
-    const caption = instagramCaption({
+  const facebookStory = (async (): Promise<NetResult> => {
+    if (!pageId || !token) return noMeta
+    try {
+      const photo = await graphPost(`${pageId}/photos`, { url: storyImage, published: false, access_token: token })
+      const story = await graphPost(`${pageId}/photo_stories`, { photo_id: photo.id, access_token: token })
+      return { ok: true, id: story.post_id ?? photo.id }
+    } catch (e) { return { ok: false, error: String(e) } }
+  })()
+
+  const instagram = !igId || !token ? Promise.resolve(noMeta) : igPublish(igId, token, {
+    image_url: postImage,
+    caption: instagramCaption({
       name: tool.name, tagline: truncate(tool.tagline, 180), hook: tool.hook,
       slug: tool.slug, category: tool.category,
-    })
+    }),
+  })
 
-    try {
-      // The card takes several seconds to render the first time (it fetches
-      // the listing's screenshot or video frame). Build it now, so Instagram's
-      // download hits the cached copy instead of timing out on a cold render.
-      await fetch(instagramImageUrl, { signal: AbortSignal.timeout(45_000) }).catch(() => {})
+  const instagramStory = !igId || !token ? Promise.resolve(noMeta)
+    : igPublish(igId, token, { image_url: storyImage, media_type: 'STORIES' })
 
-      const containerRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: instagramImageUrl, caption, access_token: token }),
-      })
-      const container = await containerRes.json()
-      if (!containerRes.ok || container.error) {
-        return { ok: false, error: container.error?.message ?? JSON.stringify(container) }
-      }
+  const threads = postToThreads(threadsText, postImage)
 
-      const publishRes = await fetch(`https://graph.facebook.com/${GRAPH_API_VERSION}/${igId}/media_publish`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ creation_id: container.id, access_token: token }),
-      })
-      const published = await publishRes.json()
-      if (!publishRes.ok || published.error) {
-        return { ok: false, error: published.error?.message ?? JSON.stringify(published) }
-      }
-      return { ok: true, id: published.id }
-    } catch (e) {
-      return { ok: false, error: String(e) }
-    }
-  })()
+  const [fb, fbs, ig, igs, th] = await Promise.all([facebook, facebookStory, instagram, instagramStory, threads])
 
   // Permalinks, so an owner can open the actual post rather than take our word.
   const links: { network: string; postId: string; postUrl: string | null }[] = []
-  if (facebook.ok && facebook.id) {
-    links.push({ network: 'facebook', postId: facebook.id, postUrl: facebookPostUrl(facebook.id) })
-  }
-  if (instagram.ok && instagram.id && token) {
-    links.push({
-      network: 'instagram',
-      postId: instagram.id,
-      postUrl: await instagramPermalink(instagram.id, token),
-    })
+  if (fb.ok && fb.id) links.push({ network: 'facebook', postId: fb.id, postUrl: fb.url ?? null })
+  if (ig.ok && ig.id && token) links.push({ network: 'instagram', postId: ig.id, postUrl: await instagramPermalink(ig.id, token) })
+  if (igs.ok && igs.id) links.push({ network: 'instagram_story', postId: igs.id, postUrl: null })
+  if (fbs.ok && fbs.id) links.push({ network: 'facebook_story', postId: fbs.id, postUrl: null })
+  if (th.ok && th.id) links.push({ network: 'threads', postId: th.id, postUrl: th.url ?? null })
+
+  for (const [name, r] of Object.entries({ facebook: fb, facebookStory: fbs, instagram: ig, instagramStory: igs, threads: th })) {
+    if (!r.ok) console.warn(`[announce] ${name} failed: ${r.error}`)
   }
 
-  return { facebook, instagram, links }
+  return { facebook: fb, instagram: ig, facebookStory: fbs, instagramStory: igs, threads: th, links }
 }
