@@ -70,12 +70,12 @@ function youtubeId(url: string | null): string | null {
   return m?.[1] ?? null
 }
 
-function hostOf(url: string | null): string {
+export function hostOf(url: string | null): string {
   try { return url ? new URL(url).hostname.replace(/^www\./, '') : 'listmyai.com' } catch { return 'listmyai.com' }
 }
 
 /** Best visual for the listing, and whether it is a video frame. */
-async function findMedia(tool: CardTool, origin: string): Promise<{ uri: string; isVideo: boolean } | null> {
+export async function findMedia(tool: CardTool, origin: string): Promise<{ uri: string; isVideo: boolean } | null> {
   // An admin-chosen cover always wins; the preview route serves it first.
   const preview = `${origin}/api/tools/preview/${tool.slug}`
   if (tool.coverUrl) {
@@ -102,7 +102,7 @@ async function findMedia(tool: CardTool, origin: string): Promise<{ uri: string;
 }
 
 let fontCache: Promise<{ name: string; data: Buffer; weight: 400 | 600 | 800 | 900; style: 'normal' }[]> | null = null
-function fonts() {
+export function fonts() {
   fontCache ??= Promise.all(
     ([400, 600, 800, 900] as const).map(async weight => ({
       name: 'Inter',

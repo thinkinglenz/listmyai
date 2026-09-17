@@ -35,7 +35,7 @@ function timeLeft(expiresAt: string): string {
  * route returns 404 for sites that block bots — so the chain is walked at
  * runtime rather than picked once on the server.
  */
-function imageChain(coverUrl: string | null, website: string | null, slug: string): string[] {
+export function imageChain(coverUrl: string | null, website: string | null, slug: string): string[] {
   const chain: string[] = []
   if (coverUrl) chain.push(coverUrl)
   // The tool's own share image, which most sites publish at 1200x630 and which

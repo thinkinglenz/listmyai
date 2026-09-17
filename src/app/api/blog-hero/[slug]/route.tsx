@@ -8,6 +8,7 @@
 // Deterministic: same slug → same title + same accent → identical PNG every time.
 // Used as hero_image_url for auto-generated posts (admin, blog page, og:image, PNG download).
 import { ImageResponse } from 'next/og'
+import { findMedia, fonts, hostOf, type CardTool } from '@/lib/social/instagram-card'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -48,14 +49,18 @@ export async function GET(
 
   let title = titleFromSlug(slug)
   let tag = 'AI Insights'
+  let tags: string[] = []
+  let relatedIds: string[] = []
   try {
     const { data } = await supabase
       .from('blog_posts')
-      .select('title, tags')
+      .select('title, tags, related_tool_ids')
       .eq('slug', slug)
       .maybeSingle()
     if (data?.title) title = data.title
-    if (Array.isArray(data?.tags) && data.tags[0]) tag = String(data.tags[0])
+    if (Array.isArray(data?.tags)) tags = data.tags.map(String)
+    if (tags[0]) tag = tags[0]
+    if (Array.isArray(data?.related_tool_ids)) relatedIds = data.related_tool_ids.map(String)
   } catch {
     // DB unreachable — render from slug-derived title
   }
@@ -63,48 +68,7 @@ export async function GET(
   const accent = ACCENTS[hashOf(slug) % ACCENTS.length]
   const titleSize = title.length > 70 ? 46 : title.length > 45 ? 54 : 62
 
-  if (isThumb) {
-    // Full-bleed gradient mesh in the post's own accent. No text and no logo:
-    // the card already prints the title, tag and date beneath, and every
-    // element removed from the social card left a hole rather than a design.
-    const W = 1200, H = 630
-    const thumbPng = await new ImageResponse(
-      (
-        <div style={{
-          width: W, height: H, display: 'flex',
-          background: `linear-gradient(135deg, #0d1117 0%, #131c2e 50%, #0d1117 100%)`,
-        }}>
-          {/* Each glow is a full-canvas layer with the gradient positioned
-              inside it. They used to be oversized boxes pushed off the edge,
-              and Satori clamps an absolute child to its parent's size — the
-              gradient kept its original falloff, so it was sliced off in a
-              visible straight line where the shrunken box ended. */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
-            background: `radial-gradient(circle at 260px 200px, ${accent.from}66 0%, ${accent.from}22 16%, ${accent.from}00 36%)`,
-          }} />
-          <div style={{
-            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
-            background: `radial-gradient(circle at 930px 480px, ${accent.to}77 0%, ${accent.to}26 20%, ${accent.to}00 44%)`,
-          }} />
-          <div style={{
-            position: 'absolute', top: 0, left: 0, width: W, height: H, display: 'flex',
-            background: `radial-gradient(circle at 790px 330px, ${accent.from}3a 0%, ${accent.from}00 22%)`,
-          }} />
-          {/* A single hairline keeps it from reading as an unloaded image. */}
-          <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: 5, display: 'flex',
-            background: `linear-gradient(90deg, ${accent.from}, ${accent.to})`,
-          }} />
-        </div>
-      ),
-      { width: W, height: H }
-    ).arrayBuffer()
-
-    return new Response(thumbPng, {
-      headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800, s-maxage=604800' },
-    })
-  }
+  if (isThumb) return thumbnail(slug, title, tags, relatedIds, accent, new URL(req.url).origin)
 
   return new ImageResponse(
     (
@@ -224,4 +188,168 @@ export async function GET(
       },
     }
   )
+}
+
+// The card on /blog prints the title, date and excerpt beneath the image, so
+// the image carries what those cannot: the topic, set large, and a real
+// visual — the first related listing's own site or video — in a browser
+// frame. The card crops to a wide band, so everything sits mid-height.
+async function thumbnail(
+  slug: string, title: string, tagsIn: string[], relatedIds: string[],
+  accent: { from: string; to: string }, origin: string,
+) {
+  const W = 1200, H = 630
+  const lower = title.toLowerCase()
+  // Tags are sometimes stored as slugs ("ai-models"); set them as words.
+  const pretty = (t: string) => /[A-Z]/.test(t) ? t
+    : t.replace(/-/g, ' ').replace(/\b\w+/g, w => (w === 'ai' || w === 'api' || w === 'llm' ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
+  const tags = tagsIn.map(pretty)
+  // The tag that names what the post is about: one the title mentions,
+  // earliest first, short enough to set large.
+  const topic = tags
+    .filter(t => t.length <= 22 && lower.includes(t.toLowerCase()))
+    .sort((a, b) => lower.indexOf(a.toLowerCase()) - lower.indexOf(b.toLowerCase()))[0]
+    ?? tags.find(t => t.length <= 22) ?? 'AI Insights'
+  const second = tags.find(t => t !== topic && t.length <= 20)
+
+  let tool: (CardTool & { id: string }) | null = null
+  type Row = { id: string; slug: string; name: string; tagline: string | null; website: string | null; logo_url: string | null; cover_url: string | null; video_url: string | null }
+  let candidates: Row[] = []
+  if (relatedIds.length) {
+    const { data } = await supabase
+      .from('ai_tools')
+      .select('id, slug, name, tagline, website, logo_url, cover_url, video_url')
+      .in('id', relatedIds.slice(0, 6))
+      .eq('status', 'active')
+    // Keep the post's own order: its first related tool is the most relevant.
+    const rows = (data ?? []).sort((a, b) => relatedIds.indexOf(a.id) - relatedIds.indexOf(b.id))
+    // A tool the title names beats one that is merely related.
+    const named = rows.find(r => lower.includes(r.name.toLowerCase()))
+    candidates = named ? [named, ...rows] : rows
+  }
+  // The title often names a listing the post did not link ("Pion: …",
+  // "Google Launches Gemini 3.8 Live …"). Every 1–4 word run of the title is
+  // tried as an exact name in one query, and the longest match wins.
+  if (!candidates.some(r => lower.includes(r.name.toLowerCase()))) {
+    const words = title.replace(/[:—–,!?'"()]/g, ' ').split(/\s+/).filter(Boolean)
+    const grams = new Set<string>()
+    for (let n = 4; n >= 1; n--) {
+      for (let i = 0; i + n <= words.length; i++) {
+        const g = words.slice(i, i + n).join(' ')
+        if (g.length >= 3 && !/^(the|and|for|with|what|how|why|new|ai|now|can|your|you)$/i.test(g)) grams.add(g)
+      }
+    }
+    const list = [...grams].slice(0, 60)
+    if (list.length) {
+      const or = list.map(g => `name.ilike.${g.replace(/[,()%_\\]/g, ' ').trim()}`).join(',')
+      const { data } = await supabase
+        .from('ai_tools')
+        .select('id, slug, name, tagline, website, logo_url, cover_url, video_url')
+        .eq('status', 'active')
+        .or(or)
+        .limit(20)
+      const best = (data ?? []).sort((x, y) => y.name.length - x.name.length)[0]
+      if (best) candidates = [best, ...candidates]
+    }
+  }
+  {
+    // A named tool is shown even without a website; otherwise prefer one we
+    // can capture.
+    const first = candidates[0]
+    const t = first && lower.includes(first.name.toLowerCase())
+      ? first
+      : candidates.find(r => r.website) ?? first
+    if (t) {
+      tool = {
+        id: t.id, slug: t.slug, name: t.name, tagline: t.tagline ?? '', category: '',
+        hook: null, website: t.website ?? null, logoUrl: t.logo_url ?? null,
+        coverUrl: t.cover_url ?? null, videoUrl: t.video_url ?? null,
+      }
+    }
+  }
+  const [media, fontData] = await Promise.all([tool ? findMedia(tool, origin) : Promise.resolve(null), fonts()])
+  const topicSize = topic.length > 16 ? 70 : topic.length > 10 ? 86 : 104
+  const layer = (background: string) => ({
+    position: 'absolute' as const, top: 0, left: 0, width: W, height: H, display: 'flex', background,
+  })
+  const FW = 560, FH = 380
+
+  const png = await new ImageResponse(
+    (
+      <div style={{
+        width: W, height: H, display: 'flex', alignItems: 'center', padding: '0 64px', gap: 48,
+        fontFamily: 'Inter', background: 'linear-gradient(135deg, #0b1020 0%, #111a33 55%, #160f2a 100%)',
+      }}>
+        <div style={layer(`radial-gradient(circle at 250px 250px, ${accent.from}55 0%, ${accent.from}14 22%, ${accent.from}00 42%)`)} />
+        <div style={layer(`radial-gradient(circle at 950px 420px, ${accent.to}88 0%, ${accent.to}22 24%, ${accent.to}00 46%)`)} />
+        <div style={{ ...layer(`linear-gradient(90deg, ${accent.from}, ${accent.to})`), top: H - 6, height: 6 }} />
+
+        {/* Topic */}
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ display: 'flex' }}>
+            <div style={{
+              display: 'flex', padding: '8px 18px', borderRadius: 999, fontSize: 18, fontWeight: 800,
+              letterSpacing: 3, color: accent.from, background: `${accent.from}1f`, border: `2px solid ${accent.from}66`,
+            }}>LISTMYAI BLOG</div>
+          </div>
+          <div style={{ display: 'flex', marginTop: 26, fontSize: topicSize, fontWeight: 900, color: 'white', lineHeight: 1.02, letterSpacing: -2 }}>
+            {topic}
+          </div>
+          {second && (
+            <div style={{ display: 'flex', marginTop: 14, fontSize: 30, fontWeight: 600, color: '#94a3b8' }}>+ {second}</div>
+          )}
+          {tool && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 34 }}>
+              <div style={{
+                display: 'flex', width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center',
+                background: accent.from, fontSize: 22, fontWeight: 900, color: 'white',
+              }}>{tool.name.charAt(0).toUpperCase()}</div>
+              <div style={{ display: 'flex', fontSize: 22, color: '#cbd5e1' }}>Featuring&nbsp;<span style={{ fontWeight: 800, color: 'white' }}>{tool.name.slice(0, 26)}</span></div>
+            </div>
+          )}
+        </div>
+
+        {/* Visual */}
+        <div style={{
+          display: 'flex', flexDirection: 'column', width: FW + 4, borderRadius: 22, overflow: 'hidden',
+          border: '2px solid rgba(255,255,255,0.14)', background: '#0d1426',
+          boxShadow: `0 30px 70px -25px rgba(0,0,0,0.9), 0 0 60px -20px ${accent.from}88`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', height: 36, padding: '0 14px', gap: 7, background: 'rgba(255,255,255,0.05)' }}>
+            <div style={{ display: 'flex', width: 11, height: 11, borderRadius: 999, background: '#ff5f57' }} />
+            <div style={{ display: 'flex', width: 11, height: 11, borderRadius: 999, background: '#febc2e' }} />
+            <div style={{ display: 'flex', width: 11, height: 11, borderRadius: 999, background: '#28c840' }} />
+            <div style={{ display: 'flex', marginLeft: 12, padding: '3px 14px', borderRadius: 999, fontSize: 14, color: '#94a3b8', background: 'rgba(255,255,255,0.06)' }}>
+              {tool ? hostOf(tool.website) : 'listmyai.com/blog'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', position: 'relative', width: FW, height: FH }}>
+            {media ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={media.uri} width={FW} height={FH} style={{ width: FW, height: FH, objectFit: 'cover' }} />
+            ) : (
+              <div style={{
+                display: 'flex', width: FW, height: FH, alignItems: 'center', justifyContent: 'center',
+                background: `linear-gradient(135deg, ${accent.from} 0%, ${accent.to} 100%)`,
+                fontSize: 150, fontWeight: 900, color: 'rgba(255,255,255,0.9)', letterSpacing: -6,
+              }}>{topic.split(/\s+/).map(w => w[0]).join('').slice(0, 3).toUpperCase()}</div>
+            )}
+            {media?.isVideo && (
+              <div style={{
+                position: 'absolute', top: FH / 2 - 44, left: FW / 2 - 44, width: 88, height: 88, borderRadius: 999,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(233,69,96,0.92)',
+              }}>
+                <svg width="34" height="40" viewBox="0 0 56 64"><polygon points="4,0 56,32 4,64" fill="white" /></svg>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    ),
+    { width: W, height: H, fonts: fontData },
+  ).arrayBuffer()
+
+  return new Response(png, {
+    headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800, s-maxage=604800' },
+  })
 }

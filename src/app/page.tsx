@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import NewsletterSignup from '@/components/NewsletterSignup'
 import SpotlightBox from '@/components/SpotlightBox'
+import NewlyAddedCards, { type NewTool } from '@/components/NewlyAddedCards'
 import { getCurrentSpotlight, getMinimumNextBid } from '@/lib/spotlight'
 import Image from 'next/image'
 import type { Metadata } from 'next'
@@ -52,7 +53,7 @@ function getSupabase() {
  * uploaded or external image) is left untouched.
  */
 function thumbSrc(url: string): string {
-  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb&v=4` : url
+  return url.includes('/api/blog-hero/') ? `${url}${url.includes('?') ? '&' : '?'}variant=thumb&v=5` : url
 }
 
 export default async function HomePage() {
@@ -61,6 +62,26 @@ export default async function HomePage() {
     getMinimumNextBid(),
   ])
   const supabase = getSupabase()
+
+  // Three newest live listings for the boxes under the stats, skipping the
+  // one already filling the spotlight.
+  let newlyAdded: NewTool[] = []
+  if (supabase) {
+    const { data } = await supabase
+      .from('ai_tools')
+      .select('slug, name, tagline, website, logo_url, cover_url, categories(name)')
+      .eq('status', 'active')
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(4)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    newlyAdded = (data ?? []).filter((t: any) => t.slug !== spotlight?.slug).slice(0, 3).map((t: any) => {
+      const cat = Array.isArray(t.categories) ? t.categories[0] : t.categories
+      return {
+        slug: t.slug, name: t.name, tagline: t.tagline ?? '', category: cat?.name ?? null,
+        logoUrl: t.logo_url || null, coverUrl: t.cover_url || null, website: t.website || null,
+      }
+    })
+  }
 
   // ── Fetch real data ─────────────────────────────────────────────────────────
   let categories: Category[] = []
@@ -313,6 +334,8 @@ export default async function HomePage() {
               </div>
             ))}
           </div>
+
+          <NewlyAddedCards tools={newlyAdded} />
         </div>
       </section>
 
