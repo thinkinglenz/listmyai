@@ -55,6 +55,34 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [imageReady, setImageReady] = useState(false)
 
+  // Publish (or retry) straight from here. The route skips every network that
+  // already has a post, so pressing it twice never double-posts.
+  const [publishing, setPublishing] = useState(false)
+  const [publishResult, setPublishResult] = useState<string[] | null>(null)
+  async function publishNow() {
+    setPublishing(true); setPublishResult(null)
+    try {
+      const d = await fetch(`/api/admin/tools/${tool.id}/announce`, { method: 'POST' }).then(r => r.json())
+      if (d.skipped) { setPublishResult([`✓ ${d.reason}`]); return }
+      if (d.error) { setPublishResult([`✗ ${d.error}`]); return }
+      const label: Record<string, string> = {
+        facebook: 'Facebook post', facebookStory: 'Facebook Story', instagram: 'Instagram post',
+        instagramStory: 'Instagram Story', threads: 'Threads',
+      }
+      setPublishResult(Object.entries(label).map(([k, name]) => {
+        const r = d[k]
+        if (!r) return `– ${name}`
+        if (r.ok) return `✓ ${name}`
+        if (r.error === 'already posted') return `✓ ${name} (posted earlier)`
+        return `✗ ${name}: ${r.error}`
+      }))
+    } catch (e) {
+      setPublishResult([`✗ ${String(e)}`])
+    } finally {
+      setPublishing(false)
+    }
+  }
+
   // The Instagram headline, written by the model on first open and stored.
   const [hook, setHook] = useState<string | null>(null)
   const [hookState, setHookState] = useState<'loading' | 'ready' | 'working'>('loading')
@@ -409,6 +437,28 @@ function SocialPostModal({ tool, onClose }: { tool: Tool; onClose: () => void })
         </div>
 
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+
+          {/* Publish to every network from here */}
+          <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.05)' }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-white">Post to social now</p>
+                <p className="text-xs text-slate-400">Facebook post + Story, Instagram post + Story, Threads. Networks that already have this tool are skipped.</p>
+              </div>
+              <button onClick={publishNow} disabled={publishing}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+                style={{ background: '#10b981' }}>
+                {publishing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Posting… (up to a minute)</> : <><Share2 className="h-3.5 w-3.5" /> Post now</>}
+              </button>
+            </div>
+            {publishResult && (
+              <ul className="mt-3 space-y-1 text-xs">
+                {publishResult.map(line => (
+                  <li key={line} className={line.startsWith('✗') ? 'text-red-400' : line.startsWith('✓') ? 'text-emerald-300' : 'text-slate-500'}>{line}</li>
+                ))}
+              </ul>
+            )}
+          </div>
 
           {/* Instagram creative — its own size and call to action */}
           <div className="rounded-xl border p-4" style={{ borderColor: 'rgba(225,48,108,0.35)', background: 'rgba(225,48,108,0.05)' }}>

@@ -335,8 +335,34 @@ async function graphPost(path: string, body: Record<string, unknown>) {
 async function igPublish(igId: string, token: string, body: Record<string, unknown>): Promise<NetResult> {
   try {
     const container = await graphPost(`${igId}/media`, { ...body, access_token: token })
-    const published = await graphPost(`${igId}/media_publish`, { creation_id: container.id, access_token: token })
-    return { ok: true, id: published.id }
+
+    // Instagram downloads and processes the image after the container is
+    // created. Publishing before that finishes fails with "Media ID is not
+    // available", which is why posts were silently missing.
+    for (let i = 0; i < 20; i++) {
+      const res = await fetch(
+        `https://graph.facebook.com/${GRAPH_API_VERSION}/${container.id}?fields=status_code,status&access_token=${token}`,
+      )
+      const st = await res.json().catch(() => ({}))
+      if (st.status_code === 'FINISHED') break
+      if (st.status_code === 'ERROR' || st.status_code === 'EXPIRED') {
+        throw new Error(`Instagram could not process the image: ${st.status ?? st.status_code}`)
+      }
+      await new Promise(r => setTimeout(r, 2000))
+    }
+
+    let lastErr: unknown
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const published = await graphPost(`${igId}/media_publish`, { creation_id: container.id, access_token: token })
+        return { ok: true, id: published.id }
+      } catch (e) {
+        lastErr = e
+        if (!String(e).includes('not available')) break
+        await new Promise(r => setTimeout(r, 4000))
+      }
+    }
+    throw lastErr
   } catch (e) {
     return { ok: false, error: String(e) }
   }
@@ -380,8 +406,11 @@ async function postToThreads(text: string, imageUrl: string): Promise<NetResult>
  * Threads also carry the link, which Instagram cannot make clickable.
  * Networks are independent: one failing never stops the others.
  */
+export type Network = 'facebook' | 'instagram' | 'facebook_story' | 'instagram_story' | 'threads'
+
 export async function announceToolToSocial(
-  tool: ToolAnnouncement
+  tool: ToolAnnouncement,
+  opts: { skip?: Network[] } = {},
 ): Promise<{
   facebook: NetResult
   instagram: NetResult
@@ -399,6 +428,9 @@ export async function announceToolToSocial(
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
   const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
   const noMeta: NetResult = { ok: false, error: 'Facebook/Instagram env vars not configured' }
+  // A retry only fills in what failed last time, so nothing is posted twice.
+  const skip = new Set(opts.skip ?? [])
+  const skipped: NetResult = { ok: false, error: 'already posted' }
 
   // The cards take seconds to render cold. Build both first so the networks'
   // downloads hit the cached copies instead of timing out.
@@ -415,6 +447,7 @@ export async function announceToolToSocial(
   ].join('\n')
 
   const facebook = (async (): Promise<NetResult> => {
+    if (skip.has('facebook')) return skipped
     if (!pageId || !token) return noMeta
     try {
       // A photo post shows our card; a link post would show whatever image
@@ -426,6 +459,7 @@ export async function announceToolToSocial(
   })()
 
   const facebookStory = (async (): Promise<NetResult> => {
+    if (skip.has('facebook_story')) return skipped
     if (!pageId || !token) return noMeta
     try {
       const photo = await graphPost(`${pageId}/photos`, { url: fbStoryImage, published: false, access_token: token })
@@ -434,7 +468,8 @@ export async function announceToolToSocial(
     } catch (e) { return { ok: false, error: String(e) } }
   })()
 
-  const instagram = !igId || !token ? Promise.resolve(noMeta) : igPublish(igId, token, {
+  const instagram = skip.has('instagram') ? Promise.resolve(skipped)
+    : !igId || !token ? Promise.resolve(noMeta) : igPublish(igId, token, {
     image_url: postImage,
     caption: instagramCaption({
       name: tool.name, tagline: truncate(tool.tagline, 180), hook: tool.hook,
@@ -442,10 +477,11 @@ export async function announceToolToSocial(
     }),
   })
 
-  const instagramStory = !igId || !token ? Promise.resolve(noMeta)
+  const instagramStory = skip.has('instagram_story') ? Promise.resolve(skipped)
+    : !igId || !token ? Promise.resolve(noMeta)
     : igPublish(igId, token, { image_url: storyImage, media_type: 'STORIES' })
 
-  const threads = postToThreads(threadsText, fbPostImage)
+  const threads = skip.has('threads') ? Promise.resolve(skipped) : postToThreads(threadsText, fbPostImage)
 
   const [fb, fbs, ig, igs, th] = await Promise.all([facebook, facebookStory, instagram, instagramStory, threads])
 
@@ -458,7 +494,7 @@ export async function announceToolToSocial(
   if (th.ok && th.id) links.push({ network: 'threads', postId: th.id, postUrl: th.url ?? null })
 
   for (const [name, r] of Object.entries({ facebook: fb, facebookStory: fbs, instagram: ig, instagramStory: igs, threads: th })) {
-    if (!r.ok) console.warn(`[announce] ${name} failed: ${r.error}`)
+    if (!r.ok && r !== skipped) console.warn(`[announce] ${name} failed: ${r.error}`)
   }
 
   return { facebook: fb, instagram: ig, facebookStory: fbs, instagramStory: igs, threads: th, links }

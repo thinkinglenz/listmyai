@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
-import { announceToolToSocial } from '@/lib/social/post'
+import { announceToolToSocial, type Network } from '@/lib/social/post'
 import { getSocialHook } from '@/lib/social/hook'
 
 // Five networks, two cold image renders and a Threads processing wait.
@@ -39,9 +39,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Tool is ${tool.status}, not active` }, { status: 400 })
   }
 
-  // Re-approving an already-announced tool must not post it a second time.
-  if (tool.announced_at) {
-    return NextResponse.json({ skipped: true, reason: 'Already announced', announced_at: tool.announced_at })
+  // Only networks without a recorded post are attempted, so re-approving or
+  // retrying never posts the same tool twice, but a network that failed last
+  // time gets another go.
+  const { data: existing } = await supabase
+    .from('tool_social_posts').select('network').eq('tool_id', id)
+  const done = [...new Set((existing ?? []).map(r => r.network))] as Network[]
+  const all: Network[] = ['facebook', 'instagram', 'facebook_story', 'instagram_story',
+    ...(process.env.THREADS_ACCESS_TOKEN ? ['threads' as Network] : [])]
+  if (all.every(n => done.includes(n))) {
+    return NextResponse.json({ skipped: true, reason: 'Already posted everywhere', announced_at: tool.announced_at })
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -56,7 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     slug: tool.slug,
     tagline: tool.tagline || tool.description || '',
     category: (Array.isArray(catRel) ? catRel[0]?.name : catRel?.name) ?? undefined,
-  })
+  }, { skip: done })
 
   // Record what was posted where, so the owner can see it in their dashboard.
   if (result.links.length > 0) {
