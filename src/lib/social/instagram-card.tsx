@@ -20,6 +20,12 @@ const LAYOUT = {
 } as const
 export type CardFormat = keyof typeof LAYOUT
 
+/**
+ * What the button says. Only Instagram has the comment-to-DM flow;
+ * Facebook and Threads carry a clickable link in the post text instead.
+ */
+export type CardCta = 'comment' | 'caption' | 'site'
+
 import { COMMENT_DM_ON } from './copy'
 
 const BROWSER_UA =
@@ -112,7 +118,7 @@ const fullLayer = (background: string, H: number) => ({
   position: 'absolute' as const, top: 0, left: 0, width: W, height: H, display: 'flex', background,
 })
 
-export async function renderInstagramCard(tool: CardTool, origin: string, format: CardFormat = 'post'): Promise<NextResponse> {
+export async function renderInstagramCard(tool: CardTool, origin: string, format: CardFormat = 'post', cta: CardCta = 'comment'): Promise<NextResponse> {
   const { H, MEDIA_H, padTop, ctaBottom, footBottom } = LAYOUT[format]
   const [media, logo, fontData] = await Promise.all([
     findMedia(tool, origin),
@@ -217,7 +223,9 @@ export async function renderInstagramCard(tool: CardTool, origin: string, format
           background: 'linear-gradient(90deg, #e94560 0%, #c2338f 55%, #7c3aed 100%)',
           boxShadow: '0 24px 60px -20px rgba(233,69,96,0.7)',
         }}>
-          {COMMENT_DM_ON ? (
+          {cta === 'caption' ? (
+            <div style={{ display: 'flex', fontSize: 38, fontWeight: 800, color: 'white' }}>Tap the link in the post  ↑</div>
+          ) : cta === 'comment' && COMMENT_DM_ON ? (
             <>
               <div style={{ display: 'flex', fontSize: 38, fontWeight: 600, color: 'white' }}>Comment</div>
               <div style={{

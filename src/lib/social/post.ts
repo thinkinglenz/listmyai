@@ -391,15 +391,18 @@ export async function announceToolToSocial(
   links: { network: string; postId: string; postUrl: string | null }[]
 }> {
   const toolUrl = `https://listmyai.com/tools/${tool.slug}`
+  // One card design, with the button wording each network can deliver on.
   const postImage = instagramImagePath(tool.slug, tool.hook, 'https://listmyai.com')
   const storyImage = postImage.replace('format=portrait', 'format=story')
+  const fbPostImage = `${postImage}&cta=caption`
+  const fbStoryImage = `${storyImage}&cta=site`
   const tags = [tool.category, 'AI', 'AITools', 'ArtificialIntelligence'].filter(Boolean) as string[]
   const { FACEBOOK_PAGE_ID: pageId, FACEBOOK_PAGE_ACCESS_TOKEN: token, INSTAGRAM_BUSINESS_ID: igId } = process.env
   const noMeta: NetResult = { ok: false, error: 'Facebook/Instagram env vars not configured' }
 
   // The cards take seconds to render cold. Build both first so the networks'
   // downloads hit the cached copies instead of timing out.
-  await Promise.all([postImage, storyImage].map(u =>
+  await Promise.all([postImage, storyImage, fbPostImage, fbStoryImage].map(u =>
     fetch(u, { signal: AbortSignal.timeout(45_000) }).catch(() => null)))
 
   const headline = tool.hook ? `${tool.hook} ⚡` : `🚀 New on ListmyAI: ${tool.name}`
@@ -416,7 +419,7 @@ export async function announceToolToSocial(
     try {
       // A photo post shows our card; a link post would show whatever image
       // the tool page's own metadata points at.
-      const r = await graphPost(`${pageId}/photos`, { url: postImage, caption: fbMessage, access_token: token })
+      const r = await graphPost(`${pageId}/photos`, { url: fbPostImage, caption: fbMessage, access_token: token })
       const postId = r.post_id ?? r.id
       return { ok: true, id: postId, url: facebookPostUrl(postId) }
     } catch (e) { return { ok: false, error: String(e) } }
@@ -425,7 +428,7 @@ export async function announceToolToSocial(
   const facebookStory = (async (): Promise<NetResult> => {
     if (!pageId || !token) return noMeta
     try {
-      const photo = await graphPost(`${pageId}/photos`, { url: storyImage, published: false, access_token: token })
+      const photo = await graphPost(`${pageId}/photos`, { url: fbStoryImage, published: false, access_token: token })
       const story = await graphPost(`${pageId}/photo_stories`, { photo_id: photo.id, access_token: token })
       return { ok: true, id: story.post_id ?? photo.id }
     } catch (e) { return { ok: false, error: String(e) } }
@@ -442,7 +445,7 @@ export async function announceToolToSocial(
   const instagramStory = !igId || !token ? Promise.resolve(noMeta)
     : igPublish(igId, token, { image_url: storyImage, media_type: 'STORIES' })
 
-  const threads = postToThreads(threadsText, postImage)
+  const threads = postToThreads(threadsText, fbPostImage)
 
   const [fb, fbs, ig, igs, th] = await Promise.all([facebook, facebookStory, instagram, instagramStory, threads])
 

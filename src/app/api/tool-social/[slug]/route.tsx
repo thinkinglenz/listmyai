@@ -102,7 +102,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
       slug: tool.slug, name: tool.name ?? '', tagline, category,
       hook: tool.social_hook ?? null, website: tool.website ?? null,
       logoUrl: tool.logo_url ?? null, coverUrl: tool.cover_url ?? null, videoUrl: tool.video_url ?? null,
-    }, new URL(req.url).origin, format === 'story' ? 'story' : 'post')
+    }, new URL(req.url).origin, format === 'story' ? 'story' : 'post', ctaParam(new URL(req.url).searchParams.get('cta')))
   }
 
   const png = await new ImageResponse(
@@ -192,3 +192,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 // Instagram shows the whole 4:5 post in the feed but crops the profile grid
 // to 3:4, which trims about 35px from each side, so nothing important sits
 // within 80px of the left or right edge.
+
+function ctaParam(v: string | null): 'comment' | 'caption' | 'site' {
+  return v === 'caption' || v === 'site' ? v : 'comment'
+}
