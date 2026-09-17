@@ -14,7 +14,12 @@ export const metadata: Metadata = {
     description: 'Fresh AI news, deep-dives, and tutorials — published daily.',
     url: 'https://listmyai.com/blog',
   },
-  alternates: { canonical: 'https://listmyai.com/blog' },
+  alternates: {
+    canonical: 'https://listmyai.com/blog',
+    // A page's alternates replace the layout's, so the feed link is repeated
+    // here or readers cannot discover it.
+    types: { 'application/rss+xml': 'https://listmyai.com/rss.xml' },
+  },
 }
 
 const supabase = createClient(

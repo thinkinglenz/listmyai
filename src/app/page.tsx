@@ -31,7 +31,12 @@ export const metadata: Metadata = {
     description: 'Discover, compare, and save on 19,000+ AI tools. Free trials, promo codes, and exclusive deals on the best AI software.',
     url: 'https://listmyai.com',
   },
-  alternates: { canonical: 'https://listmyai.com' },
+  alternates: {
+    canonical: 'https://listmyai.com',
+    // A page's alternates replace the layout's, so the feed link is repeated
+    // here or readers cannot discover it.
+    types: { 'application/rss+xml': 'https://listmyai.com/rss.xml' },
+  },
 }
 
 function getSupabase() {
