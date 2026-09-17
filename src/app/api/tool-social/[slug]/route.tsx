@@ -233,12 +233,13 @@ async function portraitCard(name: string, tagline: string, category: string, hoo
               {name.charAt(0).toUpperCase() || '?'}
             </div>
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ display: 'flex', fontSize: 46, fontWeight: 800, color: 'white' }}>{name.slice(0, 32)}</div>
-              <div style={{ display: 'flex', marginTop: 6, fontSize: 28, color: '#ff6b85', fontWeight: 600 }}>{category}</div>
+              {/* Without a headline the name is already the headline above. */}
+              {hook && <div style={{ display: 'flex', fontSize: 46, fontWeight: 800, color: 'white' }}>{name.slice(0, 32)}</div>}
+              <div style={{ display: 'flex', marginTop: hook ? 6 : 0, fontSize: hook ? 28 : 36, color: '#ff6b85', fontWeight: 600 }}>{category}</div>
             </div>
           </div>
 
-          {hook && tagline && (
+          {tagline && (
             <div style={{ display: 'flex', marginTop: 34, fontSize: 36, color: '#a5b4c8', lineHeight: 1.4 }}>
               {tagline.slice(0, 110)}
             </div>
