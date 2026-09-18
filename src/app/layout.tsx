@@ -70,8 +70,11 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} h-full`}>
+    <html lang="en" className={`${inter.variable} h-full`} data-theme="dark" suppressHydrationWarning>
       <head>
+        {/* Applies the saved theme before first paint, so a light-mode visitor
+            never sees a dark flash. Dark is the default. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('lmai_theme');if(t!=='light')t='dark';var d=document.documentElement;d.dataset.theme=t;d.style.colorScheme=t}catch(e){}` }} />
         <link rel="preconnect" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
         <link rel="dns-prefetch" href={process.env.NEXT_PUBLIC_SUPABASE_URL} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />

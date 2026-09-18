@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sparkles, Menu, X, Search, Plus, ShieldCheck, LogOut, User, LayoutDashboard } from 'lucide-react'
+import ThemeToggle from '@/components/layout/ThemeToggle'
 import { useAuth } from '@/components/AuthProvider'
 
 const SESSION_KEY = 'lmai_admin_auth'
@@ -71,6 +72,7 @@ export default function Navbar() {
 
         {/* Desktop actions */}
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <Link href="/directory"
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-slate-300 transition hover:bg-white/5 hover:text-white">
             <Search className="h-4 w-4" />
@@ -150,10 +152,13 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Mobile toggle */}
+        {/* Mobile: theme switch stays visible next to the menu button */}
+        <div className="flex items-center gap-1 md:hidden">
+          <ThemeToggle />
         <button onClick={() => setOpen(o => !o)} className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-white md:hidden">
           {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
+        </div>
       </nav>
 
       {/* Mobile menu */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import StatsOverview from '@/components/admin/StatsOverview'
+import ThemeToggleStats from '@/components/admin/ThemeToggleStats'
 import Link from 'next/link'
 import {
   BarChart3, Users, List, Shield, TrendingUp,
@@ -91,6 +92,10 @@ export default function AdminOverviewPage() {
       {/* Spotlight + marketing + listing breakdown */}
       <div className="mb-8">
         <StatsOverview />
+      </div>
+
+      <div className="mb-6">
+        <ThemeToggleStats />
       </div>
 
       {/* Stats grid */}
