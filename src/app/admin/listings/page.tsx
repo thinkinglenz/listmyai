@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone, Pencil } from 'lucide-react'
 import Link from 'next/link'
-import EditToolModal from '@/components/admin/EditToolModal'
 import { COMMENT_DM_ON, instagramCaption, instagramImagePath } from '@/lib/social/copy'
 
 const LinkedInIcon = () => (
@@ -604,7 +603,6 @@ export default function AdminListingsPage() {
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [socialTool, setSocialTool] = useState<Tool | null>(null)
-  const [editingTool, setEditingTool] = useState<Tool | null>(null)
   const [sort, setSort] = useState<string>('added')
   const [sortAsc, setSortAsc] = useState(false)
   const [announcing, setAnnouncing] = useState<string | null>(null)
@@ -892,17 +890,6 @@ export default function AdminListingsPage() {
         <SocialPostModal tool={socialTool} onClose={() => setSocialTool(null)} />
       )}
 
-      {editingTool && (
-        <EditToolModal
-          tool={editingTool}
-          categories={categories}
-          onClose={() => setEditingTool(null)}
-          onSave={() => {
-            setEditingTool(null)
-            loadTools(page)
-          }}
-        />
-      )}
 
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
@@ -1055,15 +1042,12 @@ export default function AdminListingsPage() {
                                 <Eye className="h-3.5 w-3.5" />
                               </a>
                             )}
-                            {/* Edit button - opens modal */}
-                            <button onClick={() => setEditingTool(tool)} title="Quick edit"
+                            {/* One edit button, opening the full editor: two
+                                of them, where the obvious one held six fields,
+                                just looked like the rest had gone missing. */}
+                            <Link href={`/admin/tools/${tool.id}/edit`} title="Edit listing"
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-blue-500/10 hover:text-blue-400">
                               <Pencil className="h-3.5 w-3.5" />
-                            </button>
-                            {/* Full edit page link */}
-                            <Link href={`/admin/tools/${tool.id}/edit`} title="Full edit page"
-                              className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-500/10 hover:text-slate-300">
-                              <ExternalLink className="h-3.5 w-3.5" />
                             </Link>
                             {/* Share buttons */}
                             {tool.status === 'active' && tool.slug && (
