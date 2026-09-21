@@ -89,13 +89,15 @@ export default function AdminOverviewPage() {
         <p className="text-sm text-slate-500">Welcome back. Here&apos;s what&apos;s happening on ListmyAI.</p>
       </div>
 
+      {/* Small and near the top: the spotlight tables below are long, and this
+          card was ending up past all of them. */}
+      <div className="mb-6">
+        <ThemeToggleStats />
+      </div>
+
       {/* Spotlight + marketing + listing breakdown */}
       <div className="mb-8">
         <StatsOverview />
-      </div>
-
-      <div className="mb-6">
-        <ThemeToggleStats />
       </div>
 
       {/* Stats grid */}

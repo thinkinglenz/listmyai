@@ -1,375 +1,173 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+// The admin's full editor. It shows exactly the fields a listing owner sees
+// (shared component), plus the controls only an admin has: status, category,
+// featured/sponsored flags, and the listing's live numbers.
+
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
-import { createClient } from '@supabase/supabase-js'
+import Link from 'next/link'
+import { ArrowLeft, Save, CheckCircle2, ExternalLink, ShieldCheck, Loader2 } from 'lucide-react'
+import ListingFields, { Field, Section, Toggle, inputCls, selectStyle } from '@/components/listing/ListingFields'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+interface Category { id: number; name: string }
 
-// The shape this form works with. It is NOT the ai_tools row: the table
-// stores rating_avg and created_at, and the category arrives as a joined
-// object. normaliseTool() below is the only place that translates.
-interface Tool {
-  id: string
-  name: string
-  slug: string
-  tagline: string
-  description: string
-  website: string
-  logo_url: string
-  category_id: string
-  category: string
-  status: 'active' | 'pending' | 'rejected' | 'inactive'
-  pricing_model: string
-  upvotes: number
-  rating: number
-  added: string
-}
+const STATUSES = ['active', 'pending', 'rejected', 'inactive'] as const
 
-// Supabase hands back `any`, so nothing here is checked at compile time —
-// every field has to be defended at runtime. Nulls become empty strings
-// because these all feed controlled inputs, which must never see null.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function normaliseTool(row: any): Tool {
-  const cat = Array.isArray(row.categories) ? row.categories[0] : row.categories
-  return {
-    id: row.id,
-    name: row.name ?? '',
-    slug: row.slug ?? '',
-    tagline: row.tagline ?? '',
-    description: row.description ?? '',
-    website: row.website ?? '',
-    logo_url: row.logo_url ?? '',
-    category_id: row.category_id ?? '',
-    category: cat?.name ?? '',
-    status: row.status ?? 'pending',
-    pricing_model: row.pricing_model ?? 'free',
-    upvotes: Number(row.upvotes ?? 0),
-    rating: Number(row.rating_avg ?? 0),
-    added: row.created_at ?? '',
-  }
-}
-
-interface Category {
-  id: string
-  name: string
-  slug: string
-}
-
-export default function EditToolPage() {
+export default function AdminEditToolPage() {
   const router = useRouter()
-  const params = useParams()
-  const toolId = params.id as string
+  const toolId = useParams().id as string
 
-  const [tool, setTool] = useState<Tool | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [tool, setTool] = useState<any>(null)
   const [categories, setCategories] = useState<Category[]>([])
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        // Fetch tool
-        const { data: toolData, error: toolError } = await supabase
-          .from('ai_tools')
-          .select('*, categories(name)')
-          .eq('id', toolId)
-          .single()
-
-        if (toolError) throw toolError
-        setTool(normaliseTool(toolData))
-
-        // Fetch categories
-        const { data: catData, error: catError } = await supabase
-          .from('categories')
-          .select('*')
-          .order('name')
-
-        if (catError) throw catError
-        setCategories(catData || [])
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load tool')
-      } finally {
-        setLoading(false)
-      }
+  const load = useCallback(async () => {
+    try {
+      const [toolRes, catRes] = await Promise.all([
+        fetch(`/api/admin/tools/${toolId}`).then(r => r.json()),
+        fetch('/api/admin/categories').then(r => r.ok ? r.json() : { categories: [] }).catch(() => ({ categories: [] })),
+      ])
+      if (toolRes.error) setError(toolRes.error)
+      else setTool(toolRes.tool)
+      // The categories endpoint returns { data }.
+      setCategories(catRes.data ?? catRes.categories ?? [])
+    } catch (e) {
+      setError(String(e))
     }
-
-    loadData()
+    setLoading(false)
   }, [toolId])
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    if (!tool) return
-    const { name, value } = e.target
-    setTool(prev => prev ? { ...prev, [name]: value } : null)
+  useEffect(() => { load() }, [load])
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function set(key: string, value: any) {
+    setTool((t: Record<string, unknown>) => ({ ...t, [key]: value }))
   }
 
-  const handleSave = async () => {
-    if (!tool) return
-    setSaving(true)
-    setError(null)
-    setSuccess(false)
-
+  async function save() {
+    setSaving(true); setError(''); setSaved(false)
     try {
-      const res = await fetch(`/api/admin/tools/${tool.id}`, {
+      // Columns the admin API will not accept (counts, ownership, timestamps)
+      // are dropped rather than sent and rejected.
+      const {
+        id, slug, created_at, updated_at, published_at, announced_at, categories: _cat,
+        claimed, claimed_by, claimed_by_email, submitted_by, owner_id, listing_free_until,
+        listing_plan, view_count, click_count, upvotes, rating_avg, rating_count,
+        social_hook, spotlight_turn_at, is_auto_enrolled, ...fields
+      } = tool
+      void slug; void created_at; void updated_at; void published_at; void announced_at
+      void _cat; void claimed; void claimed_by; void claimed_by_email; void submitted_by
+      void owner_id; void listing_free_until; void listing_plan; void view_count
+      void click_count; void upvotes; void rating_avg; void rating_count; void social_hook
+      void spotlight_turn_at; void is_auto_enrolled
+
+      const res = await fetch('/api/admin/listings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: tool.name,
-          tagline: tool.tagline,
-          description: tool.description,
-          website: tool.website,
-          logo_url: tool.logo_url,
-          category_id: tool.category_id,
-          status: tool.status,
-          pricing_model: tool.pricing_model,
-        }),
+        body: JSON.stringify({ id, ...fields }),
       })
-
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error || 'Failed to save tool')
-      }
-
-      setSuccess(true)
-      setTimeout(() => router.push('/admin/listings'), 1500)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
-    } finally {
-      setSaving(false)
+      const data = await res.json()
+      if (!res.ok || data.error) setError(data.error ?? `Save failed (${res.status})`)
+      else { setSaved(true); setTimeout(() => setSaved(false), 4000) }
+    } catch (e) {
+      setError(String(e))
     }
+    setSaving(false)
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-      </div>
-    )
+    return <div className="flex min-h-[60vh] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-slate-500" /></div>
   }
-
   if (!tool) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-        <p className="text-slate-400">Tool not found</p>
-        <button onClick={() => router.push('/admin/listings')} className="text-sm text-red-400 hover:text-red-300">
-          Back to listings
-        </button>
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
+        <p className="text-slate-400">{error || 'Tool not found'}</p>
+        <button onClick={() => router.push('/admin/listings')} className="text-sm" style={{ color: '#e94560' }}>Back to listings</button>
       </div>
     )
   }
 
+  const stats: [string, string | number][] = [
+    ['Views', (tool.view_count ?? 0).toLocaleString()],
+    ['Clicks', (tool.click_count ?? 0).toLocaleString()],
+    ['Upvotes', (tool.upvotes ?? 0).toLocaleString()],
+    ['Rating', tool.rating_count ? `${Number(tool.rating_avg ?? 0).toFixed(1)} (${tool.rating_count})` : '—'],
+    ['Added', tool.created_at ? new Date(tool.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'],
+    ['Claimed by', tool.claimed_by_email ?? (tool.claimed ? 'Claimed' : 'Unclaimed')],
+  ]
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 to-slate-900 p-6">
-      {/* Header */}
-      <div className="mb-8 flex items-center gap-4">
-        <button
-          onClick={() => router.push('/admin/listings')}
-          className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-white/10 transition"
-        >
-          <ArrowLeft className="h-5 w-5 text-slate-400" />
-        </button>
-        <div>
-          <h1 className="text-2xl font-bold text-white">Edit Tool</h1>
-          <p className="text-sm text-slate-400">{tool.name}</p>
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Link href="/admin/listings" className="flex items-center gap-1 text-sm text-slate-500 transition hover:text-white">
+            <ArrowLeft className="h-4 w-4" /> Listings
+          </Link>
+          <span className="text-slate-600">/</span>
+          <h1 className="text-lg font-bold text-white">Edit: {tool.name}</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          {tool.slug && (
+            <a href={`/tools/${tool.slug}`} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-lg border px-3 py-2 text-xs text-slate-300 transition hover:bg-white/5" style={{ borderColor: '#1e2a3a' }}>
+              <ExternalLink className="h-3.5 w-3.5" /> View
+            </a>
+          )}
+          <button onClick={save} disabled={saving}
+            className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+            style={{ background: '#e94560' }}>
+            {saving ? 'Saving…' : saved ? <><CheckCircle2 className="h-4 w-4" /> Saved</> : <><Save className="h-4 w-4" /> Save Changes</>}
+          </button>
         </div>
       </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-red-400 text-sm">
-          {error}
-        </div>
-      )}
-      {success && (
-        <div className="mb-6 rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3 text-green-400 text-sm">
-          Saved successfully! Redirecting...
-        </div>
-      )}
+      {error && <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">{error}</p>}
+      {saved && <p className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">Saved. The listing rebuilds within a minute.</p>}
 
-      {/* Form */}
-      <div className="max-w-3xl space-y-6">
-        {/* Basic Info */}
-        <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: 'rgba(15, 23, 42, 0.5)' }}>
-          <h2 className="mb-4 text-lg font-bold text-white">Basic Information</h2>
-          <div className="space-y-4">
-            {/* Name */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={tool.name}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              />
-            </div>
-
-            {/* Tagline */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Tagline</label>
-              <input
-                type="text"
-                name="tagline"
-                value={tool.tagline}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              />
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Description</label>
-              <textarea
-                name="description"
-                value={tool.description}
-                onChange={handleChange}
-                rows={4}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 resize-none"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* URLs & Media */}
-        <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: 'rgba(15, 23, 42, 0.5)' }}>
-          <h2 className="mb-4 text-lg font-bold text-white">URLs & Media</h2>
-          <div className="space-y-4">
-            {/* Website */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Website</label>
-              <input
-                type="url"
-                name="website"
-                value={tool.website}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              />
-            </div>
-
-            {/* Logo URL */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Logo URL</label>
-              <input
-                type="url"
-                name="logo_url"
-                value={tool.logo_url}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              />
-              {tool.logo_url && (
-                <img src={tool.logo_url} alt={tool.name} className="mt-3 h-12 w-12 rounded-lg border" style={{ borderColor: '#1e2a3a' }} />
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Classification */}
-        <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: 'rgba(15, 23, 42, 0.5)' }}>
-          <h2 className="mb-4 text-lg font-bold text-white">Classification</h2>
+      <ListingFields tool={tool} set={set}>
+        <Section icon={<ShieldCheck className="h-4 w-4" style={{ color: '#e94560' }} />} title="Admin controls" desc="Only visible here, never to the owner">
           <div className="grid gap-4 sm:grid-cols-2">
-            {/* Category */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Category</label>
-              <select
-                name="category_id"
-                value={tool.category_id}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              >
-                <option value="">Select a category</option>
-                {categories.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
+            <Field label="Status">
+              <select value={tool.status ?? 'pending'} onChange={e => set('status', e.target.value)}
+                className={`${inputCls} cursor-pointer`} style={selectStyle}>
+                {STATUSES.map(s => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
               </select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Status</label>
-              <select
-                name="status"
-                value={tool.status}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              >
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="rejected">Rejected</option>
-                <option value="inactive">Inactive</option>
+            </Field>
+            <Field label="Category">
+              <select value={tool.category_id ?? ''} onChange={e => set('category_id', e.target.value ? Number(e.target.value) : null)}
+                className={`${inputCls} cursor-pointer`} style={selectStyle}>
+                <option value="">-- Select --</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-            </div>
-
-            {/* Pricing Model */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 uppercase mb-2">Pricing Model</label>
-              <select
-                name="pricing_model"
-                value={tool.pricing_model}
-                onChange={handleChange}
-                className="w-full rounded-lg border bg-white/5 px-4 py-2 text-white focus:outline-none focus:ring-2"
-                style={{ borderColor: '#1e2a3a', '--tw-ring-color': '#e94560' } as React.CSSProperties}
-              >
-                <option value="free">Free</option>
-                <option value="freemium">Freemium</option>
-                <option value="paid">Paid</option>
-                <option value="subscription">Subscription</option>
-              </select>
-            </div>
+            </Field>
           </div>
-        </div>
-
-        {/* Stats (Read-only) */}
-        <div className="rounded-2xl border p-6" style={{ borderColor: '#1e2a3a', background: 'rgba(15, 23, 42, 0.5)' }}>
-          <h2 className="mb-4 text-lg font-bold text-white">Stats</h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Upvotes</p>
-              <p className="text-2xl font-bold text-white">{tool.upvotes}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Rating</p>
-              <p className="text-2xl font-bold text-white">{tool.rating.toFixed(1)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">Added</p>
-              <p className="text-sm text-slate-300">
-                {tool.added ? new Date(tool.added).toLocaleDateString() : '—'}
-              </p>
-            </div>
+          <div className="flex flex-wrap gap-3">
+            <Toggle checked={tool.is_featured ?? false} onChange={v => set('is_featured', v)} label="Featured" />
+            <Toggle checked={tool.is_sponsored ?? false} onChange={v => set('is_sponsored', v)} label="Sponsored" />
           </div>
-        </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {stats.map(([label, value]) => (
+              <div key={label} className="rounded-xl p-3" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                <p className="text-[11px] uppercase tracking-wider text-slate-500">{label}</p>
+                <p className="mt-0.5 truncate text-sm font-bold text-white">{value}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+      </ListingFields>
 
-        {/* Actions */}
-        <div className="flex gap-3">
-          <button
-            onClick={() => router.push('/admin/listings')}
-            className="flex-1 rounded-lg px-4 py-3 text-sm font-semibold text-slate-400 hover:bg-white/10 hover:text-white transition"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 rounded-lg px-4 py-3 text-sm font-semibold text-white transition disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{ background: '#e94560' }}
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Save All Changes
-          </button>
-        </div>
+      <div className="flex justify-end gap-3 py-6">
+        <Link href="/admin/listings" className="rounded-xl border px-5 py-3 text-sm text-slate-300 transition hover:text-white" style={{ borderColor: '#1e2a3a' }}>Cancel</Link>
+        <button onClick={save} disabled={saving}
+          className="flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
+          style={{ background: '#e94560' }}>
+          {saving ? 'Saving…' : <><Save className="h-4 w-4" /> Save Changes</>}
+        </button>
       </div>
     </div>
   )

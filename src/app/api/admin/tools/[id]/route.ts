@@ -50,3 +50,19 @@ export async function PATCH(
 
   return NextResponse.json({ ...data, _owner_notified: notified?.ok ?? false })
 }
+
+/** The whole listing, for the admin's full edit page. */
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  if (!isAdminRequest(req)) {
+    return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+  }
+  const { id } = await params
+  const { data, error } = await supabase
+    .from('ai_tools')
+    .select('*, categories(id, name)')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Tool not found' }, { status: 404 })
+  return NextResponse.json({ tool: data })
+}
