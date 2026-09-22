@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import PromotePanel from '@/components/dashboard/PromotePanel'
 import SpotlightPanel from '@/components/dashboard/SpotlightPanel'
 import PromotionPanel from '@/components/dashboard/PromotionPanel'
 import { useState, useEffect } from 'react'
@@ -258,6 +259,8 @@ export default function DashboardPage() {
             {tab === 'overview' && (
               <div className="space-y-8">
                 <SpotlightPanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
+
+                <PromotePanel listings={listings.map(l => ({ id: l.id, name: l.name }))} />
 
                 <PromotionPanel />
 

@@ -27,14 +27,14 @@ export default function AdvertiseTopBar() {
       style={{
         background: 'linear-gradient(90deg,#e94560 0%,#f59e0b 100%)',
       }}>
-      <Link href="/advertise"
+      <Link href="/pricing"
         className="group flex items-center justify-center gap-2 px-12 py-2 text-center text-xs font-bold text-white transition hover:opacity-95 sm:text-sm">
         <Megaphone className="h-3.5 w-3.5 shrink-0" />
         <span className="hidden sm:inline">
-          Advertise on ListmyAI — reach 50,000+ AI buyers monthly · Sponsorships, banners & newsletter spots
+          Promote your AI tool — launch packages, sponsored reviews & homepage spotlight
         </span>
         <span className="inline sm:hidden">
-          Advertise on ListmyAI — reach 50k+ AI buyers
+          Promote your AI tool on ListmyAI
         </span>
         <ArrowRight className="h-3.5 w-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
       </Link>

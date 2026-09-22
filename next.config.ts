@@ -13,6 +13,9 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: '/privacy', destination: '/privacy-policy', permanent: true },
+      // The old advertise page quoted an audience we do not have; /pricing is
+      // the real offer, built from the package catalogue.
+      { source: '/advertise', destination: '/pricing', permanent: true },
       { source: '/terms-of-service', destination: '/terms', permanent: true },
     ]
   },

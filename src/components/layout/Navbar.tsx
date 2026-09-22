@@ -16,7 +16,7 @@ const NAV_LINKS = [
   { href: '/deals',       label: '🔥 Deals' },
   { href: '/blog',        label: '📝 Blog' },
   { href: '/categories',  label: 'Categories' },
-  { href: '/advertise',   label: '📣 Advertise' },
+  { href: '/pricing',   label: '📣 Promote' },
 ]
 
 export default function Navbar() {
