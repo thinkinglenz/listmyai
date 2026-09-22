@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
-import { PACKAGES, type PackageId } from '@/lib/billing/packages'
+import { PACKAGES, variantEnvFor, type PackageId } from '@/lib/billing/packages'
 
 export async function POST(req: NextRequest) {
   const { toolId, packageId } = await req.json().catch(() => ({}))
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const apiKey = process.env.LEMONSQUEEZY_API_KEY
   const storeId = process.env.LEMONSQUEEZY_STORE_ID
-  const variantId = process.env[pkg.variantEnv]
+  const variantId = process.env[variantEnvFor(pkg)]
   if (!apiKey || !storeId || !variantId) {
     return NextResponse.json({ error: 'Payments are not configured yet' }, { status: 503 })
   }
@@ -63,8 +63,12 @@ export async function POST(req: NextRequest) {
               email: user.email,
               custom: { tool_id: tool.id, package: pkg.id, user_id: user.id },
             },
+            // The store holds one generic one-time product and one generic
+            // monthly product; the buyer sees this package's real name and price.
+            custom_price: pkg.priceCents,
             product_options: {
               name: `${pkg.name} — ${tool.name}`,
+              description: pkg.summary,
               redirect_url: `https://listmyai.com/dashboard?purchased=${pkg.id}`,
             },
           },

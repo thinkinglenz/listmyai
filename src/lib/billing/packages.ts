@@ -32,8 +32,6 @@ export interface Package {
   categorySponsor?: boolean
   /** Promo code shown on the Deals page. */
   dealFeature?: boolean
-  /** Lemon Squeezy variant, from the store. */
-  variantEnv: string
 }
 
 export const PACKAGES: Record<PackageId, Package> = {
@@ -55,7 +53,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     spotlight: true,
     blogPost: false,
     socialBlast: true,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_LAUNCH_BOOST',
   },
   pro_launch: {
     id: 'pro_launch',
@@ -73,7 +70,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     spotlight: true,
     blogPost: true,
     socialBlast: true,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_PRO_LAUNCH',
   },
   sponsored_review: {
     id: 'sponsored_review',
@@ -93,7 +89,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     blogPost: false,
     review: true,
     socialBlast: true,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_SPONSORED_REVIEW',
   },
   category_sponsor: {
     id: 'category_sponsor',
@@ -112,7 +107,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     blogPost: false,
     categorySponsor: true,
     socialBlast: false,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_CATEGORY_SPONSOR',
   },
   deal_feature: {
     id: 'deal_feature',
@@ -130,7 +124,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     blogPost: false,
     dealFeature: true,
     socialBlast: true,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_DEAL_FEATURE',
   },
   stay_featured: {
     id: 'stay_featured',
@@ -147,7 +140,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     spotlight: false,
     blogPost: false,
     socialBlast: false,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_STAY_FEATURED',
   },
   spotlight_day: {
     id: 'spotlight_day',
@@ -160,7 +152,6 @@ export const PACKAGES: Record<PackageId, Package> = {
     spotlight: true,
     blogPost: false,
     socialBlast: false,
-    variantEnv: 'LEMONSQUEEZY_VARIANT_SPOTLIGHT_DAY',
   },
 }
 
@@ -172,4 +163,17 @@ export const PACKAGE_ORDER: PackageId[] = [
 export function priceLabel(p: Package): string {
   const amount = p.priceCents % 100 === 0 ? `$${p.priceCents / 100}` : `$${(p.priceCents / 100).toFixed(2)}`
   return p.recurring ? `${amount}/month` : `${amount} once`
+}
+
+/**
+ * Which Lemon Squeezy variant to charge against.
+ *
+ * The Lemon Squeezy API cannot create products (`/v1/products` is read-only),
+ * so the store holds two placeholder products instead of one per package: a
+ * one-time payment and a monthly subscription. The real name, description and
+ * price come from this file and are applied per checkout via `custom_price`
+ * and `product_options`, so a price only ever changes here.
+ */
+export function variantEnvFor(p: Package): string {
+  return p.recurring ? 'LEMONSQUEEZY_VARIANT_MONTHLY' : 'LEMONSQUEEZY_VARIANT_ONETIME'
 }
