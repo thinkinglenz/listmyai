@@ -160,6 +160,21 @@ export const PACKAGE_ORDER: PackageId[] = [
   'sponsored_review', 'category_sponsor', 'stay_featured',
 ]
 
+/**
+ * Launch promotion: every package is claimed rather than bought.
+ *
+ * The checkout route reaches the same conclusion on its own, from the absence
+ * of payment keys — this constant exists so the pages can say so too. Flip it
+ * to false on the day a payment provider's keys go into Vercel.
+ */
+export const FREE_LAUNCH = true
+
+/** What the buyer pays today, and what it will cost once the promotion ends. */
+export function offerLabel(p: Package): { now: string; was: string | null; cta: string } {
+  if (!FREE_LAUNCH) return { now: priceLabel(p), was: null, cta: p.recurring ? 'Subscribe' : 'Buy' }
+  return { now: 'Free', was: priceLabel(p), cta: 'Claim free' }
+}
+
 export function priceLabel(p: Package): string {
   const amount = p.priceCents % 100 === 0 ? `$${p.priceCents / 100}` : `$${(p.priceCents / 100).toFixed(2)}`
   return p.recurring ? `${amount}/month` : `${amount} once`

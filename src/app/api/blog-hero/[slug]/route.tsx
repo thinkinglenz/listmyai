@@ -10,6 +10,7 @@
 import { ImageResponse } from 'next/og'
 import { findMedia, fonts, hostOf, type CardTool } from '@/lib/social/instagram-card'
 import { createClient } from '@supabase/supabase-js'
+import { heroArtUrl } from '@/lib/blog/hero-image'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,6 +26,23 @@ const ACCENTS = [
   { from: '#f59e0b', to: '#92400e' }, // amber
   { from: '#06b6d4', to: '#155e75' }, // cyan
 ]
+
+/**
+ * The generated artwork for this post, as a data URI, or null if none was ever
+ * made for it. Satori cannot fetch remote images itself, and a post written
+ * before image generation existed simply has no object in the bucket.
+ */
+async function loadArt(slug: string): Promise<string | null> {
+  try {
+    const res = await fetch(heroArtUrl(slug), { cache: 'force-cache' })
+    if (!res.ok) return null
+    const buf = Buffer.from(await res.arrayBuffer())
+    if (!buf.length) return null
+    return `data:image/png;base64,${buf.toString('base64')}`
+  } catch {
+    return null
+  }
+}
 
 function hashOf(s: string): number {
   let h = 0
@@ -65,10 +83,11 @@ export async function GET(
     // DB unreachable — render from slug-derived title
   }
 
+  const art = await loadArt(slug)
   const accent = ACCENTS[hashOf(slug) % ACCENTS.length]
   const titleSize = title.length > 70 ? 46 : title.length > 45 ? 54 : 62
 
-  if (isThumb) return thumbnail(slug, title, tags, relatedIds, accent, new URL(req.url).origin)
+  if (isThumb) return thumbnail(slug, title, tags, relatedIds, accent, new URL(req.url).origin, art)
 
   return new ImageResponse(
     (
@@ -84,6 +103,23 @@ export async function GET(
           position: 'relative',
         }}
       >
+        {art ? (
+          <img
+            src={art}
+            width={1200}
+            height={630}
+            style={{ position: 'absolute', top: 0, left: 0, width: '1200px', height: '630px', objectFit: 'cover' }}
+          />
+        ) : null}
+        {/* Scrim: generated art is unpredictable, the title must stay readable. */}
+        {art ? (
+          <div
+            style={{
+              position: 'absolute', top: 0, left: 0, width: '1200px', height: '630px', display: 'flex',
+              background: 'linear-gradient(100deg, #0d1117f2 0%, #0d1117d9 45%, #0d111766 100%)',
+            }}
+          />
+        ) : null}
         {/* Accent glow. A full-canvas gradient rather than a blurred circle
             hanging off the corner: Satori clipped that circle's blur at its
             box, which showed as a straight vertical edge through the glow. */}
@@ -196,7 +232,7 @@ export async function GET(
 // frame. The card crops to a wide band, so everything sits mid-height.
 async function thumbnail(
   slug: string, title: string, tagsIn: string[], relatedIds: string[],
-  accent: { from: string; to: string }, origin: string,
+  accent: { from: string; to: string }, origin: string, art: string | null = null,
 ) {
   const W = 1200, H = 630
   const lower = title.toLowerCase()
@@ -268,7 +304,13 @@ async function thumbnail(
     }
   }
   const [media, fontData] = await Promise.all([tool ? findMedia(tool, origin) : Promise.resolve(null), fonts()])
-  const topicSize = topic.length > 16 ? 70 : topic.length > 10 ? 86 : 104
+  // Sized by the longest word, not the whole string: a single long word cannot
+  // wrap, so "Transformers" at 104px ran off the column and under the browser
+  // frame. The column is 1200 - 128 padding - 48 gap - 560 frame = 464px wide,
+  // and Inter Black sets at roughly 0.58em per character.
+  const longestWord = topic.split(/\s+/).reduce((a, b) => (b.length > a.length ? b : a), '')
+  const fitsColumn = Math.floor(464 / Math.max(1, longestWord.length * 0.58))
+  const topicSize = Math.min(topic.length > 16 ? 70 : topic.length > 10 ? 86 : 104, fitsColumn)
   const layer = (background: string) => ({
     position: 'absolute' as const, top: 0, left: 0, width: W, height: H, display: 'flex', background,
   })
@@ -280,6 +322,8 @@ async function thumbnail(
         width: W, height: H, display: 'flex', alignItems: 'center', padding: '0 64px', gap: 48,
         fontFamily: 'Inter', background: 'linear-gradient(135deg, #0b1020 0%, #111a33 55%, #160f2a 100%)',
       }}>
+        {art ? <img src={art} width={W} height={H} style={{ position: 'absolute', top: 0, left: 0, width: W, height: H, objectFit: 'cover' }} /> : null}
+        {art ? <div style={layer('linear-gradient(100deg, #0b1020f2 0%, #0b1020cc 50%, #0b102080 100%)')} /> : null}
         <div style={layer(`radial-gradient(circle at 250px 250px, ${accent.from}55 0%, ${accent.from}14 22%, ${accent.from}00 42%)`)} />
         <div style={layer(`radial-gradient(circle at 950px 420px, ${accent.to}88 0%, ${accent.to}22 24%, ${accent.to}00 46%)`)} />
         <div style={{ ...layer(`linear-gradient(90deg, ${accent.from}, ${accent.to})`), top: H - 6, height: 6 }} />

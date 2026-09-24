@@ -5,7 +5,7 @@
 
 import { useState } from 'react'
 import { Rocket, Check, Loader2 } from 'lucide-react'
-import { PACKAGES, PACKAGE_ORDER, priceLabel, type PackageId } from '@/lib/billing/packages'
+import { PACKAGES, PACKAGE_ORDER, offerLabel, type PackageId } from '@/lib/billing/packages'
 
 interface Listing { id: string; name: string }
 
@@ -13,6 +13,7 @@ export default function PromotePanel({ listings }: { listings: Listing[] }) {
   const [toolId, setToolId] = useState(listings[0]?.id ?? '')
   const [busy, setBusy] = useState<PackageId | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<string | null>(null)
 
   async function buy(packageId: PackageId) {
     if (!toolId) { setError('Add or claim a listing first'); return }
@@ -24,8 +25,17 @@ export default function PromotePanel({ listings }: { listings: Listing[] }) {
         body: JSON.stringify({ toolId, packageId }),
       })
       const data = await res.json()
-      if (data.url) window.location.href = data.url
-      else setError(data.error ?? 'Could not start checkout')
+      // A claimed package is delivered immediately, so say so here rather than
+      // bouncing the page — there is nothing to pay and nowhere to go.
+      if (data.free) {
+        setDone(data.delivered
+          ? `${PACKAGES[packageId].name} is live on your listing.`
+          : `${PACKAGES[packageId].name} claimed. ${data.note ?? 'Delivery is still finishing.'}`)
+      } else if (data.url) {
+        window.location.href = data.url
+      } else {
+        setError(data.error ?? 'Could not start your promotion')
+      }
     } catch (e) {
       setError(String(e))
     }
@@ -56,6 +66,7 @@ export default function PromotePanel({ listings }: { listings: Listing[] }) {
       </p>
 
       {error && <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">{error}</p>}
+      {done && <p className="mt-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">{done}</p>}
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {PACKAGE_ORDER.map(id => {
@@ -63,7 +74,12 @@ export default function PromotePanel({ listings }: { listings: Listing[] }) {
           return (
             <div key={id} className="flex flex-col rounded-xl border p-4" style={{ borderColor: '#1e2a3a', background: 'rgba(255,255,255,0.02)' }}>
               <p className="font-bold text-white">{p.name}</p>
-              <p className="mt-0.5 text-lg font-black" style={{ color: '#e94560' }}>{priceLabel(p)}</p>
+              <p className="mt-0.5 flex items-baseline gap-2">
+                <span className="text-lg font-black" style={{ color: '#e94560' }}>{offerLabel(p).now}</span>
+                {offerLabel(p).was && (
+                  <span className="text-xs font-semibold text-slate-500 line-through">{offerLabel(p).was}</span>
+                )}
+              </p>
               <p className="mt-1 text-xs text-slate-400">{p.summary}</p>
               <ul className="mt-3 flex-1 space-y-1.5">
                 {p.includes.map(inc => (
@@ -76,7 +92,7 @@ export default function PromotePanel({ listings }: { listings: Listing[] }) {
                 className="mt-4 flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-40"
                 style={{ background: '#e94560' }}>
                 {busy === id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                {p.recurring ? 'Subscribe' : 'Buy'}
+                {offerLabel(p).cta}
               </button>
             </div>
           )

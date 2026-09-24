@@ -1,14 +1,26 @@
-// Starts a purchase. Lemon Squeezy is the merchant of record, so it collects
-// the money, handles VAT and owns the card data — nothing sensitive reaches us.
+// Starts a promotion for a listing.
 //
-// The listing and package travel in `custom` data, which comes back on the
-// webhook. Prices come from our catalogue, never the browser.
+// During the launch promotion there is no payment provider, so a package is
+// claimed rather than bought: an order is written at zero and delivered on the
+// spot. Configuring a provider's keys switches this route back to charging,
+// with no code change — `paymentsConfigured` is the only switch.
+//
+// When money is involved the provider is the merchant of record, so it collects
+// it, handles VAT and owns the card data. Prices always come from our
+// catalogue, never from the browser.
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createClient } from '@supabase/supabase-js'
 import { PACKAGES, variantEnvFor, type PackageId } from '@/lib/billing/packages'
+import { deliverOrder } from '@/lib/billing/deliver'
+
+// Delivery posts to every social network, so give it room.
+export const maxDuration = 120
+
+/** One free claim per listing per package per 30 days. */
+const FREE_COOLDOWN_DAYS = 30
 
 export async function POST(req: NextRequest) {
   const { toolId, packageId } = await req.json().catch(() => ({}))
@@ -43,8 +55,48 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.LEMONSQUEEZY_API_KEY
   const storeId = process.env.LEMONSQUEEZY_STORE_ID
   const variantId = process.env[variantEnvFor(pkg)]
-  if (!apiKey || !storeId || !variantId) {
-    return NextResponse.json({ error: 'Payments are not configured yet' }, { status: 503 })
+  const paymentsConfigured = Boolean(apiKey && storeId && variantId)
+
+  // ── Launch promotion: claim instead of buy ────────────────────────────────
+  if (!paymentsConfigured) {
+    const since = new Date(Date.now() - FREE_COOLDOWN_DAYS * 86_400_000).toISOString()
+    const { data: recent } = await admin
+      .from('orders')
+      .select('id, created_at')
+      .eq('tool_id', tool.id)
+      .eq('package', pkg.id)
+      .gte('created_at', since)
+      .maybeSingle()
+
+    if (recent) {
+      return NextResponse.json({
+        error: `You already claimed ${pkg.name} for this listing in the last ${FREE_COOLDOWN_DAYS} days.`,
+      }, { status: 429 })
+    }
+
+    const { data: order, error: orderError } = await admin.from('orders').insert({
+      tool_id: tool.id,
+      user_id: user.id,
+      email: user.email ?? null,
+      package: pkg.id,
+      amount_cents: 0,
+      currency: 'USD',
+      provider: 'free',
+      provider_ref: `free-${tool.id}-${pkg.id}-${Date.now()}`,
+    }).select('id').maybeSingle()
+
+    if (orderError || !order) {
+      console.warn('[checkout] could not record the free claim:', orderError?.message)
+      return NextResponse.json({ error: 'Could not start your promotion' }, { status: 500 })
+    }
+
+    const result = await deliverOrder(order.id)
+    return NextResponse.json({
+      free: true,
+      delivered: result.ok,
+      note: result.note,
+      url: `/dashboard?claimed=${pkg.id}`,
+    })
   }
 
   try {

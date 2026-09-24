@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Check, Rocket, ShieldCheck } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
-import { PACKAGES, PACKAGE_ORDER, priceLabel } from '@/lib/billing/packages'
+import { PACKAGES, PACKAGE_ORDER, offerLabel, FREE_LAUNCH } from '@/lib/billing/packages'
 
 export const revalidate = 3600
 
@@ -28,9 +28,17 @@ export default async function PricingPage() {
     <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
       <div className="mx-auto max-w-2xl text-center">
         <p className="text-xs font-bold uppercase tracking-wider" style={{ color: '#e94560' }}>Pricing</p>
-        <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">Listing is free. Promotion is paid.</h1>
+        <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
+          {FREE_LAUNCH ? 'Everything is free while we launch.' : 'Listing is free. Promotion is paid.'}
+        </h1>
+        {FREE_LAUNCH && (
+          <p className="mt-3 inline-flex rounded-full px-3 py-1 text-xs font-bold"
+             style={{ color: '#34d399', background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)' }}>
+            Launch promotion — every package below is free for a limited time
+          </p>
+        )}
         <p className="mt-4 text-slate-400">
-          We sell placement and promotion — not traffic. Every package below is a thing we do
+          We do placement and promotion — not traffic. Every package below is a thing we do
           for your tool: design the artwork, post it across our channels, write about it, put it
           at the top of a page. You get a report with a link to everything we published.
         </p>
@@ -67,7 +75,12 @@ export default async function PricingPage() {
                 </span>
               )}
               <h2 className="text-lg font-bold text-white">{p.name}</h2>
-              <p className="mt-1 text-2xl font-black" style={{ color: '#e94560' }}>{priceLabel(p)}</p>
+              <p className="mt-1 flex items-baseline gap-2">
+                <span className="text-2xl font-black" style={{ color: '#e94560' }}>{offerLabel(p).now}</span>
+                {offerLabel(p).was && (
+                  <span className="text-sm font-semibold text-slate-500 line-through">{offerLabel(p).was}</span>
+                )}
+              </p>
               <p className="mt-2 text-sm text-slate-400">{p.summary}</p>
               <ul className="mt-4 flex-1 space-y-2">
                 {p.includes.map(inc => (
@@ -79,7 +92,7 @@ export default async function PricingPage() {
               <Link href="/dashboard"
                 className="mt-5 flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
                 style={{ background: highlight ? '#e94560' : 'rgba(255,255,255,0.08)' }}>
-                <Rocket className="h-4 w-4" /> {p.recurring ? 'Subscribe' : 'Buy'}
+                <Rocket className="h-4 w-4" /> {offerLabel(p).cta}
               </Link>
             </div>
           )

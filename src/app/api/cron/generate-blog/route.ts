@@ -5,6 +5,8 @@ import { createClient } from '@supabase/supabase-js'
 import { fetchTrendingAiTopics } from '@/lib/seo/trending'
 import { submitToIndexNow } from '@/lib/seo/indexnow'
 import { postToAllSocial } from '@/lib/social/post'
+import { requireAdmin } from '@/lib/admin-auth'
+import { generateHeroArt } from '@/lib/blog/hero-image'
 
 export const maxDuration = 60
 
@@ -328,12 +330,9 @@ async function autoLinkAndAddTools(
 }
 
 export async function GET(req: NextRequest) {
-  // Auth check
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '')
-    ?? req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.CRON_SECRET && secret !== 'lmai@admin2026') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Vercel cron (Bearer CRON_SECRET) or the admin panel's session cookie.
+  const denied = requireAdmin(req, 'CRON_SECRET')
+  if (denied) return denied
 
   const forceTopicParam = req.nextUrl.searchParams.get('topic')
 
@@ -367,7 +366,12 @@ export async function GET(req: NextRequest) {
       finalSlug = `${finalSlug}-${dateSuffix}`.slice(0, 90)
     }
 
-    // Hero image rendered from the post title — unique and on-topic per slug
+    // Artwork is generated once, here, and stored in Supabase; the hero route
+    // draws the title over it. Returns null with no image provider configured,
+    // in which case the route falls back to the rendered card on its own.
+    await generateHeroArt(finalSlug, generated.title, generated.tags ?? [])
+
+    // Still the route, not the raw PNG: the route composites art + typography.
     const heroImage = pickHeroImage(finalSlug, generated.title)
 
     const { data: inserted, error } = await supabase
