@@ -9,7 +9,8 @@
 // The token is signed with CRON_SECRET, an existing server-only value, so no
 // new environment variable has to be provisioned for this to work.
 
-import { createHmac, timingSafeEqual } from 'crypto'
+import { createHmac, createHash, timingSafeEqual } from 'crypto'
+import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export const ADMIN_COOKIE = 'lmai_admin'
@@ -61,4 +62,34 @@ export function adminCookieOptions(lifetimeMs: number = SESSION_MS) {
     path: '/',
     maxAge: Math.floor(lifetimeMs / 1000),
   }
+}
+
+/** Constant-time compare of two secrets of any length. */
+export function safeEqual(a: string, b: string): boolean {
+  const ha = createHash('sha256').update(a).digest()
+  const hb = createHash('sha256').update(b).digest()
+  return timingSafeEqual(ha, hb)
+}
+
+/** True when the request carries the named env secret, by any of the three
+ *  routes callers use: a bearer token, an x-admin-secret header, or ?secret=. */
+export function hasEnvSecret(req: NextRequest, envName: string): boolean {
+  const expected = process.env[envName]
+  if (!expected) return false
+  const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
+  const candidates = [bearer, req.headers.get('x-admin-secret'), req.nextUrl.searchParams.get('secret')]
+  return candidates.some(c => !!c && safeEqual(c, expected))
+}
+
+/**
+ * Guard for admin and cron routes: a 401 response to return, or null when the
+ * caller is a signed-in admin or holds one of the named env secrets.
+ *
+ * Replaces hand-rolled `secret !== process.env.CRON_SECRET` checks, one of
+ * which also accepted a hardcoded literal.
+ */
+export function requireAdmin(req: NextRequest, ...envSecrets: string[]): NextResponse | null {
+  if (isAdminRequest(req)) return null
+  if (envSecrets.some(name => hasEnvSecret(req, name))) return null
+  return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
 }
