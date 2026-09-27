@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Star, CheckCircle2, X, Trophy } from 'lucide-r
 import { AiTool, Category } from '@/types'
 import { PRICING_LABELS, cn } from '@/lib/utils'
 import ComparisonEnrichment from '@/components/compare/ComparisonEnrichment'
+import { readEnrichment } from '@/lib/compare/enrichment'
 
 export const revalidate = 3600
 
@@ -137,6 +138,9 @@ export default async function VsPage({ params }: PageProps) {
   if (!data) notFound()
 
   const { toolA, toolB } = data
+  // Read only. Generation happens on the capped cron, never on a page view,
+  // so a crawl of thousands of comparison URLs cannot spend anything.
+  const enrichment = await readEnrichment(slug)
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -249,7 +253,7 @@ export default async function VsPage({ params }: PageProps) {
         </div>
 
         {/* AI-Enriched Content (verdict, pros/cons, FAQs) */}
-        <ComparisonEnrichment slug={slug} toolAName={toolA.name} toolBName={toolB.name} />
+        <ComparisonEnrichment enrichment={enrichment} toolAName={toolA.name} toolBName={toolB.name} />
 
         {/* Comparison table */}
         <div className="mb-10 overflow-x-auto rounded-2xl border" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>

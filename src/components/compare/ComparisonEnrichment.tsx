@@ -1,49 +1,17 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { AlertCircle } from 'lucide-react'
-
-interface EnrichmentData {
-  verdict: string
-  tool_a_pros: string[]
-  tool_a_cons: string[]
-  tool_b_pros: string[]
-  tool_b_cons: string[]
-  faqs: { q: string; a: string }[]
-}
+// Presentational only. This used to be a client component that fetched its own
+// content in useEffect, which meant the verdict, pros/cons and FAQs existed only
+// after JavaScript ran — the most valuable text on the page, invisible to search
+// in the HTML. The page now reads it server-side and passes it in.
+import type { ComparisonEnrichment as EnrichmentData } from '@/lib/compare/enrichment'
 
 interface Props {
-  slug: string
+  enrichment: EnrichmentData | null
   toolAName: string
   toolBName: string
 }
 
-export default function ComparisonEnrichment({ slug, toolAName, toolBName }: Props) {
-  const [enrichment, setEnrichment] = useState<EnrichmentData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function fetchEnrichment() {
-      try {
-        const res = await fetch(`/api/comparisons/enrich/${slug}`)
-        if (!res.ok) {
-          if (res.status !== 404) console.error(`Enrichment fetch failed: ${res.status}`)
-          setLoading(false)
-          return
-        }
-        const data = await res.json()
-        setEnrichment(data)
-      } catch (err) {
-        console.error('Enrichment fetch error:', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchEnrichment()
-  }, [slug])
-
-  if (loading || !enrichment) return null
+export default function ComparisonEnrichment({ enrichment, toolAName, toolBName }: Props) {
+  if (!enrichment) return null
 
   return (
     <>
