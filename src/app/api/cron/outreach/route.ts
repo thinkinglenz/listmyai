@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, autoEnrollWelcomeEmail } from '@/lib/email'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -31,12 +32,10 @@ async function sendWithRetry(opts: Parameters<typeof sendEmail>[0]) {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify Vercel cron secret (or admin secret for manual triggers)
-  const auth = req.headers.get('authorization') ?? ''
-  const cronSecret = process.env.CRON_SECRET ?? 'lmai@admin2026'
-  if (auth !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Vercel cron sends `Authorization: Bearer $CRON_SECRET`; an admin session
+  // may also trigger it by hand. Fails closed if CRON_SECRET is unset.
+  const denied = requireAdmin(req, 'CRON_SECRET')
+  if (denied) return denied
 
   // Fetch next batch of unclaimed, un-emailed tools that have a contact address
   const { data: tools, error } = await supabase

@@ -40,7 +40,6 @@ interface Comment {
   blog_posts: { title: string; slug: string } | null
 }
 
-const ADMIN_SECRET = 'lmai@admin2026'
 
 function fmtDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -76,7 +75,7 @@ export default function AdminBlogPage() {
   const loadPosts = useCallback(async () => {
     setPostsLoading(true)
     const res = await fetch(
-      `/api/admin/blog/posts?status=${postStatusFilter}&secret=${ADMIN_SECRET}`,
+      `/api/admin/blog/posts?status=${postStatusFilter}`,
       { cache: 'no-store' }
     )
     if (res.ok) {
@@ -90,7 +89,7 @@ export default function AdminBlogPage() {
   const loadComments = useCallback(async () => {
     setCommentsLoading(true)
     const res = await fetch(
-      `/api/admin/blog/comments?status=${commentStatusFilter}&secret=${ADMIN_SECRET}`,
+      `/api/admin/blog/comments?status=${commentStatusFilter}`,
       { cache: 'no-store' }
     )
     if (res.ok) {
@@ -105,7 +104,7 @@ export default function AdminBlogPage() {
 
   // Change post status
   async function changePostStatus(id: string, status: string) {
-    await fetch(`/api/admin/blog/posts?secret=${ADMIN_SECRET}`, {
+    await fetch(`/api/admin/blog/posts`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, status }),
@@ -166,13 +165,13 @@ export default function AdminBlogPage() {
   // Archive post
   async function archivePost(id: string) {
     if (!confirm('Archive this post? It will be hidden from the blog.')) return
-    await fetch(`/api/admin/blog/posts?id=${id}&secret=${ADMIN_SECRET}`, { method: 'DELETE' })
+    await fetch(`/api/admin/blog/posts?id=${id}`, { method: 'DELETE' })
     loadPosts()
   }
 
   // Moderate comment
   async function moderateComment(id: string, action: 'approve' | 'reject') {
-    await fetch(`/api/admin/blog/comments?secret=${ADMIN_SECRET}`, {
+    await fetch(`/api/admin/blog/comments`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action }),
@@ -183,7 +182,7 @@ export default function AdminBlogPage() {
   // Delete comment
   async function deleteComment(id: string) {
     if (!confirm('Permanently delete this comment?')) return
-    await fetch(`/api/admin/blog/comments?id=${id}&secret=${ADMIN_SECRET}`, { method: 'DELETE' })
+    await fetch(`/api/admin/blog/comments?id=${id}`, { method: 'DELETE' })
     loadComments()
   }
 
@@ -192,9 +191,9 @@ export default function AdminBlogPage() {
     setGenerating(true)
     setGenerateMsg('')
     const topicParam = customTopic.trim()
-      ? `&topic=${encodeURIComponent(customTopic.trim())}`
+      ? `?topic=${encodeURIComponent(customTopic.trim())}`
       : ''
-    const res = await fetch(`/api/cron/generate-blog?secret=${ADMIN_SECRET}${topicParam}`)
+    const res = await fetch(`/api/cron/generate-blog${topicParam}`)
     const d = await res.json()
     if (res.ok) {
       setGenerateMsg(`✅ Generated: "${d.post?.title}"`)

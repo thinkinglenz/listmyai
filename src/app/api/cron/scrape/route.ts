@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // Vercel Cron Job — runs daily via vercel.json cron schedule.
 // Reads the scrape queue from scrape_log, calls Python scraper,
@@ -16,11 +17,10 @@ const PYTHON_SCRAPER_URL = process.env.PYTHON_SCRAPER_URL ?? ''
 const IMPORT_SECRET = process.env.IMPORT_SECRET ?? ''
 
 export async function GET(req: NextRequest) {
-  // Vercel sets this header automatically for cron jobs
-  const cronSecret = req.headers.get('authorization')
-  if (process.env.CRON_SECRET && cronSecret !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Vercel sets `Authorization: Bearer $CRON_SECRET` for cron jobs. This used
+  // to skip the check entirely when CRON_SECRET was unset; now it fails closed.
+  const denied = requireAdmin(req, 'CRON_SECRET')
+  if (denied) return denied
 
   const supabase = supabaseAdmin()
   const now = new Date().toISOString()

@@ -1,21 +1,57 @@
+// Admin login: password, then an emailed one-time code.
+//
+// Both factors are checked here on the server. The password used to be
+// compared in the browser against a literal shipped in the JS bundle, which
+// made it public; now it lives only in the ADMIN_PASSWORD env var.
+//
+// The pending code is not kept in memory (a Vercel cold start or a second
+// instance would lose it). Instead its hash is signed into a short-lived
+// httpOnly cookie, so any instance can verify it.
+
+import { createHmac, randomInt } from 'crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
-import { ADMIN_COOKIE, adminCookieOptions, createAdminToken, REMEMBERED_MS, SESSION_MS } from '@/lib/admin-auth'
+import {
+  ADMIN_COOKIE, adminCookieOptions, createAdminToken, REMEMBERED_MS, SESSION_MS, safeEqual,
+} from '@/lib/admin-auth'
 
-// In-memory OTP store — single admin so one slot is enough
-// Resets on each Vercel cold start (acceptable for admin 2FA)
-let stored: { code: string; expiresAt: number } | null = null
+export const dynamic = 'force-dynamic'
 
-const ADMIN_EMAIL = 'listmyai@gmail.com'
+const OTP_COOKIE = 'lmai_admin_otp'
+const OTP_MS = 10 * 60 * 1000
 
-// POST /api/admin/otp — generate and send OTP
-export async function POST() {
-  const code = String(Math.floor(100000 + Math.random() * 900000)) // 6-digit
-  stored = { code, expiresAt: Date.now() + 10 * 60 * 1000 } // 10 min expiry
+function otpKey(): string {
+  const key = process.env.CRON_SECRET
+  if (!key) throw new Error('CRON_SECRET not set')
+  return key
+}
+
+function signOtp(code: string, expiresAt: string): string {
+  return createHmac('sha256', otpKey()).update(`otp:${code}:${expiresAt}`).digest('hex')
+}
+
+function passwordOk(pw: unknown): boolean {
+  const expected = process.env.ADMIN_PASSWORD
+  return !!expected && typeof pw === 'string' && safeEqual(pw, expected)
+}
+
+// POST /api/admin/otp — check the password, then email a code
+export async function POST(req: NextRequest) {
+  if (!process.env.ADMIN_PASSWORD) {
+    return NextResponse.json({ error: 'ADMIN_PASSWORD is not configured on the server.' }, { status: 500 })
+  }
+  const { password } = await req.json().catch(() => ({}))
+  if (!passwordOk(password)) {
+    return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
+  }
+
+  const code = String(randomInt(100000, 1000000))
+  const expiresAt = String(Date.now() + OTP_MS)
+  const to = process.env.ADMIN_NOTIFY_EMAIL || 'listmyai@gmail.com'
 
   try {
     await sendEmail({
-      to: ADMIN_EMAIL,
+      to,
       subject: `🔐 ListmyAI Admin OTP: ${code}`,
       html: `
         <div style="font-family:Inter,sans-serif;background:#0d1117;padding:40px;border-radius:16px;max-width:400px;margin:0 auto">
@@ -24,42 +60,40 @@ export async function POST() {
           <div style="background:#161b27;border:1px solid #1e2a3a;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px">
             <span style="font-size:36px;font-weight:900;letter-spacing:8px;color:#e94560">${code}</span>
           </div>
-          <p style="color:#475569;font-size:12px;margin:0">If you didn't request this, someone may be trying to access your admin panel.</p>
+          <p style="color:#475569;font-size:12px;margin:0">If you didn't request this, someone has your admin password — change ADMIN_PASSWORD in Vercel.</p>
         </div>
       `,
     })
   } catch (err) {
     console.error('[OTP] Failed to send email:', err)
-    return NextResponse.json(
-      { error: `Email send failed: ${String(err)}` },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Could not send the code email.' }, { status: 500 })
   }
 
-  return NextResponse.json({ sent: true })
+  const res = NextResponse.json({ sent: true })
+  res.cookies.set(OTP_COOKIE, `${expiresAt}.${signOtp(code, expiresAt)}`, adminCookieOptions(OTP_MS))
+  return res
 }
 
-// PUT /api/admin/otp — verify OTP
+// PUT /api/admin/otp — verify password + code, then issue the admin session
 export async function PUT(req: NextRequest) {
-  const { code, remember } = await req.json()
+  const { code, remember, password } = await req.json().catch(() => ({}))
 
-  if (!stored || Date.now() > stored.expiresAt) {
-    stored = null
-    return NextResponse.json({ error: 'Code expired. Request a new one.' }, { status: 400 })
+  // The password is re-checked so a stolen pending-OTP cookie alone is useless.
+  if (!passwordOk(password)) {
+    return NextResponse.json({ error: 'Session expired. Start again.' }, { status: 401 })
   }
 
-  if (code !== stored.code) {
+  const [expiresAt, mac] = (req.cookies.get(OTP_COOKIE)?.value ?? '').split('.')
+  if (!expiresAt || !mac || !/^\d+$/.test(expiresAt) || Date.now() > Number(expiresAt)) {
+    return NextResponse.json({ error: 'Code expired. Request a new one.' }, { status: 400 })
+  }
+  if (typeof code !== 'string' || !/^\d{6}$/.test(code) || !safeEqual(signOtp(code, expiresAt), mac)) {
     return NextResponse.json({ error: 'Incorrect code. Try again.' }, { status: 401 })
   }
 
-  stored = null // one-time use
-
-  // Hand back a signed session. This cookie is the only thing that grants
-  // admin access — both the panel UI and the write routes check it — so
-  // "remember this browser" has to extend the cookie rather than leave a flag
-  // in localStorage that no server ever validates.
   const lifetime = remember ? REMEMBERED_MS : SESSION_MS
   const res = NextResponse.json({ verified: true })
   res.cookies.set(ADMIN_COOKIE, createAdminToken(lifetime), adminCookieOptions(lifetime))
+  res.cookies.set(OTP_COOKIE, '', { path: '/', maxAge: 0 }) // one-time use
   return res
 }

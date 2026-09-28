@@ -122,7 +122,7 @@ export default function RegisterPage() {
     fetch('/api/auth/notify-registration', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, marketingConsent, consentText: MARKETING_CONSENT_TEXT }),
+      body: JSON.stringify({ userId: data.user?.id, name, marketingConsent, consentText: MARKETING_CONSENT_TEXT }),
     }).catch(() => {})
 
     // If session exists, email confirmation is off → auto-login

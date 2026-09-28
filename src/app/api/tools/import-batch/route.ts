@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const maxDuration = 300
 
@@ -49,16 +50,17 @@ function guessCategory(text: string): string {
   return 'Other'
 }
 
-function checkAuth(req: NextRequest, body: { secret?: string }) {
-  const secret = req.headers.get('x-admin-secret') ?? body.secret
-  return secret === process.env.CRON_SECRET || secret === 'lmai@admin2026'
+// Admin session, or CRON_SECRET / IMPORT_SECRET sent as a header by the
+// local import scripts. Never read from the body or a literal fallback.
+function checkAuth(req: NextRequest) {
+  return requireAdmin(req, 'CRON_SECRET', 'IMPORT_SECRET') === null
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
 
-    if (!checkAuth(req, body)) {
+    if (!checkAuth(req)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 

@@ -2,15 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notifyToolOwner } from '@/lib/notify'
+import { requireAdmin } from '@/lib/admin-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+// Admin session cookie, or CRON_SECRET for scripted calls.
 function checkSecret(req: NextRequest) {
-  const secret = req.headers.get('x-admin-secret') ?? req.nextUrl.searchParams.get('secret')
-  return secret === process.env.CRON_SECRET || secret === 'lmai@admin2026'
+  return requireAdmin(req, 'CRON_SECRET') === null
 }
 
 // GET /api/admin/tool-comments?status=pending|approved|rejected|all

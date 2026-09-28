@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,11 +13,8 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
 // which renders a deterministic branded card from the post's own title.
 // Fixes legacy posts stuck with random picsum/unsplash/placeholder URLs.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}))
-  const secret = body.secret || req.headers.get('x-admin-secret')
-  if (secret !== process.env.CRON_SECRET && secret !== 'lmai@admin2026') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req, 'CRON_SECRET')
+  if (denied) return denied
 
   const { data: posts, error: fetchErr } = await supabase
     .from('blog_posts')

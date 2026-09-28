@@ -2,7 +2,9 @@
 import { readFileSync } from 'fs'
 
 const API = 'https://listmyai.com/api/tools/import-batch'
-const SECRET = 'lmai@admin2026'
+// Run with: IMPORT_SECRET=... node scripts/bulk-import.mjs
+const SECRET = process.env.IMPORT_SECRET
+if (!SECRET) { console.error('Set IMPORT_SECRET in your environment first.'); process.exit(1) }
 const BATCH_SIZE = 200
 const DELAY_MS = 2000
 
@@ -40,7 +42,7 @@ async function main() {
       const res = await fetch(API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-admin-secret': SECRET },
-        body: JSON.stringify({ secret: SECRET, tools: batch }),
+        body: JSON.stringify({ tools: batch }),
       })
 
       const data = await res.json()

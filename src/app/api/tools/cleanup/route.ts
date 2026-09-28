@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -86,11 +87,8 @@ function isJunk(tool: { name: string; website: string; tagline?: string }): stri
 
 export async function GET(req: NextRequest) {
   const doDelete = req.nextUrl.searchParams.get('delete') === '1'
-  const secret = req.nextUrl.searchParams.get('secret')
-
-  if (secret !== process.env.IMPORT_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req, 'IMPORT_SECRET')
+  if (denied) return denied
 
   // Fetch all tools
   const allTools: { id: string; name: string; website: string; tagline: string; slug: string }[] = []

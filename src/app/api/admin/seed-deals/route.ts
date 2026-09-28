@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -82,10 +83,8 @@ const DEALS: Deal[] = [
 ]
 
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== 'listmyai_import_2026') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req, 'IMPORT_SECRET')
+  if (denied) return denied
 
   let updated = 0, created = 0, errors = 0
   const details: { name: string; result: string; error?: string }[] = []

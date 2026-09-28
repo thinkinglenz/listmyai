@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 // Two-phase scraper:
 //   Phase 1 — POST { action:'getUrls', sourceUrl }  → returns URL list from sitemap
@@ -398,6 +399,8 @@ async function importParsedTools(tools: ParsedTool[]): Promise<{
 
 // ── POST handler ─────────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
     const body = await req.json()
     const { action, sourceUrl, urls, offset = 0, limit = 20 } = body
@@ -662,7 +665,9 @@ export async function POST(req: NextRequest) {
 }
 
 // ── GET: DB stats ─────────────────────────────────────────────────────────────
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
     const [{ count: total }, { count: pending }, { count: autoEnrolled }] = await Promise.all([
       supabase.from('ai_tools').select('*', { count: 'exact', head: true }),

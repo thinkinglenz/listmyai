@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendEmail, autoEnrollWelcomeEmail } from '@/lib/email'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://listmyai.com'
 
 // GET — list tools eligible for outreach
 export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const { searchParams } = new URL(req.url)
   const filter = searchParams.get('filter') ?? 'pending' // pending | sent | all
   const page = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10))
@@ -100,6 +103,8 @@ async function sendWithRetry(opts: Parameters<typeof sendEmail>[0]) {
 
 // POST — send outreach email(s)
 export async function POST(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const { toolIds } = await req.json()
 
   if (!toolIds || !Array.isArray(toolIds) || toolIds.length === 0) {

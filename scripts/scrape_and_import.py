@@ -12,6 +12,7 @@ Usage:    python3 scripts/scrape_and_import.py
           python3 scripts/scrape_and_import.py github
 """
 
+import os
 import requests
 import json
 import time
@@ -22,7 +23,8 @@ from bs4 import BeautifulSoup
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
 IMPORT_URL    = "https://www.listmyai.com/api/tools/import-batch"
-IMPORT_SECRET = "listmyai_import_2026"
+# Run with: IMPORT_SECRET=... python3 scripts/scrape_and_import.py
+IMPORT_SECRET = os.environ.get("IMPORT_SECRET") or sys.exit("Set IMPORT_SECRET in your environment first.")
 LIMIT         = 500
 BATCH_SIZE    = 50
 DELAY         = 0.4   # seconds between requests
@@ -82,8 +84,8 @@ def import_batch(tools):
     try:
         r = requests.post(
             IMPORT_URL,
-            json={"tools": tools, "secret": IMPORT_SECRET},
-            headers={"Content-Type": "application/json"},
+            json={"tools": tools},
+            headers={"Content-Type": "application/json", "x-admin-secret": IMPORT_SECRET},
             timeout=30,
         )
         return r.json()

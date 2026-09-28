@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -404,10 +405,8 @@ async function enrichTool(tool: any): Promise<{ slug: string; updated: boolean; 
 }
 
 export async function GET(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get('secret')
-  if (secret !== process.env.IMPORT_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const denied = requireAdmin(req, 'IMPORT_SECRET')
+  if (denied) return denied
 
   const dryRun = req.nextUrl.searchParams.get('dry') === '1'
   const limitParam = req.nextUrl.searchParams.get('limit')

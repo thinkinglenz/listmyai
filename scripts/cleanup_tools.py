@@ -15,20 +15,19 @@ Usage:
 """
 
 import requests
+import os
 import re
 import sys
 
-SUPABASE_URL = "https://bklftjfkzgxwbsglmzuw.supabase.co"
-# Use service role key for delete operations
-IMPORT_URL = "https://www.listmyai.com/api/tools/import-batch"
-IMPORT_SECRET = "listmyai_import_2026"
-
-# We'll use the Supabase REST API directly
-SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrbGZ0amZremJ4d2JzZ2xtenV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDc0MDQ3NTMsImV4cCI6MjA2Mjk4MDc1M30.SGHK8SjhHnrOxJ1JNQq2YH9b0SLsV6EMQKUhFdFLNfc"
+# Deletes rows directly, so it needs the service-role key — the public anon
+# key is (correctly) not allowed to delete. Never commit either value.
+#   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... python3 scripts/cleanup_tools.py
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or sys.exit("Set SUPABASE_URL first.")
+SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY") or sys.exit("Set SUPABASE_SERVICE_ROLE_KEY first.")
 
 HEADERS = {
-    "apikey": SUPABASE_ANON_KEY,
-    "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
     "Content-Type": "application/json",
 }
 

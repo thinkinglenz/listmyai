@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 
+// Admin-only: it fetches whatever URL it is given, so left public it was an
+// open proxy anyone could point at any host.
 export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
+
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'url param required' }, { status: 400 })
 

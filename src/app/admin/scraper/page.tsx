@@ -530,7 +530,6 @@ export default function AdminScraperPage() {
     setEnrichResult(null)
     try {
       const params = new URLSearchParams({
-        secret: 'listmyai_import_2026',
         limit: String(enrichLimit),
       })
       if (enrichForce) params.set('force', '1')

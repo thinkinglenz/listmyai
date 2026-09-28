@@ -9,9 +9,8 @@
 // The token is signed with CRON_SECRET, an existing server-only value, so no
 // new environment variable has to be provisioned for this to work.
 
-import { createHmac, createHash, timingSafeEqual } from 'crypto'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { createHash, createHmac, timingSafeEqual } from 'crypto'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export const ADMIN_COOKIE = 'lmai_admin'
 
@@ -54,25 +53,22 @@ export function isAdminRequest(req: NextRequest): boolean {
   }
 }
 
-export function adminCookieOptions(lifetimeMs: number = SESSION_MS) {
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    path: '/',
-    maxAge: Math.floor(lifetimeMs / 1000),
-  }
-}
-
-/** Constant-time compare of two secrets of any length. */
+/**
+ * Constant-time string compare. Hashing first gives both sides the same
+ * length, so the comparison leaks neither content nor length.
+ */
 export function safeEqual(a: string, b: string): boolean {
   const ha = createHash('sha256').update(a).digest()
   const hb = createHash('sha256').update(b).digest()
   return timingSafeEqual(ha, hb)
 }
 
-/** True when the request carries the named env secret, by any of the three
- *  routes callers use: a bearer token, an x-admin-secret header, or ?secret=. */
+/**
+ * True when the request carries the value of a server-only env var, via
+ * `Authorization: Bearer …`, `x-admin-secret`, or `?secret=`. Fails closed:
+ * an unset or empty env var matches nothing — there are no literal fallbacks,
+ * because this repo is readable and anything written here is public.
+ */
 export function hasEnvSecret(req: NextRequest, envName: string): boolean {
   const expected = process.env[envName]
   if (!expected) return false
@@ -82,14 +78,26 @@ export function hasEnvSecret(req: NextRequest, envName: string): boolean {
 }
 
 /**
- * Guard for admin and cron routes: a 401 response to return, or null when the
- * caller is a signed-in admin or holds one of the named env secrets.
+ * Guard for admin routes: returns a 401 response to send back, or null when
+ * the caller is a signed-in admin (or holds one of the given env secrets —
+ * used by Vercel cron and the local import scripts).
  *
- * Replaces hand-rolled `secret !== process.env.CRON_SECRET` checks, one of
- * which also accepted a hardcoded literal.
+ *   const denied = requireAdmin(req); if (denied) return denied
  */
 export function requireAdmin(req: NextRequest, ...envSecrets: string[]): NextResponse | null {
   if (isAdminRequest(req)) return null
   if (envSecrets.some(name => hasEnvSecret(req, name))) return null
   return NextResponse.json({ error: 'Not authorised' }, { status: 401 })
+}
+
+export function adminCookieOptions(lifetimeMs: number = SESSION_MS) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    // Strict: several admin GET routes change data (cleanup, seed, cron
+    // triggers), so the cookie must never ride along on a cross-site link.
+    sameSite: 'strict' as const,
+    path: '/',
+    maxAge: Math.floor(lifetimeMs / 1000),
+  }
 }

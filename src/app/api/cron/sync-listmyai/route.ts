@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -313,15 +314,7 @@ async function runSync() {
 
 // ── Auth (Vercel cron or manual) ─────────────────────────────────────────────
 function isAuthorized(req: NextRequest): boolean {
-  const auth = req.headers.get('authorization') || ''
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && auth === `Bearer ${cronSecret}`) return true
-
-  // Allow manual trigger via existing admin import secret
-  const querySecret = req.nextUrl.searchParams.get('secret')
-  if (querySecret === 'listmyai_import_2026') return true
-
-  return false
+  return requireAdmin(req, 'CRON_SECRET', 'IMPORT_SECRET') === null
 }
 
 export async function GET(req: NextRequest) {

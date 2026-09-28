@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAdmin } from '@/lib/admin-auth'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   try {
     // Paginate through ALL auth users (Supabase returns max 1000 per page)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,6 +58,8 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const { id, role, action } = await req.json()
 
   if (action === 'resend_verification') {
@@ -92,6 +97,8 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const denied = requireAdmin(req)
+  if (denied) return denied
   const { id } = await req.json()
   const { error } = await supabase.auth.admin.deleteUser(id)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

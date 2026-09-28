@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { MessageSquare, Check, X, Trash2, ExternalLink, AlertTriangle } from 'lucide-react'
 
-const ADMIN_SECRET = 'lmai@admin2026'
 
 interface AdminComment {
   id: string
@@ -41,7 +40,7 @@ export default function AdminCommentsPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/admin/tool-comments?status=${filter}&secret=${ADMIN_SECRET}`)
+      const res = await fetch(`/api/admin/tool-comments?status=${filter}`)
       const data = await res.json()
       setComments(data.comments ?? [])
       setNeedsMigration(!!data.needsMigration)
@@ -53,7 +52,7 @@ export default function AdminCommentsPage() {
 
   async function moderate(id: string, action: 'approve' | 'reject') {
     setBusy(id)
-    await fetch(`/api/admin/tool-comments?secret=${ADMIN_SECRET}`, {
+    await fetch(`/api/admin/tool-comments`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, action }),
@@ -65,7 +64,7 @@ export default function AdminCommentsPage() {
   async function remove(id: string) {
     if (!confirm('Delete this comment permanently?')) return
     setBusy(id)
-    await fetch(`/api/admin/tool-comments?id=${id}&secret=${ADMIN_SECRET}`, { method: 'DELETE' })
+    await fetch(`/api/admin/tool-comments?id=${id}`, { method: 'DELETE' })
     setBusy(null)
     load()
   }

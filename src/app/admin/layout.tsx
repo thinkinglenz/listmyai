@@ -9,7 +9,8 @@ import {
 } from 'lucide-react'
 
 // ─── Admin password + Email OTP gate ────────────────────────────────────────
-const ADMIN_PASSWORD = 'lmai@admin2026'
+// Both factors are verified by /api/admin/otp on the server; the password is
+// never compared (or stored) in the browser bundle.
 
 // Access lives entirely in the httpOnly cookie issued after the OTP; see
 // /api/admin/session. The browser deliberately keeps no auth state of its own.
@@ -29,14 +30,17 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault()
-    if (pw !== ADMIN_PASSWORD) {
-      setError('Incorrect password.'); setPw(''); triggerShake(); return
-    }
     setSending(true); setError('')
     try {
-      const res = await fetch('/api/admin/otp', { method: 'POST' })
+      const res = await fetch('/api/admin/otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      })
       const data = await res.json()
-      if (!res.ok) {
+      if (res.status === 401) {
+        setError(data.error ?? 'Incorrect password.'); setPw(''); triggerShake()
+      } else if (!res.ok) {
         setError(data.error ?? 'Failed to send code. Check Resend config.')
       } else {
         setStep('otp')
@@ -53,7 +57,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
     const res = await fetch('/api/admin/otp', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: otp.trim(), remember }),
+      body: JSON.stringify({ code: otp.trim(), remember, password: pw }),
     })
     const data = await res.json()
     setLoading(false)
@@ -68,7 +72,11 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
 
   async function resend() {
     setSending(true); setError('')
-    await fetch('/api/admin/otp', { method: 'POST' })
+    await fetch('/api/admin/otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw }),
+    })
     setSending(false); setError('New code sent!')
     setTimeout(() => setError(''), 3000)
   }
@@ -142,7 +150,7 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
               {loading ? 'Verifying…' : 'Verify & Enter Admin Panel'}
             </button>
             <div className="flex items-center justify-between text-xs text-slate-600">
-              <button type="button" onClick={() => { setStep('password'); setOtp(''); setError('') }}
+              <button type="button" onClick={() => { setStep('password'); setOtp(''); setPw(''); setError('') }}
                 className="hover:text-slate-400 transition">← Back</button>
               <button type="button" onClick={resend} disabled={sending}
                 className="hover:text-slate-400 transition disabled:opacity-40">
