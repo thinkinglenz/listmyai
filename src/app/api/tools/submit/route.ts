@@ -20,6 +20,44 @@ function toArr(v: unknown): string[] | null {
   return null
 }
 
+/**
+ * URL slug for a listing.
+ *
+ * Stripping every non-Latin character leaves nothing at all for a name written
+ * in Arabic, Chinese, Japanese, Korean or Cyrillic: one listing shipped with
+ * the slug "-", and the next such submission would have collided with it. When
+ * the name yields nothing usable the domain is used instead, which is always
+ * Latin, always readable and unique per tool.
+ */
+function slugFor(name: string, website: string): string {
+  const fromName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .trim()
+  // A partly-Latin name leaves a misleading fragment: "AI 漫画翻译" reduces to
+  // "ai", which is generic enough to collide with the next one. Only trust the
+  // name when most of it survived.
+  const letters = name.replace(/\s/g, '')
+  const latin = (name.match(/[a-zA-Z0-9]/g) ?? []).length
+  const mostlyLatin = letters.length > 0 && latin / letters.length >= 0.5
+  if (fromName && mostlyLatin) return fromName
+
+  try {
+    const host = new URL(website).hostname.replace(/^www\./, '')
+    const fromHost = host
+      .replace(/\.[a-z.]+$/, '')     // drop the TLD
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+    if (fromHost) return fromHost
+  } catch { /* not a URL we can parse */ }
+
+  return `listing-${Date.now().toString(36)}`
+}
+
 function buildInsert(slug: string, body: Record<string, unknown>, catId: number) {
   return {
     slug,
@@ -111,13 +149,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // Generate slug from name
-    const slug = name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim()
+    const slug = slugFor(name, website)
 
     // Look up category id
     const { data: catRow } = await supabase

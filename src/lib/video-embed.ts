@@ -38,3 +38,18 @@ export async function resolvePlayableEmbed(videoUrl: string | null | undefined):
     ? `https://www.youtube-nocookie.com/embed/${yt[1]}`
     : `https://player.vimeo.com/video/${vimeo![1]}`
 }
+
+/**
+ * Poster frame for a submitted video, if the provider publishes one.
+ *
+ * YouTube serves a thumbnail for every public video at a predictable URL, so a
+ * listing with a demo video always has a usable preview image even when its
+ * site publishes no og:image or blocks our fetch. maxresdefault does not exist
+ * for every upload; hqdefault always does.
+ */
+export function videoThumbnail(videoUrl: string | null | undefined): string | null {
+  if (!videoUrl) return null
+  const yt = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/)
+  if (yt) return `https://i.ytimg.com/vi/${yt[1]}/maxresdefault.jpg`
+  return null
+}

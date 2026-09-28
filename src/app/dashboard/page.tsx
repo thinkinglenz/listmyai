@@ -40,7 +40,7 @@ interface ClaimRequest {
 }
 
 interface UserProfile {
-  full_name: string
+  display_name: string
   email: string
   company?: string
   created_at: string
@@ -76,6 +76,7 @@ export default function DashboardPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
 
   // Form state for settings
   const [editName, setEditName] = useState('')
@@ -95,18 +96,18 @@ export default function DashboardPage() {
       // Load profile
       const { data: prof } = await supabase
         .from('profiles')
-        .select('full_name, display_name, company, created_at')
+        .select('display_name, company, created_at')
         .eq('id', user.id)
         .maybeSingle()
 
       const userProfile: UserProfile = {
-        full_name: prof?.full_name || prof?.display_name || user.user_metadata?.full_name || 'User',
+        display_name: prof?.display_name || user.user_metadata?.full_name || 'User',
         email: user.email ?? '',
         company: prof?.company ?? '',
         created_at: prof?.created_at ?? user.created_at,
       }
       setProfile(userProfile)
-      setEditName(userProfile.full_name)
+      setEditName(userProfile.display_name)
       setEditCompany(userProfile.company ?? '')
 
       // Load user's claimed/submitted tools
@@ -174,17 +175,24 @@ export default function DashboardPage() {
   }, [router])
 
   async function saveProfile() {
-    setSavingProfile(true)
+    setSavingProfile(true); setProfileError(null)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase
+      // The result was previously discarded, so the button said "Saved" even
+      // when the write was rejected — which it always was, since the column
+      // written (full_name) does not exist on this table.
+      const { error } = await supabase
         .from('profiles')
-        .update({ full_name: editName, company: editCompany })
+        .update({ display_name: editName, company: editCompany })
         .eq('id', user.id)
-      setProfile(prev => prev ? { ...prev, full_name: editName, company: editCompany } : prev)
-      setProfileSaved(true)
-      setTimeout(() => setProfileSaved(false), 2000)
+      if (error) {
+        setProfileError(error.message)
+      } else {
+        setProfile(prev => prev ? { ...prev, display_name: editName, company: editCompany } : prev)
+        setProfileSaved(true)
+        setTimeout(() => setProfileSaved(false), 2000)
+      }
     }
     setSavingProfile(false)
   }
@@ -223,7 +231,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-2xl font-black text-white">Dashboard</h1>
             <p className="mt-1 text-sm text-slate-500">
-              Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}
+              Welcome back{profile?.display_name ? `, ${profile.display_name}` : ''}
             </p>
           </div>
           <Link href="/submit"
@@ -532,6 +540,9 @@ export default function DashboardPage() {
                       style={{ background: '#e94560' }}>
                       {savingProfile ? 'Saving…' : profileSaved ? '✓ Saved' : 'Save changes'}
                     </button>
+                    {profileError && (
+                      <p className="mt-2 text-xs text-red-400">Could not save: {profileError}</p>
+                    )}
                   </div>
                 </div>
 

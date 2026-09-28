@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { videoThumbnail } from '@/lib/video-embed'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -97,7 +98,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
 
   const { data: tool } = await supabase
     .from('ai_tools')
-    .select('website, logo_url, cover_url')
+    .select('website, logo_url, cover_url, video_url')
     .eq('slug', slug)
     .maybeSingle()
 
@@ -110,6 +111,17 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
     const og = await findOgImage(tool.website)
     if (og) candidates.push(og)
   }
+
+  // A listing with a demo video always has a poster frame, which covers the two
+  // cases og:image cannot: a site that blocks our fetch (spinxo.com sits behind
+  // Cloudflare and refuses datacenter IPs) and a site whose advertised share
+  // image 404s (expirymanager.com points at an og-default.png that is gone).
+  const poster = videoThumbnail(tool.video_url)
+  if (poster) candidates.push(poster)
+
+  // Last resort. A logo is the wrong shape for a banner, but it was already
+  // being fetched from the database and then ignored, and it beats a grey globe.
+  if (tool.logo_url) candidates.push(tool.logo_url)
 
   for (const url of candidates) {
     const image = await fetchImage(url)

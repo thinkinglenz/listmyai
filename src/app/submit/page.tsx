@@ -179,13 +179,13 @@ export default function SubmitPage() {
       const supabase = createClient()
       const { data: prof } = await supabase
         .from('profiles')
-        .select('full_name, display_name, company')
+        .select('display_name, company')
         .eq('id', user!.id)
         .maybeSingle()
 
       setForm(f => ({
         ...f,
-        contact_name: f.contact_name || prof?.full_name || prof?.display_name || user!.user_metadata?.full_name || '',
+        contact_name: f.contact_name || prof?.display_name || user!.user_metadata?.full_name || '',
         contact_email: f.contact_email || user!.email || '',
         company_name: f.company_name || prof?.company || '',
       }))
