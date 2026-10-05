@@ -191,9 +191,23 @@ async function fetchRelated(categoryId: string | null, excludeSlug: string): Pro
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   const tool = await fetchTool(slug)
-  if (!tool) return { title: 'Tool Not Found | ListmyAI' }
+  if (!tool) return { title: 'Tool Not Found' }
 
-  const title = `${tool.name} — ${tool.tagline} | ListmyAI`
+  // No " | ListmyAI" here: layout.tsx applies `template: '%s | ListmyAI'`, so
+  // adding it produced "… | ListmyAI | ListmyAI" on every listing page.
+  //
+  // Google renders roughly 60 characters of a title, and the suffix spends 11
+  // of them, so the tagline is clipped on a word boundary rather than letting
+  // a long one push the tool's own name out of view.
+  // Clipping a long tagline mid-thought reads as broken ("Expiry Manager —
+  // Made for dates that carry"), so a tagline that does not fit is replaced
+  // rather than cut. The replacement also matches what people actually type
+  // after a tool's name, which is what a directory can realistically rank for.
+  const room = 60 - ' | ListmyAI'.length - tool.name.length - 3  // 3 = " — "
+  const tagline = (tool.tagline ?? '').trim().replace(/\.$/, '')
+  const title = tagline && tagline.length <= room
+    ? `${tool.name} — ${tagline}`
+    : `${tool.name} — Pricing, Reviews & Alternatives`
   const description = `${tool.name}: ${tool.tagline}. ${tool.pricing_model === 'free' ? 'Free' : tool.starting_price ?? 'See pricing'}. ${tool.has_free_trial ? 'Free trial available. ' : ''}Discover deals, reviews, and alternatives on ListmyAI.`
 
   return {
