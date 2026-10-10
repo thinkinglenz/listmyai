@@ -17,6 +17,7 @@ import {
 
 function PasswordGate({ onAuth }: { onAuth: () => void }) {
   const [step, setStep]       = useState<'password' | 'otp'>('password')
+  const [resetSent, setResetSent] = useState(false)
   const [pw, setPw]           = useState('')
   const [otp, setOtp]         = useState('')
   const [show, setShow]       = useState(false)
@@ -27,6 +28,18 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
   const [remember, setRemember] = useState(true)
 
   function triggerShake() { setShake(true); setTimeout(() => setShake(false), 500) }
+
+  async function requestReset() {
+    setError('')
+    try {
+      await fetch('/api/admin/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'request' }),
+      })
+    } catch { /* the message below is deliberately the same either way */ }
+    setResetSent(true)
+  }
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault()
@@ -119,6 +132,12 @@ function PasswordGate({ onAuth }: { onAuth: () => void }) {
               className="w-full rounded-xl py-3 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-60"
               style={{ background: '#e94560' }}>
               {sending ? 'Sending code…' : 'Continue →'}
+            </button>
+            <button type="button" onClick={requestReset} disabled={resetSent}
+              className="w-full text-center text-xs text-slate-500 transition hover:text-slate-300 disabled:text-emerald-400">
+              {resetSent
+                ? 'Reset link sent — check the admin inbox'
+                : 'Forgot password?'}
             </button>
           </form>
         )}

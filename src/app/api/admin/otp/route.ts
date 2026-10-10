@@ -14,6 +14,7 @@ import { sendEmail } from '@/lib/email'
 import {
   ADMIN_COOKIE, adminCookieOptions, createAdminToken, REMEMBERED_MS, SESSION_MS, safeEqual,
 } from '@/lib/admin-auth'
+import { adminPasswordConfigured, verifyAdminPassword } from '@/lib/admin-password'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,18 +31,14 @@ function signOtp(code: string, expiresAt: string): string {
   return createHmac('sha256', otpKey()).update(`otp:${code}:${expiresAt}`).digest('hex')
 }
 
-function passwordOk(pw: unknown): boolean {
-  const expected = process.env.ADMIN_PASSWORD
-  return !!expected && typeof pw === 'string' && safeEqual(pw, expected)
-}
-
 // POST /api/admin/otp — check the password, then email a code
 export async function POST(req: NextRequest) {
-  if (!process.env.ADMIN_PASSWORD) {
-    return NextResponse.json({ error: 'ADMIN_PASSWORD is not configured on the server.' }, { status: 500 })
+  // The stored hash wins; ADMIN_PASSWORD is the fallback until one is set.
+  if (!(await adminPasswordConfigured())) {
+    return NextResponse.json({ error: 'No admin password is configured on the server.' }, { status: 500 })
   }
   const { password } = await req.json().catch(() => ({}))
-  if (!passwordOk(password)) {
+  if (!(await verifyAdminPassword(password))) {
     return NextResponse.json({ error: 'Incorrect password.' }, { status: 401 })
   }
 
@@ -79,7 +76,7 @@ export async function PUT(req: NextRequest) {
   const { code, remember, password } = await req.json().catch(() => ({}))
 
   // The password is re-checked so a stolen pending-OTP cookie alone is useless.
-  if (!passwordOk(password)) {
+  if (!(await verifyAdminPassword(password))) {
     return NextResponse.json({ error: 'Session expired. Start again.' }, { status: 401 })
   }
 
