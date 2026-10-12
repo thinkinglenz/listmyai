@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { sendEmail, submissionConfirmationEmail, adminNewListingEmail } from '@/lib/email'
+import { checkListingPolicy } from '@/lib/listing-policy'
 
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL ?? 'listmyai@gmail.com'
 
@@ -147,6 +148,17 @@ export async function POST(req: NextRequest) {
 
     if (!name || !website || !category || !contact_email) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
+
+    // Same gate as the importer: a human submitting one of these should get
+    // the same answer the scraper does.
+    const policy = checkListingPolicy(body)
+    if (!policy.allowed) {
+      console.warn(`[submit] refused "${name}" — matched "${policy.matched}"`)
+      return NextResponse.json(
+        { error: 'We do not list tools that generate intimate imagery of people.' },
+        { status: 422 }
+      )
     }
 
     const slug = slugFor(name, website)

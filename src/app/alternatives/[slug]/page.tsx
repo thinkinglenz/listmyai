@@ -38,16 +38,27 @@ function shapeTool(t: any, cat?: Category): AiTool {
   }
 }
 
+/**
+ * A database outage must not look like a deleted page.
+ *
+ * On 2026-10-11 a Supabase egress restriction made every query fail, and
+ * because a failed query returned null these pages all called notFound().
+ * Google reads 404 as "remove this from the index". A thrown error renders a
+ * 5xx instead, which it reads as "try again later".
+ */
+class ListingSourceUnavailable extends Error {}
+
 async function fetchToolAndAlternatives(slug: string) {
   const sb = getSupabase()
-  if (!sb) return null
+  if (!sb) throw new ListingSourceUnavailable('Supabase is not configured')
 
-  const { data: t } = await sb
+  const { data: t, error } = await sb
     .from('ai_tools')
     .select('*, categories(id, slug, name, icon, color)')
     .eq('slug', slug)
     .eq('status', 'active')
     .maybeSingle()
+  if (error) throw new ListingSourceUnavailable(error.message)
   if (!t) return null
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

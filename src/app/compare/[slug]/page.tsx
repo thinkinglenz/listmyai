@@ -46,14 +46,25 @@ function parseSlugs(slug: string): [string, string] | null {
   return [match[1], match[2]]
 }
 
+/**
+ * A database outage must not look like a deleted page.
+ *
+ * On 2026-10-11 a Supabase egress restriction made every query fail, and
+ * because a failed query returned null these pages all called notFound().
+ * Google reads 404 as "remove this from the index". A thrown error renders a
+ * 5xx instead, which it reads as "try again later".
+ */
+class ListingSourceUnavailable extends Error {}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function fetchTool(sb: any, slug: string): Promise<AiTool | null> {
-  const { data } = await sb
+  const { data, error } = await sb
     .from('ai_tools')
     .select('*, categories(id, slug, name, icon, color)')
     .eq('slug', slug)
     .eq('status', 'active')
     .maybeSingle()
+  if (error) throw new ListingSourceUnavailable(error.message)
   if (!data) return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = data as any

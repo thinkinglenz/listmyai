@@ -8,6 +8,14 @@
 // being a competitor's seed database; pages plus a stated licence make citing
 // easier than copying, which is the trade we want. Nothing here is private —
 // every field already renders on the public listing page.
+//
+// Egress discipline, learned the hard way. As first shipped each row carried
+// its full description and the response was cached for an hour, so a crawler
+// following `next` through all 10,143 pages pulled the entire catalogue out of
+// Supabase, repeatedly. That is the most likely reason the project hit its
+// egress cap on 2026-10-11 and every page on the site went down with it.
+// Descriptions are gone from the export (the listing URL has them) and the CDN
+// now holds each page for a day, so a repeat walk costs the database nothing.
 import { createClient } from '@supabase/supabase-js'
 
 const BASE_URL = 'https://listmyai.com'
@@ -15,7 +23,7 @@ const PAGE_SIZE = 200
 const MAX_PAGE_SIZE = 500
 
 // Listings change daily at most; agents re-fetching should hit the CDN.
-export const revalidate = 3600
+export const revalidate = 86400
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,7 +34,6 @@ interface Row {
   slug: string
   name: string
   tagline: string | null
-  description: string | null
   website: string | null
   pricing_model: string | null
   starting_price: string | null
@@ -54,7 +61,9 @@ export async function GET(req: Request) {
   const { data, count, error } = await supabase
     .from('ai_tools')
     .select(
-      'slug, name, tagline, description, website, pricing_model, starting_price, has_free_trial, has_api, updated_at, created_at, categories(name)',
+      // No description: it is the largest column by far and the listing URL
+      // below carries it. Dropping it cuts the payload by roughly two thirds.
+      'slug, name, tagline, website, pricing_model, starting_price, has_free_trial, has_api, updated_at, created_at, categories(name)',
       { count: 'exact' }
     )
     .eq('status', 'active')
@@ -88,7 +97,6 @@ export async function GET(req: Request) {
         website: t.website,
         category: categoryName(t.categories),
         tagline: t.tagline,
-        description: t.description,
         pricing_model: t.pricing_model,
         starting_price: t.starting_price,
         has_free_trial: !!t.has_free_trial,
@@ -98,7 +106,9 @@ export async function GET(req: Request) {
     },
     {
       headers: {
-        'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        // A day at the edge, and a week of stale-while-revalidate: a crawler
+        // walking every page hits Supabase once per page per day at worst.
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800',
         // Agents calling from a browser context would otherwise be blocked.
         'Access-Control-Allow-Origin': '*',
       },

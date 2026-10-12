@@ -152,14 +152,28 @@ interface PageProps { params: Promise<{ slug: string }> }
 // Extended return type that includes claim status from DB
 type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string; _submitted_by?: string }
 
+/**
+ * Thrown when the database cannot be reached, as distinct from a slug that
+ * genuinely has no listing.
+ *
+ * The difference is not cosmetic. This page calls notFound() when fetchTool
+ * returns null, and on 2026-10-11 a Supabase egress restriction made every
+ * query fail — so all 20,000 listing pages served 404, which tells Google the
+ * pages are gone and to drop them from the index. An outage must produce a
+ * 5xx, which Google treats as "come back later" and leaves rankings intact.
+ */
+class ListingSourceUnavailable extends Error {}
+
 async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   const sb = getSupabase()
-  if (!sb) return null
-  const { data: t } = await sb
+  if (!sb) throw new ListingSourceUnavailable('Supabase is not configured')
+  const { data: t, error } = await sb
     .from('ai_tools')
     .select('*, categories(id, slug, name, icon, color)')
     .eq('slug', slug)
     .maybeSingle()
+  // An error is the database failing; no rows is a slug nobody has listed.
+  if (error) throw new ListingSourceUnavailable(error.message)
   if (!t) return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const catRaw = Array.isArray(t.categories) ? t.categories[0] : (t.categories as any)

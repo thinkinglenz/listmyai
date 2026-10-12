@@ -1,10 +1,42 @@
+// The quiz recommender.
+//
+// This is the only public endpoint that spends money: every call is a Claude
+// request with ~150 listings in the prompt, around a cent each. It shipped
+// with no auth, no rate limit and no cache, so anyone could loop it until the
+// prepaid balance was gone and every cron that shares the key stopped working.
+//
+// Three guards now, all leaning on quiz_results, which this route already
+// wrote to:
+//   · identical answers are served from cache and cost nothing
+//   · one IP gets a fixed number of fresh generations per hour
+//   · the candidate list is narrowed by the user's own answers first
+//
+// Upstream errors are logged, never returned: the raw Anthropic reply was
+// being shown to visitors, Plans-and-Billing wording included.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createHash } from 'crypto'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+/** Fresh generations allowed per IP per hour. A real person needs one or two. */
+const PER_IP_PER_HOUR = 8
+/** How long an identical set of answers is served from cache. */
+const CACHE_DAYS = 14
+/** Listings sent to the model. Fewer, better-matched beats more. */
+const CANDIDATES = 60
+
+/** IPs are hashed, never stored: this is abuse control, not analytics. */
+function ipHashOf(req: NextRequest): string {
+  const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || 'unknown'
+  return createHash('sha256').update(ip + (process.env.CRON_SECRET ?? '')).digest('hex').slice(0, 32)
+}
+
+const stableHash = (v: unknown) =>
+  createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 32)
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,14 +44,52 @@ export async function POST(req: NextRequest) {
     if (!answers) return NextResponse.json({ error: 'answers required' }, { status: 400 })
 
     const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+    if (!apiKey) {
+      console.warn('[find] ANTHROPIC_API_KEY not configured')
+      return NextResponse.json({ error: 'Recommendations are unavailable right now.' }, { status: 503 })
+    }
 
-    // Fetch tools from DB for Claude to reason over
-    const { data: tools } = await supabase
+    const answersHash = stableHash(answers)
+    const ipHash = ipHashOf(req)
+
+    // 1. Same quiz, same answer. Costs nothing and returns faster.
+    const since = new Date(Date.now() - CACHE_DAYS * 86_400_000).toISOString()
+    const { data: cached } = await supabase
+      .from('quiz_results')
+      .select('recommendations')
+      .eq('answers_hash', answersHash)
+      .gte('created_at', since)
+      .limit(1)
+      .maybeSingle()
+    if (cached?.recommendations) {
+      return NextResponse.json({ recommendations: cached.recommendations, cached: true })
+    }
+
+    // 2. Per-IP ceiling on fresh generations.
+    const hourAgo = new Date(Date.now() - 3_600_000).toISOString()
+    const { count } = await supabase
+      .from('quiz_results')
+      .select('id', { count: 'exact', head: true })
+      .eq('ip_hash', ipHash)
+      .gte('created_at', hourAgo)
+    if ((count ?? 0) >= PER_IP_PER_HOUR) {
+      return NextResponse.json(
+        { error: 'You have run this a lot in the last hour. Try again shortly.' },
+        { status: 429 }
+      )
+    }
+
+    // Sending every listing wasted most of the prompt on tools the answers
+    // already ruled out. Filter first, then send a shorter, better list.
+    const wanted = JSON.stringify(answers).toLowerCase()
+    let query = supabase
       .from('ai_tools')
       .select('id, name, slug, tagline, description, website, pricing_model, starting_price, has_free_trial, has_api')
       .eq('status', 'active')
-      .limit(150)
+    if (wanted.includes('free')) query = query.in('pricing_model', ['free', 'freemium'])
+    const { data: tools } = await query
+      .order('upvotes', { ascending: false })
+      .limit(CANDIDATES)
 
     const toolList = (tools ?? []).map(t =>
       `- ${t.name} (${t.slug}): ${t.tagline || t.description?.slice(0, 80) || ''} | pricing: ${t.pricing_model} ${t.starting_price ? `/ ${t.starting_price}` : ''} | free_trial: ${t.has_free_trial}`
@@ -65,8 +135,8 @@ Rules:
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      return NextResponse.json({ error: `Claude API error: ${err}` }, { status: 500 })
+      console.warn('[find] Claude', response.status, (await response.text()).slice(0, 200))
+      return NextResponse.json({ error: 'Recommendations are unavailable right now.' }, { status: 503 })
     }
 
     const data = await response.json()
@@ -74,18 +144,25 @@ Rules:
 
     // Extract JSON from response
     const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return NextResponse.json({ error: 'Could not parse Claude response' }, { status: 500 })
+    if (!jsonMatch) {
+      console.warn('[find] no JSON array in the model reply')
+      return NextResponse.json({ error: 'Recommendations are unavailable right now.' }, { status: 503 })
+    }
 
     const recommendations = JSON.parse(jsonMatch[0])
 
-    // Save to quiz_results table (non-blocking, ignore errors if table missing)
-    void supabase.from('quiz_results').insert({
+    // Awaited, not fire-and-forget: this row is the cache entry and the rate
+    // limiter's record. Losing it means the next identical quiz pays again.
+    await supabase.from('quiz_results').insert({
       answers,
       recommendations,
+      answers_hash: answersHash,
+      ip_hash: ipHash,
     })
 
     return NextResponse.json({ recommendations })
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    console.warn('[find] failed', err)
+    return NextResponse.json({ error: 'Recommendations are unavailable right now.' }, { status: 503 })
   }
 }

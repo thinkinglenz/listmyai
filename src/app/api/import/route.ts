@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkListingPolicy } from '@/lib/listing-policy'
 
 // Called by the Python scraper with a secret token.
 // Accepts one tool payload and upserts it into ai_tools.
@@ -41,6 +42,15 @@ export async function POST(req: NextRequest) {
 
   if (!body.name || !body.website) {
     return NextResponse.json({ error: 'name and website are required' }, { status: 422 })
+  }
+
+  // The nightly scraper imports whatever a source lists. Nineteen apps that
+  // generate fake nude images of real people arrived that way and had to be
+  // delisted by hand; without this they would simply return on the next run.
+  const policy = checkListingPolicy(body)
+  if (!policy.allowed) {
+    console.warn(`[import] refused "${body.name}" — matched "${policy.matched}"`)
+    return NextResponse.json({ error: 'This tool is outside what the directory lists.' }, { status: 422 })
   }
 
   const slug = body.name
