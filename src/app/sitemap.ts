@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { LIVE_PAGES } from '@/lib/seo/best-pages'
+import { publishedEditorialSlugs } from '@/lib/editorials'
 
 const BASE_URL = 'https://listmyai.com'
 
@@ -192,7 +193,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
+  // Editorials sit with the blog at the top: few, new, and the pages most
+  // worth crawling first.
+  const editorials = await publishedEditorialSlugs()
+  const editorialPages: MetadataRoute.Sitemap = editorials.map(e => ({
+    url: `${BASE_URL}/editorial/${e.slug}`,
+    lastModified: e.published_at ? new Date(e.published_at) : new Date(),
+    changeFrequency: 'monthly' as const,
+    priority: 0.8,
+  }))
+
   return [
+    { url: `${BASE_URL}/editorial`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 0.8 },
+    ...editorialPages,
     // Blog posts lead the file. Crawlers work top-down, and these were
     // previously last of 63,392 URLs, so they were never reached.
     ...blogPages,
