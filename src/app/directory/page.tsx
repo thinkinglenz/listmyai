@@ -92,7 +92,13 @@ export default async function DirectoryPage({ searchParams }: Props) {
   if (category) {
     const { data: catRow } = await supabase
       .from('categories').select('id').eq('slug', category).maybeSingle()
-    filterCatId = catRow ? String(catRow.id) : '00000000-0000-0000-0000-000000000000'
+    // A slug that matches no category must match no tools. categories.id is a
+    // serial, so the sentinel has to be an integer the sequence never issues —
+    // the UUID that used to sit here made Postgres reject the whole query with
+    // "invalid input syntax for type integer", 98 times in the last two days.
+    // The page swallowed it and rendered empty, so it looked fine and logged
+    // an error on every hit.
+    filterCatId = catRow ? String(catRow.id) : '-1'
   }
 
   const TOOL_COLS = `
