@@ -10,6 +10,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, ExternalLink, Info } from 'lucide-react'
 import { getEditorial, type Editorial } from '@/lib/editorials'
+import CorrectionForm from '@/components/editorial/CorrectionForm'
 import { renderMarkdown } from '@/lib/blog/markdown'
 import { createClient } from '@supabase/supabase-js'
 
@@ -141,11 +142,13 @@ export default async function EditorialPage({ params }: Props) {
         </section>
       )}
 
-      <p className="mt-12 border-t pt-6 text-xs leading-relaxed text-slate-600" style={{ borderColor: '#1e2a3a' }}>
-        Own this product? Editorials are written independently and are not edited by the companies
-        they cover, but corrections and new information are welcome — sign in to your dashboard to
-        send them.
-      </p>
+      <div className="mt-12 border-t pt-6" style={{ borderColor: '#1e2a3a' }}>
+        <p className="text-xs leading-relaxed text-slate-600">
+          Own this product? Editorials are written independently and are not edited by the companies
+          they cover. Corrections and new information are welcome, and they reach a person.
+        </p>
+        <CorrectionForm slug={slug} />
+      </div>
     </article>
   )
 }
