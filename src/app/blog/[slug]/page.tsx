@@ -17,6 +17,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
+/**
+ * Thrown when the database cannot be reached, as opposed to a slug that has
+ * no post.
+ *
+ * The two must not look alike. `.maybeSingle()` returns `data: null` for both
+ * "no such row" and "the query failed", so discarding `error` and calling
+ * notFound() made every one of these 511 articles answer 404 during an
+ * outage — and a 404 is how you tell Google to drop a page it already has.
+ * A thrown error renders a 500 instead, which Google retries.
+ */
+class PostSourceUnavailable extends Error {}
+
 interface Faq { q: string; a: string }
 interface ExtRef { label: string; url: string }
 interface RelatedTool { id: string; slug: string; name: string; tagline: string | null; logo_url: string | null }
@@ -80,13 +92,14 @@ function VideoEmbed({ url }: { url: string }) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('blog_posts')
     .select('title, meta_title, meta_description, excerpt, hero_image_url, published_at')
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle()
 
+  if (error) throw new PostSourceUnavailable(error.message)
   if (!data) return { title: 'Article not found — ListmyAI Blog' }
 
   const title = data.meta_title ?? `${data.title} — ListmyAI Blog`
@@ -117,13 +130,15 @@ export default async function BlogPostPage({ params }: Props) {
   const { slug } = await params
 
   // Fetch post
-  const { data: post } = await supabase
+  const { data: post, error } = await supabase
     .from('blog_posts')
     .select('*')
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle()
 
+  // Order matters: a failed query is not a missing post.
+  if (error) throw new PostSourceUnavailable(error.message)
   if (!post) notFound()
 
   const p = post as Post
@@ -131,6 +146,10 @@ export default async function BlogPostPage({ params }: Props) {
   // Increment view count (fire-and-forget, no await so it doesn't block render)
   supabase.rpc('increment_blog_view', { p_slug: slug }).then(() => {})
 
+  // The two queries below deliberately keep ignoring their errors. They fill
+  // the sidebar, and an article missing its "related tools" strip is still
+  // the article; failing the whole page over it would turn a cosmetic problem
+  // into a 500.
   // Fetch related tools by ID if any
   let relatedTools: RelatedTool[] = []
   if (p.related_tool_ids && p.related_tool_ids.length > 0) {
