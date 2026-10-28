@@ -22,7 +22,7 @@ type BlogPost = {
   published_at: string
 }
 
-export const revalidate = 300
+export const revalidate = 3600
 
 export const metadata: Metadata = {
   title: 'ListmyAI — Find the Best AI Tools, Deals & Promo Codes in 2026',

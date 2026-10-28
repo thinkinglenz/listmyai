@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Strip console.* from production bundles (keep error/warn). This was flooding
+  // Vercel "Observability Events" — ~6M events/month with near-zero real users.
+  compiler: {
+    removeConsole: { exclude: ['error', 'warn'] },
+  },
   // The Instagram card reads these with fs at request time.
   outputFileTracingIncludes: {
     '/api/tool-social/[slug]': ['./assets/fonts/**/*'],
