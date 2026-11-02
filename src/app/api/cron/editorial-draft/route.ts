@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     await alertAdmin(
       `Editorial draft ready: ${tool.name}`,
       `<p>A draft about <strong>${tool.name}</strong> is waiting for review.</p>
-       <p>Independent sources found: ${draft.sources.length}${draft.sources.length === 0 ? ' — the piece should say so plainly' : ''}</p>
+       <p>Independent sources found: ${draft.sources.filter(s => s.kind !== 'github').length}${draft.sources.filter(s => s.kind !== 'github').length === 0 ? ' — the piece should say so plainly' : ''}</p>
        <p><a href="https://listmyai.com/admin/editorials">Review it</a>. Nothing is public until you publish it.</p>`
     )
 

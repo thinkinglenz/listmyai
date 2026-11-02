@@ -31,6 +31,8 @@ export interface Editorial {
   body_md: string
   sources: EditorialSource[]
   coverage_note: string | null
+  keywords?: string[] | null
+  hero_image?: string | null
   status: string
   published_at: string | null
 }

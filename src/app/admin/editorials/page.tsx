@@ -16,6 +16,8 @@ interface Editorial {
   body_md: string
   sources: Source[]
   coverage_note: string | null
+  keywords?: string[] | null
+  hero_image?: string | null
   status: string
   published_at: string | null
   created_at: string
@@ -28,6 +30,9 @@ interface Correction {
   status: string
   created_at: string
 }
+
+// A linked repository is the company's own, so it does not count as coverage.
+const independent = (e: Editorial) => (e.sources ?? []).filter(s => s.kind !== 'github').length
 
 export default function AdminEditorials() {
   const [editorials, setEditorials] = useState<Editorial[]>([])
@@ -141,9 +146,17 @@ export default function AdminEditorials() {
               <h3 className="text-lg font-bold text-white">{e.title}</h3>
               {e.standfirst && <p className="mt-1 text-sm text-slate-400">{e.standfirst}</p>}
 
+              {/* The same fallback the public page uses, so what is reviewed
+                  here is what readers get. eslint-disable-next-line @next/next/no-img-element */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={e.hero_image || `/api/editorial-hero/${e.slug}`} alt=""
+                className="mt-3 w-full max-w-sm rounded-lg border object-cover"
+                style={{ borderColor: '#1e2a3a', aspectRatio: '1200 / 630' }} />
+
               <p className="mt-3 text-xs text-slate-500">
-                /{e.slug} · {e.sources?.length ?? 0} source{(e.sources?.length ?? 0) === 1 ? '' : 's'}
-                {(e.sources?.length ?? 0) === 0 && (
+                /{e.slug} · {independent(e)} independent source{independent(e) === 1 ? '' : 's'}
+                {(e.keywords?.length ?? 0) > 0 && <> · keywords: {e.keywords!.join(', ')}</>}
+                {independent(e) === 0 && (
                   <span className="text-amber-500"> · no independent coverage — check the piece says so</span>
                 )}
               </p>

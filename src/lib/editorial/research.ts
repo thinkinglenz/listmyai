@@ -16,7 +16,7 @@ import type { EditorialSource } from '@/lib/editorials'
 
 const ALGOLIA = 'https://hn.algolia.com/api/v1/search'
 
-interface Hit {
+export interface Hit {
   objectID: string
   title: string | null
   story_title: string | null

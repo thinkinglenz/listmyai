@@ -20,6 +20,20 @@ type Props = { params: Promise<{ slug: string }> }
 
 const BASE = 'https://listmyai.com'
 
+/**
+ * The image for a piece.
+ *
+ * `hero_image` holds generated artwork, but generateHeroArt returns null
+ * unless GEMINI_API_KEY or OPENAI_API_KEY is set, and neither is. Without a
+ * fallback every editorial ships with no image on the page and no og:image,
+ * so each share on LinkedIn or WhatsApp renders as a bare link. The rendered
+ * card needs no key and always exists; real artwork takes precedence the day
+ * a key appears.
+ */
+function heroFor(e: { hero_image?: string | null }, slug: string): string {
+  return e.hero_image || `${BASE}/api/editorial-hero/${slug}`
+}
+
 async function relatedTool(toolId: string | null) {
   if (!toolId) return null
   const sb = createClient(
@@ -49,8 +63,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: e.title, description, type: 'article',
       url: `${BASE}/editorial/${slug}`,
       publishedTime: e.published_at ?? undefined,
+      images: [{ url: heroFor(e, slug), width: 1200, height: 630 }],
     },
-    twitter: { card: 'summary_large_image', title: e.title, description },
+    keywords: e.keywords?.length ? e.keywords : undefined,
+    twitter: { card: 'summary_large_image', title: e.title, description, images: [heroFor(e, slug)] },
     alternates: { canonical: `${BASE}/editorial/${slug}` },
   }
 }
@@ -63,6 +79,11 @@ export default async function EditorialPage({ params }: Props) {
   const tool = await relatedTool(e.tool_id)
   const cat = Array.isArray(tool?.categories) ? tool?.categories[0] : tool?.categories
 
+  const videoId = (e.sources ?? [])
+    .filter(s => s.kind === 'youtube')
+    .map(s => { try { return new URL(s.url).searchParams.get('v') } catch { return null } })
+    .find((v): v is string => !!v && /^[\w-]{11}$/.test(v))
+
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
@@ -70,6 +91,8 @@ export default async function EditorialPage({ params }: Props) {
     description: e.standfirst ?? undefined,
     datePublished: e.published_at ?? undefined,
     url: `${BASE}/editorial/${slug}`,
+    image: heroFor(e, slug),
+    keywords: e.keywords?.length ? e.keywords.join(', ') : undefined,
     publisher: { '@type': 'Organization', name: 'ListmyAI', url: BASE },
     // Only real outbound references, never invented ones.
     citation: (e.sources ?? []).map(s => ({ '@type': 'CreativeWork', name: s.label, url: s.url })),
@@ -91,6 +114,11 @@ export default async function EditorialPage({ params }: Props) {
         {e.published_at && new Date(e.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
         {' · Written independently by ListmyAI. Not paid placement.'}
       </p>
+
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={heroFor(e, slug)} alt="" width={1200} height={630}
+        className="mt-8 w-full rounded-2xl border object-cover"
+        style={{ borderColor: '#1e2a3a', aspectRatio: '1200 / 630' }} />
 
       {tool && (
         <div className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl border p-4"
@@ -118,6 +146,15 @@ export default async function EditorialPage({ params }: Props) {
 
       <div className="prose prose-invert mt-10 max-w-none prose-headings:font-bold prose-a:text-[#e94560]"
         dangerouslySetInnerHTML={{ __html: renderMarkdown(e.body_md) }} />
+
+      {videoId && (
+        <div className="mt-10 aspect-video w-full overflow-hidden rounded-2xl border" style={{ borderColor: '#1e2a3a' }}>
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${videoId}`}
+            title="Video about this tool" loading="lazy" className="h-full w-full"
+            allow="accelerometer; encrypted-media; picture-in-picture" allowFullScreen />
+        </div>
+      )}
 
       {e.coverage_note && (
         <div className="mt-10 flex gap-3 rounded-2xl border p-5"

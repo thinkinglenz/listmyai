@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   // The Instagram card reads these with fs at request time.
   outputFileTracingIncludes: {
     '/api/tool-social/[slug]': ['./assets/fonts/**/*'],
+    '/api/editorial-hero/[slug]': ['./assets/fonts/**/*'],
   },
   images: {
     remotePatterns: [
