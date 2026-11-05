@@ -4,7 +4,7 @@
 // — this route has no path to it, by design.
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
-import { pickCandidate, writeDraft, saveDraft } from '@/lib/editorial/generate'
+import { pickCandidate, writeDraft, saveDraft, regenerate } from '@/lib/editorial/generate'
 
 export const maxDuration = 120
 
@@ -18,6 +18,20 @@ async function alertAdmin(subject: string, html: string) {
 export async function GET(req: NextRequest) {
   const denied = requireAdmin(req, 'CRON_SECRET')
   if (denied) return denied
+
+  // ?slug=<slug> rewrites one existing piece instead of writing a new one.
+  // It keeps the row's status, so a published piece stays published at the
+  // same URL while its contents are brought up to date.
+  const slug = new URL(req.url).searchParams.get('slug')
+  if (slug) {
+    try {
+      const r = await regenerate(slug)
+      return NextResponse.json({ ok: true, regenerated: r.slug, sources: r.sources, status: r.status })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      return NextResponse.json({ ok: false, error: msg }, { status: 500 })
+    }
+  }
 
   try {
     const tool = await pickCandidate()

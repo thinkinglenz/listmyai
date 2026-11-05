@@ -247,3 +247,49 @@ export async function saveDraft(tool: Candidate, draft: Draft): Promise<string> 
   if (error) throw new Error(`editorial: could not save draft — ${error.message}`)
   return tool.slug
 }
+
+/**
+ * Rewrites an existing editorial in place.
+ *
+ * The row keeps its id, slug, status and published_at, so a piece that is
+ * already live stays live at the same URL while its contents improve. The
+ * alternative — delete and regenerate, or drop it back to draft — would 404
+ * a page Google has already indexed, and a 404 is how you tell Google to
+ * forget it.
+ */
+export async function regenerate(slug: string): Promise<{ slug: string; sources: number; status: string }> {
+  const sb = db()
+
+  const { data: existing, error: readErr } = await sb
+    .from('editorials').select('id, tool_id, status').eq('slug', slug).maybeSingle()
+  if (readErr) throw new Error(`editorial: could not read ${slug} — ${readErr.message}`)
+  if (!existing) throw new Error(`editorial: no editorial at ${slug}`)
+  if (!existing.tool_id) throw new Error(`editorial: ${slug} is not linked to a listing`)
+
+  const { data: tool, error: toolErr } = await sb
+    .from('ai_tools')
+    .select('id, slug, name, tagline, description, website, pricing_model')
+    .eq('id', existing.tool_id).maybeSingle()
+  if (toolErr) throw new Error(`editorial: could not read the listing — ${toolErr.message}`)
+  if (!tool) throw new Error(`editorial: the listing behind ${slug} is gone`)
+
+  const draft = await writeDraft(tool as Candidate)
+
+  const patch = {
+    title: draft.title,
+    standfirst: draft.standfirst,
+    body_md: draft.body_md,
+    sources: draft.sources,
+    coverage_note: draft.coverage_note,
+    keywords: draft.keywords,
+    hero_image: draft.hero_image,
+  }
+  let { error } = await sb.from('editorials').update(patch).eq('id', existing.id)
+  if (error && /keywords|hero_image/.test(error.message)) {
+    const { keywords: _k, hero_image: _h, ...rest } = patch
+    ;({ error } = await sb.from('editorials').update(rest).eq('id', existing.id))
+  }
+  if (error) throw new Error(`editorial: could not rewrite ${slug} — ${error.message}`)
+
+  return { slug, sources: draft.sources.length, status: existing.status }
+}
