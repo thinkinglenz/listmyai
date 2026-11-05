@@ -70,18 +70,17 @@ export async function PATCH(req: NextRequest) {
     )
   }
 
-  const { error } = await supabase
-    .from('claim_requests')
-    .update({
-      status,
-      updated_at: new Date().toISOString(),
-      ...(status === 'rejected' && { rejection_reason: trimmedReason }),
-    })
-    .eq('id', id)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
+  // A rejection has nothing else to write, so it is recorded now. An
+  // approval is recorded last, after the listing has actually been handed
+  // over — writing it first is what left a claim reading "Approved" above a
+  // listing that was never updated.
   if (status === 'rejected') {
+    const { error } = await supabase
+      .from('claim_requests')
+      .update({ status, updated_at: new Date().toISOString(), rejection_reason: trimmedReason })
+      .eq('id', id)
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     // Tell the claimant why. The reason is also on their dashboard, so a
     // failed send leaves them informed rather than in the dark.
     const { data: claim } = await supabase
@@ -117,15 +116,28 @@ export async function PATCH(req: NextRequest) {
     .eq('id', id)
     .single()
 
+  /** Records the approval. Done only once the listing itself is updated. */
+  const markApproved = () => supabase
+    .from('claim_requests')
+    .update({ status: 'approved', updated_at: new Date().toISOString() })
+    .eq('id', id)
+
   if (!claim?.tool_id) {
-    return NextResponse.json({ success: true, warning: 'Claim status updated but tool_id not found' })
+    const { error: markErr } = await markApproved()
+    if (markErr) return NextResponse.json({ error: markErr.message }, { status: 500 })
+    return NextResponse.json({ success: true, warning: 'Claim approved but tool_id not found' })
   }
 
-  // Try full update first
+  // Ownership lives in `claimed` / `claimed_by`, and the listing page reads
+  // it from there. `status` is deliberately untouched: it governs visibility,
+  // and every public surface — the listing page, the sitemap, tools.json —
+  // selects status = 'active'. Writing 'claimed' here, as this did, would
+  // have removed the listing from the site and from Google the moment its
+  // owner claimed it. The database's own check constraint rejected the value
+  // and is the only reason that never happened.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateData: Record<string, any> = {
     claimed: true,
-    status: 'claimed',
     updated_at: new Date().toISOString(),
   }
   if (claim.claimant_user_id) {
@@ -141,17 +153,28 @@ export async function PATCH(req: NextRequest) {
   let updateWarning = updateErr?.message
 
   if (updateErr) {
-    // Try without 'claimed' and 'claimed_by' columns
+    // Older databases may not have claimed_by. Ownership without the link is
+    // still better than nothing.
     const { error: retryErr } = await supabase
       .from('ai_tools')
-      .update({ status: 'claimed', updated_at: new Date().toISOString() })
+      .update({ claimed: true, updated_at: new Date().toISOString() })
       .eq('id', claim.tool_id)
 
     toolUpdated = !retryErr
-    if (retryErr) {
-      updateWarning = `Full: ${updateErr.message} | Minimal: ${retryErr.message}`
-    }
+    if (retryErr) updateWarning = `Full: ${updateErr.message} | Minimal: ${retryErr.message}`
   }
+
+  // Fail closed. If the listing could not be handed over, the claim stays
+  // pending so it can be retried, rather than reading as done.
+  if (!toolUpdated) {
+    return NextResponse.json(
+      { error: `The listing could not be updated, so the claim is still pending: ${updateWarning}` },
+      { status: 500 }
+    )
+  }
+
+  const { error: markErr } = await markApproved()
+  if (markErr) return NextResponse.json({ error: markErr.message }, { status: 500 })
 
   // Send welcome email (fire-and-forget)
   if (claim.claimant_email) {
