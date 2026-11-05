@@ -8,11 +8,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAdmin } from '@/lib/admin-auth'
 import { notifyOwnerOfEditorial } from '@/lib/editorial/notify'
+import { regenerate } from '@/lib/editorial/generate'
 
 const sb = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
+
+export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
   const denied = requireAdmin(req)
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({})) as {
     id?: string
-    action?: 'publish' | 'unpublish' | 'delete' | 'save' | 'resolve-correction'
+    action?: 'publish' | 'unpublish' | 'delete' | 'save' | 'resolve-correction' | 'regenerate'
     title?: string
     standfirst?: string
     body_md?: string
@@ -50,6 +53,24 @@ export async function POST(req: NextRequest) {
   }
   const { id, action } = body
   if (!id || !action) return NextResponse.json({ error: 'Missing id or action' }, { status: 400 })
+
+  if (action === 'regenerate') {
+    // Rewrites the piece in place. A live one stays live at the same URL
+    // throughout; only its contents change.
+    const { data: row, error: readErr } = await sb
+      .from('editorials').select('slug').eq('id', id).maybeSingle()
+    if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 })
+    if (!row) return NextResponse.json({ error: 'No such editorial' }, { status: 404 })
+    try {
+      const r = await regenerate(row.slug)
+      return NextResponse.json({ ok: true, ...r })
+    } catch (e) {
+      return NextResponse.json(
+        { error: e instanceof Error ? e.message : 'Regeneration failed' },
+        { status: 500 }
+      )
+    }
+  }
 
   if (action === 'resolve-correction') {
     const { error } = await sb.from('editorial_corrections').update({ status: 'resolved' }).eq('id', id)

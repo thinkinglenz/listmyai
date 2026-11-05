@@ -5,7 +5,7 @@
 // The only place an editorial becomes public. Drafts arrive here from the
 // daily job; nothing leaves this page without someone pressing Publish.
 import { useCallback, useEffect, useState } from 'react'
-import { FileText, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink } from 'lucide-react'
+import { FileText, Check, Trash2, Eye, EyeOff, AlertCircle, ExternalLink, RefreshCw } from 'lucide-react'
 
 interface Source { label: string; url: string; kind?: string; published?: string | null }
 interface Editorial {
@@ -64,6 +64,10 @@ export default function AdminEditorials() {
   async function act(id: string, action: string, extra: Record<string, unknown> = {}) {
     if (action === 'delete' && !confirm('Delete this editorial? This cannot be undone.')) return
     if (action === 'publish' && !confirm('Publish this editorial? If the listing is claimed, its owner is emailed.')) return
+    if (action === 'regenerate' && !confirm(
+      'Rewrite this editorial from scratch? It keeps its URL and stays published if it already is, '
+      + 'but the current text is replaced. This takes up to a minute.'
+    )) return
     setBusy(id)
     try {
       const res = await fetch('/api/admin/editorials', {
@@ -75,6 +79,9 @@ export default function AdminEditorials() {
       if (!res.ok) throw new Error(json.error ?? 'Failed')
       if (action === 'publish' && json.notified?.skipped) {
         alert(`Published. Owner not emailed: ${json.notified.skipped}`)
+      }
+      if (action === 'regenerate') {
+        alert(`Rewritten. Independent sources found: ${json.sources ?? 0}.`)
       }
       await load()
     } catch (e) {
@@ -207,6 +214,12 @@ export default function AdminEditorials() {
                   style={{ background: '#e94560' }}>
                   <Check className="h-4 w-4" /> Publish
                 </button>
+                <button onClick={() => act(e.id, 'regenerate')} disabled={busy === e.id}
+                  className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-slate-300 disabled:opacity-50"
+                  style={{ borderColor: '#1e2a3a' }}>
+                  <RefreshCw className={`h-4 w-4 ${busy === e.id ? 'animate-spin' : ''}`} />
+                  {busy === e.id ? 'Rewriting…' : 'Regenerate'}
+                </button>
                 <button onClick={() => act(e.id, 'delete')} disabled={busy === e.id}
                   className="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold text-slate-400"
                   style={{ borderColor: '#1e2a3a' }}>
@@ -233,6 +246,12 @@ export default function AdminEditorials() {
               <span className="flex-none text-xs text-slate-600">
                 {e.published_at ? new Date(e.published_at).toLocaleDateString('en-GB') : ''}
               </span>
+              <button onClick={() => act(e.id, 'regenerate')} disabled={busy === e.id}
+                className="flex-none inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-300 disabled:opacity-50"
+                style={{ borderColor: '#1e2a3a' }}>
+                <RefreshCw className={`h-3.5 w-3.5 ${busy === e.id ? 'animate-spin' : ''}`} />
+                {busy === e.id ? 'Rewriting…' : 'Regenerate'}
+              </button>
               <button onClick={() => act(e.id, 'unpublish')} disabled={busy === e.id}
                 className="flex-none rounded-lg border px-3 py-1.5 text-xs font-semibold text-slate-400"
                 style={{ borderColor: '#1e2a3a' }}>Unpublish</button>
