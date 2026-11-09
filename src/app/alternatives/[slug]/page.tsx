@@ -7,7 +7,13 @@ import ToolCard from '@/components/listing/ToolCard'
 import { AiTool, Category } from '@/types'
 import { PRICING_LABELS, cn } from '@/lib/utils'
 
-export const revalidate = 3600
+// A day, not an hour. A listing changes maybe once a month, but there are
+// 20,481 of them and the same again under /alternatives, so an hourly window
+// meant a crawler walking the catalogue re-rendered almost every page on
+// almost every pass — the bulk of the function time Vercel flagged on
+// 2026-11-09. Edits do not wait for this: the admin route, the owner edit
+// route and claim approval all revalidate these two paths on the spot.
+export const revalidate = 86400
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL

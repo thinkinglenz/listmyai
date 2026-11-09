@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { isBotAgent } from '@/lib/is-bot'
 
 /**
  * Invisible tracker mounted on each tool page.
@@ -10,6 +11,11 @@ import { useEffect } from 'react'
  */
 export default function ToolPageTracker({ slug }: { slug: string }) {
   useEffect(() => {
+    // Crawlers run this page's JavaScript too, so without this check every
+    // bot that walked a listing fired a POST as well as the page render —
+    // two functions per crawled URL across 20,481 listings.
+    if (isBotAgent(navigator.userAgent)) return
+
     // ── View — impression-based: every page load counts ──
     fetch('/api/tools/track', {
       method: 'POST',

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
@@ -48,7 +49,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data: tool } = await supabase
       .from('ai_tools')
-      .select('id, claimed_by, submitted_by')
+      .select('id, slug, claimed_by, submitted_by')
       .eq('id', tool_id)
       .maybeSingle()
 
@@ -64,7 +65,17 @@ export async function PATCH(req: NextRequest) {
 
     for (let attempt = 0; attempt < 5; attempt++) {
       const { error } = await supabase.from('ai_tools').update(patch).eq('id', tool_id)
-      if (!error) return NextResponse.json({ success: true })
+      if (!error) {
+        // Push the new version out now. The listing pages are cached for a
+        // day, so without this an owner would edit their listing and see no
+        // change until tomorrow — the admin edit route has always done this,
+        // the owner-facing one never did.
+        if (tool.slug) {
+          revalidatePath(`/tools/${tool.slug}`)
+          revalidatePath(`/alternatives/${tool.slug}`)
+        }
+        return NextResponse.json({ success: true })
+      }
       if (error.message?.includes('Could not find the')) {
         const col = error.message.match(/Could not find the '(.+?)' column/)?.[1]
         if (col) { delete patch[col]; continue }

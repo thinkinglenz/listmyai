@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { notifyToolOwner } from '@/lib/notify'
+import { isBotAgent } from '@/lib/is-bot'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-const BOT_UA = /bot|crawler|spider|crawling|preview|scan|fetch|monitor|lighthouse|headless/i
-
 export async function POST(req: NextRequest) {
   try {
-    const ua = req.headers.get('user-agent') ?? ''
-    if (BOT_UA.test(ua)) return NextResponse.json({ ok: true })
+    // The browser-side tracker now skips crawlers before the request is
+    // ever made, which is what saves the function call. This stays as the
+    // backstop that keeps the counts honest when one gets through, and both
+    // sides read the same list.
+    if (isBotAgent(req.headers.get('user-agent'))) return NextResponse.json({ ok: true })
 
     const { slug, event } = await req.json()
     if (!slug || typeof slug !== 'string' || !['view', 'click'].includes(event)) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
 import { sendEmail } from '@/lib/email'
@@ -175,6 +176,14 @@ export async function PATCH(req: NextRequest) {
 
   const { error: markErr } = await markApproved()
   if (markErr) return NextResponse.json({ error: markErr.message }, { status: 500 })
+
+  // The listing now shows a Claimed badge, and its pages are cached for a day.
+  const { data: slugRow } = await supabase
+    .from('ai_tools').select('slug').eq('id', claim.tool_id).maybeSingle()
+  if (slugRow?.slug) {
+    revalidatePath(`/tools/${slugRow.slug}`)
+    revalidatePath(`/alternatives/${slugRow.slug}`)
+  }
 
   // Send welcome email (fire-and-forget)
   if (claim.claimant_email) {
