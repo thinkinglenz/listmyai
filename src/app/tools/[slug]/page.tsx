@@ -156,7 +156,7 @@ const STATUS_CONFIG: Record<string, { label: string; icon: React.ReactElement; c
 interface PageProps { params: Promise<{ slug: string }> }
 
 // Extended return type that includes claim status from DB
-type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string; _submitted_by?: string }
+type AiToolWithClaim = AiTool & { _claimed?: boolean; _claimed_by?: string; _submitted_by?: string; _indexable?: boolean }
 
 /**
  * Thrown when the database cannot be reached, as distinct from a slug that
@@ -181,6 +181,19 @@ async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   // An error is the database failing; no rows is a slug nobody has listed.
   if (error) throw new ListingSourceUnavailable(error.message)
   if (!t) return null
+
+  // Every other public surface — the directory, the sitemap, llms.txt,
+  // tools.json — selects `.eq('status','active')`. This page did not, so a
+  // withdrawn or refused submission kept a fully marked-up, indexable page on
+  // the domain indefinitely, and unreviewed content was reachable the moment
+  // it was inserted.
+  //
+  // `pending` is the deliberate exception. The submitter is handed this URL on
+  // submission and needs to see their own listing before review, so it still
+  // renders — but generateMetadata marks it noindex, so nothing unreviewed
+  // enters search. Anything else is a 404, matching the rest of the site.
+  const status = (t as Record<string, unknown>).status
+  if (status !== 'active' && status !== 'pending') return null
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const catRaw = Array.isArray(t.categories) ? t.categories[0] : (t.categories as any)
   const cat: Category | undefined = catRaw ? {
@@ -189,6 +202,7 @@ async function fetchTool(slug: string): Promise<AiToolWithClaim | null> {
   } : undefined
   const tool = shapeTool(t, cat) as AiToolWithClaim
   // Carry over claim fields from raw DB row
+  tool._indexable = status === 'active'
   tool._claimed = !!(t as Record<string, unknown>).claimed
   tool._claimed_by = (t as Record<string, unknown>).claimed_by as string | undefined
   tool._submitted_by = (t as Record<string, unknown>).submitted_by as string | undefined
@@ -233,6 +247,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   return {
     title,
     description,
+    // An unreviewed listing must never reach search. Dropped automatically
+    // once an admin sets the listing active and the path is revalidated.
+    ...(tool._indexable ? {} : { robots: { index: false, follow: false } }),
     keywords: [tool.name, tool.category?.name ?? '', 'AI tool', 'artificial intelligence', tool.company_name ?? '', 'review', 'pricing', 'alternative'].filter(Boolean),
     openGraph: {
       title,

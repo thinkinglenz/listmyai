@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { isAdminRequest } from '@/lib/admin-auth'
 import { notifyOwnerOfEdit } from '@/lib/notify-owner'
+import { revalidatePath } from 'next/cache'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,6 +43,21 @@ export async function PATCH(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 })
+  }
+
+  // The listing page is cached for a day. Without this an admin edit — above
+  // all approving a listing by setting status to active — would not reach the
+  // public page until the cache expired, leaving an approved listing serving
+  // its stale noindex copy for up to 24 hours.
+  const slug = (data as Record<string, unknown>)?.slug
+  if (typeof slug === 'string' && slug) {
+    try {
+      revalidatePath(`/tools/${slug}`)
+      revalidatePath('/directory')
+    } catch (err) {
+      // A cache miss must not turn a saved edit into a failed request.
+      console.warn('[admin/tools] revalidate failed:', err)
+    }
   }
 
   // Best-effort: the owner should know, but a failed notification must not make

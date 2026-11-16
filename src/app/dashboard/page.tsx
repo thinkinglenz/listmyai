@@ -12,6 +12,7 @@ import {
   BarChart3, Users, Zap, Edit, Globe, Shield, Bell,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { categoryName } from '@/lib/category-name'
 
 type Tab = 'overview' | 'listings' | 'analytics' | 'promos' | 'settings'
 
@@ -20,7 +21,7 @@ interface Listing {
   name: string
   slug: string
   category_name?: string
-  status: 'active' | 'pending' | 'rejected' | 'claimed' | 'verified'
+  status: 'active' | 'inactive' | 'pending' | 'rejected' | 'claimed' | 'verified' | 'unknown'
   view_count: number
   upvotes: number
   rating_avg: number
@@ -46,12 +47,46 @@ interface UserProfile {
   created_at: string
 }
 
+/**
+ * Category id -> name, read from /api/categories (service role).
+ *
+ * Observed: the embedded `categories(name)` in the query above does not resolve
+ * here, so every listing was labelled "Other" by the old `?? 'Other'` fallback,
+ * while the same category rendered correctly on the public page. The public
+ * pages read with the service role; this one reads as a logged-in user, so a
+ * read permission on `categories` is the likely difference — but that was not
+ * confirmed against the database, so do not treat it as settled.
+ *
+ * Either way this lookup removes the dependency: it resolves names server-side
+ * and the dashboard no longer relies on that relation. Failure is an empty map,
+ * never a guessed label.
+ */
+async function fetchCategoryNames(): Promise<Map<number, string>> {
+  try {
+    const res = await fetch('/api/categories')
+    if (!res.ok) return new Map()
+    const { categories } = await res.json()
+    return new Map<number, string>(
+      (categories ?? [])
+        .filter((c: { id?: number; name?: string }) => typeof c?.id === 'number' && !!c?.name)
+        .map((c: { id: number; name: string }) => [c.id, c.name])
+    )
+  } catch {
+    return new Map()
+  }
+}
+
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; Icon: React.ElementType }> = {
   active:   { label: 'Active',   color: '#22c55e', bg: 'rgba(34,197,94,0.1)',   Icon: CheckCircle },
   claimed:  { label: 'Claimed',  color: '#3b82f6', bg: 'rgba(59,130,246,0.1)',  Icon: Shield },
   verified: { label: 'Verified', color: '#10b981', bg: 'rgba(16,185,129,0.1)',  Icon: CheckCircle },
   pending:  { label: 'Pending',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',  Icon: Clock },
   rejected: { label: 'Rejected', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   Icon: AlertCircle },
+  inactive: { label: 'Inactive', color: '#94a3b8', bg: 'rgba(148,163,184,0.1)', Icon: AlertCircle },
+  // Shown when the stored status is missing or is a value this build does not
+  // know. Never fall back to a real state like 'pending': telling an owner
+  // their live listing is under review is worse than admitting we are unsure.
+  unknown:  { label: 'Unknown',  color: '#64748b', bg: 'rgba(100,116,139,0.1)', Icon: AlertCircle },
 }
 
 function StatCard({ icon: Icon, label, value, sub, color }: { icon: React.ElementType; label: string; value: string | number; sub?: string; color: string }) {
@@ -131,13 +166,14 @@ export default function DashboardPage() {
       }
 
       if (tools && tools.length > 0) {
+        const catNames = await fetchCategoryNames()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setListings(tools.map((t: any) => ({
           id: t.id,
           name: t.name,
           slug: t.slug,
-          category_name: t.categories?.name ?? 'Other',
-          status: t.status ?? 'pending',
+          category_name: categoryName(t.categories) ?? catNames.get(t.category_id),
+          status: t.status ?? 'unknown',
           view_count: t.view_count ?? 0,
           upvotes: t.upvotes ?? 0,
           rating_avg: t.rating_avg ?? 0,
@@ -357,7 +393,7 @@ export default function DashboardPage() {
                     </div>
                     <div className="space-y-3">
                       {listings.slice(0, 5).map(listing => {
-                        const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.pending
+                        const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.unknown
                         return (
                           <div key={listing.id} className="flex items-center gap-4 rounded-2xl border p-4 transition hover:border-slate-700"
                             style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
@@ -367,7 +403,7 @@ export default function DashboardPage() {
                             </div>
                             <div className="min-w-0 flex-1">
                               <p className="font-semibold text-white">{listing.name}</p>
-                              <p className="text-xs text-slate-500">{listing.category_name}</p>
+                              {listing.category_name && <p className="text-xs text-slate-500">{listing.category_name}</p>}
                             </div>
                             <span className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
                               style={{ background: s.bg, color: s.color }}>
@@ -424,7 +460,7 @@ export default function DashboardPage() {
                   </div>
                 )}
                 {listings.map(listing => {
-                  const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.pending
+                  const s = STATUS_CONFIG[listing.status] ?? STATUS_CONFIG.unknown
                   return (
                     <div key={listing.id} className="rounded-2xl border p-5" style={{ borderColor: '#1e2a3a', background: '#161b27' }}>
                       <div className="flex items-start gap-4">
@@ -446,7 +482,7 @@ export default function DashboardPage() {
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 text-sm text-slate-500">{listing.category_name}</p>
+                          {listing.category_name && <p className="mt-0.5 text-sm text-slate-500">{listing.category_name}</p>}
                           <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
                             <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{listing.view_count} views</span>
                             <span className="flex items-center gap-1"><TrendingUp className="h-3 w-3" />{listing.upvotes} upvotes</span>
