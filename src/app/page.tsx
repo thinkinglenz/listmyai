@@ -140,9 +140,19 @@ export default async function HomePage() {
         icon: c.icon ?? 'Layers',
         color: c.color ?? '#6366f1',
         count: catCountResults[i]?.count ?? 0,
-      })).filter(c => c.count > 0)
+      }))
+        // "Other" is not a thing anyone browses for — it is where a listing
+        // lands when nobody worked out what it was. With 3,096 tools in it,
+        // it sorted to the top and became the largest tile on the homepage,
+        // and the most prominent internal link on the site pointed at the
+        // one page with no subject. Hidden here; the reclassify pass empties
+        // it properly.
+        .filter(c => c.count > 0 && c.name !== 'Other')
         .sort((a, b) => b.count - a.count)
-        .slice(0, 12)
+        // Was 12, which cut off Healthcare, Finance & Legal, Research,
+        // Education and Voice & Speech — real categories with real listings,
+        // invisible on the homepage purely because the array stopped early.
+        .slice(0, 16)
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -326,11 +336,13 @@ export default async function HomePage() {
             )}
           </div>
 
+          {/* The index size is the strongest claim on the page and it was set
+              in the same size as its own caption. The number leads now. */}
           <div className="mt-12 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {STATS.map(s => (
-              <div key={s.label} className="rounded-2xl p-4" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
-                <div className="text-2xl font-black text-white">{s.value}</div>
-                <div className="mt-1 text-xs" style={{color:'#64748b'}}>{s.label}</div>
+              <div key={s.label} className="rounded-2xl p-5" style={{border:'1px solid #1e2a3a',background:'rgba(255,255,255,0.03)'}}>
+                <div className="text-3xl font-black tracking-tight text-white sm:text-4xl">{s.value}</div>
+                <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{color:'#64748b'}}>{s.label}</div>
               </div>
             ))}
           </div>

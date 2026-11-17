@@ -4,6 +4,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { sendEmail, submissionConfirmationEmail, adminNewListingEmail } from '@/lib/email'
 import { checkListingPolicy } from '@/lib/listing-policy'
+import { classify, CATEGORY_IDS } from '@/lib/classify-tool'
 
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFY_EMAIL ?? 'listmyai@gmail.com'
 
@@ -163,14 +164,40 @@ export async function POST(req: NextRequest) {
 
     const slug = slugFor(name, website)
 
-    // Look up category id
-    const { data: catRow } = await supabase
+    // Look up the category by name.
+    //
+    // This used to use .single(), which errors whenever the query matches
+    // anything other than exactly one row — and `%term%` happily matches
+    // several ("design" hits Design & Creative; "ai" hits three). The error was
+    // discarded and the id fell back to 1, so every unmatched submission was
+    // filed as "Chatbot / Assistant": a real category, chosen at random, and
+    // indistinguishable afterwards from a deliberate one.
+    //
+    // Now: an exact name wins; otherwise the listing's own text is classified;
+    // and if that is not confident either, it lands in "Other", which is the
+    // honest answer and the one the reclassify pass knows to revisit.
+    const { data: catRows, error: catErr } = await supabase
       .from('categories')
-      .select('id')
+      .select('id, name')
       .ilike('name', `%${category}%`)
-      .single()
+      .limit(5)
 
-    const catId = catRow?.id ?? 1
+    if (catErr) console.warn('[submit] category lookup failed:', catErr.message)
+
+    const wanted = String(category).trim().toLowerCase()
+    const exact = catRows?.find(c => String(c.name).toLowerCase() === wanted)
+    const sole = catRows?.length === 1 ? catRows[0] : undefined
+    let catId: number = exact?.id ?? sole?.id ?? 0
+
+    if (!catId) {
+      const guess = classify({
+        name: body.name as string,
+        tagline: body.tagline as string,
+        description: body.description as string,
+        tags: Array.isArray(body.tags) ? body.tags as string[] : null,
+      })
+      catId = guess.categoryId ?? CATEGORY_IDS.Other
+    }
     let row: Record<string, unknown> = buildInsert(slug, body, catId)
 
     // Try to get the logged-in user to link submission

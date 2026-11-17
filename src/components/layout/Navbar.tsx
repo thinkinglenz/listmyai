@@ -9,14 +9,21 @@ import { useAuth } from '@/components/AuthProvider'
 
 const SESSION_KEY = 'lmai_admin_auth'
 
+/**
+ * Four links plus the Submit button. It was seven plus a promo bar, which gave
+ * a first-time visitor a dozen equally-weighted things to choose between
+ * before reaching any content.
+ *
+ * Trending, Blog and Promote moved to the footer rather than being dropped:
+ * the navbar renders on every page, so its links are site-wide, and removing
+ * one with no footer equivalent would leave that section with no internal link
+ * anywhere on the site. The footer entries were added first, deliberately.
+ */
 const NAV_LINKS = [
   { href: '/directory',   label: 'Browse AI Tools' },
-  { href: '/trending',    label: '📈 Trending' },
   { href: '/compare',     label: 'Compare' },
-  { href: '/deals',       label: '🔥 Deals' },
-  { href: '/blog',        label: '📝 Blog' },
+  { href: '/deals',       label: 'Deals' },
   { href: '/categories',  label: 'Categories' },
-  { href: '/pricing',   label: '📣 Promote' },
 ]
 
 export default function Navbar() {
