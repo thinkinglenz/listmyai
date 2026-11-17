@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AGENTS } from './agents.ts'
+import { AGENTS, jobPhrase } from './agents.ts'
 import { INDUSTRIES } from './industries.ts'
 import {
   PAIRINGS, allPairs, getPair, pairSlug, agentsFor, industriesFor,
@@ -159,5 +159,36 @@ test('industry pains are not copy-pasted between trades', () => {
       assert.equal(prior, undefined, `"${pain}" appears in both ${prior} and ${i.slug}`)
       seen.set(pain, i.slug)
     }
+  }
+})
+
+// The pages originally led with invented brand names — "Relay" as the card
+// heading and the eyebrow above every H1 — which spent the most prominent
+// text on the page on a word with no search demand. These lock the composed
+// copy to the job phrase so it cannot drift back.
+test('composed copy leads with the job phrase, not the brand name', () => {
+  for (const p of allPairs()) {
+    assert.ok(pairTitle(p).startsWith(p.agent.job),
+      `${p.slug}: title should open with the job, got "${pairTitle(p)}"`)
+    // Several brands are ordinary words that legitimately appear inside their
+    // own job phrase — "Triage" in "AI Inbox Triage Agent", "Brief" in "AI
+    // Business Reporting Agent"'s sibling copy. So strip the job phrase first
+    // and look for the brand in what is left; a plain substring test would
+    // fail on correct copy.
+    const outsideJob = (s: string) => s.split(p.agent.job).join(' ')
+    const asWord = new RegExp(`\\b${p.agent.name}\\b`)
+    assert.equal(asWord.test(outsideJob(pairTitle(p))), false,
+      `${p.slug}: the brand name is in the title outside the job phrase`)
+    assert.equal(asWord.test(outsideJob(pairDescription(p))), false,
+      `${p.slug}: the brand name is in the meta description outside the job phrase`)
+    assert.ok(pairStakes(p).includes(jobPhrase(p.agent)),
+      `${p.slug}: stakes copy dropped the job phrase`)
+  }
+})
+
+test('every pair title contains the searchable job phrase in full', () => {
+  for (const p of allPairs()) {
+    assert.ok(pairTitle(p).toLowerCase().includes(p.agent.job.toLowerCase()),
+      `${p.slug}: the job phrase is not intact in the title`)
   }
 })

@@ -14,8 +14,11 @@ interface Turn { role: 'user' | 'model'; content: string }
  * it "thinks" reads as broken and people stop.
  */
 export default function EnquiryChat({
-  agentSlug, agentName, accent, opener,
-}: { agentSlug: string; agentName: string; accent: string; opener: string }) {
+  agentSlug, label, accent, opener,
+  // `label` is the job phrase, not the brand: the panel heading is read by
+  // the visitor and crawled like any other text, and "your Relay setup"
+  // means nothing to either.
+}: { agentSlug: string; label: string; accent: string; opener: string }) {
   const [messages, setMessages] = useState<Turn[]>([{ role: 'model', content: opener }])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
@@ -81,7 +84,7 @@ export default function EnquiryChat({
   return (
     <div className="rounded-2xl" style={{ border: '1px solid #1e2a3a', background: '#0f131c' }}>
       <div className="border-b px-5 py-3.5" style={{ borderColor: '#1e2a3a' }}>
-        <p className="text-sm font-bold text-white">Tell us about your {agentName} setup</p>
+        <p className="text-sm font-bold text-white">Tell us about your {label} setup</p>
         <p className="mt-0.5 text-xs" style={{ color: '#64748b' }}>
           A few questions, then we will come back to you by email.
         </p>

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { ArrowLeft, Check, Plug, Building2 } from 'lucide-react'
-import { AGENTS, getAgent } from '@/lib/agents'
+import { AGENTS, getAgent, jobPhrase } from '@/lib/agents'
 import EnquiryChat from '@/components/agents/EnquiryChat'
 
 export const revalidate = 86400
@@ -18,14 +18,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const agent = getAgent(slug)
   if (!agent) return { title: 'Not found' }
 
-  // The job phrase leads the title, not the brand name. Nobody searches for
-  // "Relay"; they search for what it does.
+  // The brand is not in the title at all. A title is roughly sixty useful
+  // characters and "— Relay" spends six of them on a word with no search
+  // demand behind it.
   return {
-    title: `${agent.job} — ${agent.name}`,
+    title: agent.job,
     description: `${agent.tagline} ${agent.outcome}`,
     alternates: { canonical: `/agents/${agent.slug}` },
     openGraph: {
-      title: `${agent.job} — ${agent.name}`,
+      title: agent.job,
       description: agent.tagline,
       type: 'website',
     },
@@ -51,12 +52,16 @@ export default async function AgentPage({ params }: PageProps) {
         <div className="mt-8 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           {/* Left: what it is */}
           <div>
-            <span className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: agent.accent }}>
-              {agent.name}
-            </span>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            {/* Was the brand name in capitals, directly above the H1 — the
+                most prominent line on the page spent on a word nobody
+                searches. The H1 keyword leads now and the brand is a quiet
+                label underneath it. */}
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
               {agent.job}
             </h1>
+            <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: agent.accent }}>
+              {agent.name}
+            </p>
             <p className="mt-3 text-lg leading-relaxed" style={{ color: '#cbd5e1' }}>
               {agent.tagline}
             </p>
@@ -72,7 +77,7 @@ export default async function AgentPage({ params }: PageProps) {
               <p className="mt-2.5 text-sm leading-relaxed" style={{ color: '#cbd5e1' }}>{agent.outcome}</p>
             </div>
 
-            <h2 className="mt-10 text-xl font-bold text-white">What it does</h2>
+            <h2 className="mt-10 text-xl font-bold text-white">What an {jobPhrase(agent)} does</h2>
             <ul className="mt-4 space-y-3">
               {agent.features.map(f => (
                 <li key={f} className="flex items-start gap-3">
@@ -128,7 +133,7 @@ export default async function AgentPage({ params }: PageProps) {
           <div className="lg:sticky lg:top-24 lg:self-start">
             <EnquiryChat
               agentSlug={agent.slug}
-              agentName={agent.name}
+              label={jobPhrase(agent)}
               accent={agent.accent}
               opener={`Let's work out what your ${agent.job.replace(/^AI /, '').toLowerCase()} needs to handle. To start — what happens today, and what part of it is costing you the most time?`}
             />
@@ -147,8 +152,8 @@ export default async function AgentPage({ params }: PageProps) {
               <Link key={o.slug} href={`/agents/${o.slug}`}
                 className="rounded-2xl p-5 transition hover:-translate-y-0.5"
                 style={{ border: '1px solid #1e2a3a', background: '#161b27' }}>
-                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: o.accent }}>{o.name}</p>
-                <p className="mt-1.5 font-bold text-white">{o.job}</p>
+                <p className="font-bold leading-snug text-white">{o.job}</p>
+                <p className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color: o.accent }}>{o.name}</p>
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: '#64748b' }}>{o.tagline}</p>
               </Link>
             ))}

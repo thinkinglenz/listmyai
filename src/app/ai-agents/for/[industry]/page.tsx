@@ -79,8 +79,8 @@ export default async function IndustryHub({ params }: PageProps) {
             <Link key={a.slug} href={`/ai-agents/${a.slug}-for-${i.slug}`}
               className="group flex flex-col rounded-2xl p-6 transition-all hover:-translate-y-0.5"
               style={{ border: '1px solid #1e2a3a', background: '#161b27' }}>
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: a.accent }}>{a.name}</p>
-              <h3 className="mt-1.5 text-lg font-bold text-white">{a.job}</h3>
+              <h3 className="text-lg font-bold leading-snug text-white">{a.job}</h3>
+              <p className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color: a.accent }}>{a.name}</p>
               <p className="mt-2.5 flex-1 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>{a.tagline}</p>
               <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold transition-all group-hover:gap-2.5"
                 style={{ color: a.accent }}>

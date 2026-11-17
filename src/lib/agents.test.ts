@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AGENTS, getAgent, jobKeyMap, jobKeySlug } from './agents.ts'
+import { AGENTS, getAgent, jobKeyMap, jobKeySlug, jobPhrase } from './agents.ts'
 
 // The three rules in the module header are comments, and comments do not stop
 // anyone. These tests do. A price or a delivery date on a public page sets the
@@ -104,4 +104,21 @@ test('every agent carries enough to fill a page', () => {
 test('getAgent finds a real one and refuses an invented one', () => {
   assert.equal(getAgent('relay')?.name, 'Relay')
   assert.equal(getAgent('does-not-exist'), undefined)
+})
+
+test('the mid-sentence job phrase keeps the AI acronym capitalised', () => {
+  for (const a of AGENTS) {
+    const phrase = jobPhrase(a)
+    assert.ok(phrase.startsWith('AI '), `${a.slug}: "${phrase}" lost the acronym`)
+    // Same words as the heading, only the case differs.
+    assert.equal(phrase.toLowerCase(), a.job.toLowerCase(), `${a.slug}: phrase is not the job`)
+    // No stray capitals mid-phrase, which would read as a brand name again.
+    assert.equal(phrase.slice(3), phrase.slice(3).toLowerCase(), `${a.slug}: "${phrase}" still has capitals`)
+  }
+})
+
+test('the job phrase always follows "an" correctly', () => {
+  // Every job starts with "AI", which takes "an". If a job is ever added that
+  // does not, the copy that writes "an {phrase}" becomes wrong.
+  for (const a of AGENTS) assert.match(jobPhrase(a), /^AI /, `${a.slug} would read "a AI..."`)
 })

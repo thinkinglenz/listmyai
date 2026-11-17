@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import { Check, Plug, AlertTriangle, ArrowRight } from 'lucide-react'
+import { jobPhrase } from '@/lib/agents'
 import EnquiryChat from '@/components/agents/EnquiryChat'
 import {
   allPairs, getPair, pairTitle, pairDescription, pairIntro, pairStakes,
@@ -63,19 +64,21 @@ export default async function PairPage({ params }: PageProps) {
         <nav aria-label="Breadcrumb" className="flex flex-wrap items-center gap-1.5 text-sm" style={{ color: '#64748b' }}>
           <Link href="/agents" className="transition hover:text-white">AI agents</Link>
           <span>/</span>
-          <Link href={`/agents/${agent.slug}`} className="transition hover:text-white">{agent.name}</Link>
+          <Link href={`/agents/${agent.slug}`} className="transition hover:text-white">{agent.job}</Link>
           <span>/</span>
           <span style={{ color: '#94a3b8' }}>{industry.name}</span>
         </nav>
 
         <div className="mt-8 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
           <div>
-            <span className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: agent.accent }}>
-              {agent.name}
-            </span>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+            {/* H1 first. The brand was here in capitals, above the only
+                heading on the page that carries a search phrase. */}
+            <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
               {pairTitle(p)}
             </h1>
+            <p className="mt-2 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: agent.accent }}>
+              {agent.name}
+            </p>
             <p className="mt-4 text-base leading-relaxed" style={{ color: '#cbd5e1' }}>
               {pairIntro(p)}
             </p>
@@ -99,7 +102,7 @@ export default async function PairPage({ params }: PageProps) {
               ))}
             </ul>
 
-            <h2 className="mt-10 text-xl font-bold text-white">What {agent.name} does about it</h2>
+            <h2 className="mt-10 text-xl font-bold text-white">What an {jobPhrase(agent)} does about it</h2>
             <ul className="mt-4 space-y-3">
               {agent.features.map(f => (
                 <li key={f} className="flex items-start gap-3">
@@ -134,7 +137,7 @@ export default async function PairPage({ params }: PageProps) {
           <div className="lg:sticky lg:top-24 lg:self-start">
             <EnquiryChat
               agentSlug={agent.slug}
-              agentName={agent.name}
+              label={jobPhrase(agent)}
               accent={agent.accent}
               opener={`You are looking at ${agent.job.replace(/^AI /, '').toLowerCase()} for ${industry.lower}. To start — what happens today when ${industry.audience} get in touch, and which part of it takes the most time?`}
             />
@@ -153,8 +156,8 @@ export default async function PairPage({ params }: PageProps) {
                 <Link key={a.slug} href={`/ai-agents/${a.slug}-for-${industry.slug}`}
                   className="rounded-2xl p-5 transition hover:-translate-y-0.5"
                   style={{ border: '1px solid #1e2a3a', background: '#161b27' }}>
-                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: a.accent }}>{a.name}</p>
-                  <p className="mt-1.5 font-bold text-white">{a.job}</p>
+                  <p className="font-bold leading-snug text-white">{a.job}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color: a.accent }}>{a.name}</p>
                   <p className="mt-2 text-sm leading-relaxed" style={{ color: '#64748b' }}>{a.tagline}</p>
                 </Link>
               ))}
@@ -170,7 +173,7 @@ export default async function PairPage({ params }: PageProps) {
         {otherTrades.length > 0 && (
           <section className="mt-14">
             <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>
-              {agent.name} in other trades
+              {jobPhrase(agent)} in other trades
             </h2>
             <div className="mt-4 flex flex-wrap gap-2">
               {otherTrades.map(i => (

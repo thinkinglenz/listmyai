@@ -498,3 +498,21 @@ export function jobKeyMap(): { key: string; slug: string }[] {
 export function jobKeySlug(key: string): string {
   return key.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
+
+/**
+ * The job phrase for use mid-sentence: "AI customer support agent".
+ *
+ * Not `job.toLowerCase()`, which would give "ai customer support agent" and
+ * look like a typo on every page. The leading acronym is preserved and only
+ * the words after it are lowered.
+ *
+ * This exists because the pages used to lead with the brand name — "Relay" as
+ * the card heading, "RELAY" as the eyebrow, "What Relay does about it" as an
+ * H2. Nobody searches for an invented product name, so every one of those was
+ * a heading spent on a word with no demand behind it. The job phrase goes
+ * there instead.
+ */
+export function jobPhrase(agent: Agent): string {
+  const [first, ...rest] = agent.job.split(' ')
+  return rest.length ? `${first} ${rest.join(' ').toLowerCase()}` : first
+}

@@ -9,7 +9,7 @@
  * something to do in that trade.
  */
 
-import { AGENTS, getAgent, type Agent } from './agents.ts'
+import { AGENTS, getAgent, jobPhrase, type Agent } from './agents.ts'
 import { INDUSTRIES, getIndustry, type Industry } from './industries.ts'
 
 export const PAIRINGS: Record<string, string[]> = {
@@ -109,7 +109,11 @@ export function pairIntro(p: Pair): string {
  */
 export function pairStakes(p: Pair): string {
   const pain = p.industry.pains[stableIndex(p.agent.slug, p.industry.pains.length)]
-  return `At ${p.industry.one}, ${p.industry.stakes}. For ${p.agent.name} the pressure point is where ${pain} — the repetitive part, which is worth handing over rather than hiring around.`
+  // Names the job, not the brand. This paragraph is body copy a search engine
+  // reads, and "For Relay the pressure point is" spends the sentence on a word
+  // with no demand behind it. It still varies per agent, so the pages for one
+  // trade do not collapse into each other.
+  return `At ${p.industry.one}, ${p.industry.stakes}. For an ${jobPhrase(p.agent)} the pressure point is where ${pain} — the repetitive part, which is worth handing over rather than hiring around.`
 }
 
 /**

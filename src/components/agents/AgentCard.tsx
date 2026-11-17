@@ -25,11 +25,13 @@ export default function AgentCard({ agent }: { agent: Agent }) {
         <Icon className="h-5 w-5" style={{ color: agent.accent }} />
       </div>
 
-      <h3 className="mt-4 text-lg font-bold text-white">{agent.name}</h3>
-      {/* The job line carries the search phrase; the brand name alone would
-          tell a first-time visitor nothing about what it does. */}
-      <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider" style={{ color: agent.accent }}>
-        {agent.job}
+      {/* The heading is the search phrase, not the brand. This text is also
+          the anchor for every internal link into the page, and "Relay" as
+          anchor text tells a search engine nothing about what is on the other
+          end of it. The brand sits underneath, small, where it costs nothing. */}
+      <h3 className="mt-4 text-lg font-bold leading-snug text-white">{agent.job}</h3>
+      <p className="mt-1 text-xs font-semibold uppercase tracking-wider" style={{ color: agent.accent }}>
+        {agent.name}
       </p>
 
       <p className="mt-3 flex-1 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
