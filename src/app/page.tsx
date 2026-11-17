@@ -447,6 +447,23 @@ export default async function HomePage() {
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {AGENTS.slice(0, 6).map(a => <AgentCard key={a.slug} agent={a} />)}
           </div>
+
+          {/* The section listed six agents and then stopped. Someone who knew
+              they wanted one still had to work out where to say so. */}
+          <div className="mt-8 flex flex-col items-start gap-3 rounded-2xl p-5 sm:flex-row sm:items-center sm:justify-between"
+            style={{ border: '1px solid rgba(233,69,96,0.3)', background: 'rgba(233,69,96,0.07)' }}>
+            <div>
+              <p className="text-sm font-bold text-white">Need one built around how you work?</p>
+              <p className="mt-0.5 text-xs" style={{ color: '#94a3b8' }}>
+                Describe the job and the questions adapt to your answers. We reply by email.
+              </p>
+            </div>
+            <Link href="/agents#enquiry"
+              className="inline-flex flex-shrink-0 items-center gap-2 rounded-xl px-5 py-3 text-sm font-bold text-white transition hover:opacity-90"
+              style={{ background: '#e94560', boxShadow: '0 0 22px rgba(233,69,96,0.3)' }}>
+              Connect to get your custom agent built <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
 

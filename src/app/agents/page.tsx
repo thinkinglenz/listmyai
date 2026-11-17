@@ -1,8 +1,10 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
 import { ArrowRight, Sparkles, ShieldCheck, MessageSquareText } from 'lucide-react'
-import { AGENTS } from '@/lib/agents'
+import { AGENTS, CUSTOM_INTAKE } from '@/lib/agents'
 import AgentCard from '@/components/agents/AgentCard'
+import EnquiryChat from '@/components/agents/EnquiryChat'
+import EnquiryCTA from '@/components/agents/EnquiryCTA'
 
 // Static content, so it can be cached hard. Nothing here reads the database.
 export const revalidate = 86400
@@ -57,13 +59,11 @@ export default function AgentsPage() {
             >
               Browse the agents <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/directory"
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition hover:bg-white/5"
-              style={{ border: '1px solid #1e2a3a', color: '#94a3b8' }}
-            >
-              Or browse existing tools
-            </Link>
+            <EnquiryCTA
+              label="Connect to get your custom agent built"
+              sub="A short conversation, answered by email"
+              targetId="enquiry"
+            />
           </div>
         </div>
       </section>
@@ -117,11 +117,37 @@ export default function AgentsPage() {
           {AGENTS.map(a => <AgentCard key={a.slug} agent={a} />)}
         </div>
 
-        <p className="mt-10 text-sm leading-relaxed" style={{ color: '#64748b' }}>
-          Need something that is not on this list? Pick the closest one and say so in the
-          enquiry — most of what we build starts that way.
-        </p>
       </section>
+
+      {/* The index used to end by telling people to go and find a form on
+          another page. The form is here now: a visitor whose job is not one of
+          the twelve had no way to say so without leaving. */}
+      <section id="enquiry" className="scroll-mt-24 border-t" style={{ borderColor: '#1e2a3a', background: '#0b0f16' }}>
+        <div className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_1fr]">
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              Not sure which one, or it is none of them?
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+              Describe the job in your own words. The questions adapt to what you say,
+              so by the end we have what we need and you have not filled in a form.
+              Most of what we build starts exactly this way.
+            </p>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: '#64748b' }}>
+              If something in our directory already does it, we will point you at that
+              instead.
+            </p>
+          </div>
+          <EnquiryChat
+            agentSlug={CUSTOM_INTAKE.slug}
+            label="custom AI agent"
+            accent="#e94560"
+            opener="Tell me what job you want handled — what happens today, who does it, and which part of it eats the most time?"
+          />
+        </div>
+      </section>
+
+      <EnquiryCTA variant="sticky" targetId="enquiry" />
     </main>
   )
 }

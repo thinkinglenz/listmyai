@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { Check, Plug, AlertTriangle, ArrowRight } from 'lucide-react'
 import { jobPhrase } from '@/lib/agents'
 import EnquiryChat from '@/components/agents/EnquiryChat'
+import EnquiryCTA from '@/components/agents/EnquiryCTA'
 import {
   allPairs, getPair, pairTitle, pairDescription, pairIntro, pairStakes,
   pairIntegrations, agentsFor, industriesFor,
@@ -134,7 +135,7 @@ export default async function PairPage({ params }: PageProps) {
             </p>
           </div>
 
-          <div className="lg:sticky lg:top-24 lg:self-start">
+          <div id="enquiry" className="scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <EnquiryChat
               agentSlug={agent.slug}
               label={jobPhrase(agent)}
@@ -187,6 +188,10 @@ export default async function PairPage({ params }: PageProps) {
           </section>
         )}
       </div>
+
+      {/* On a phone the chat is below everything above, so the only
+          visible route to it is this. */}
+      <EnquiryCTA variant="sticky" accent={agent.accent} targetId="enquiry" />
     </main>
   )
 }

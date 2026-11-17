@@ -477,7 +477,55 @@ export const AGENTS: Agent[] = [
   },
 ]
 
+/**
+ * The catch-all intake, for someone whose job is not one of the twelve.
+ *
+ * Deliberately NOT in AGENTS: it has no card, no pairings and no page of its
+ * own, because a thirteenth "something else" tile would dilute a catalogue
+ * whose whole job is to be specific. It exists so that the enquiry form can
+ * run anywhere — the catalogue index, an industry hub, the homepage — instead
+ * of only on the pages that happen to be about one agent.
+ *
+ * Every content rule that applies to the twelve applies here: no price, no
+ * delivery date, nothing about who builds them.
+ */
+export const CUSTOM_INTAKE: Agent = {
+  slug: 'custom',
+  name: 'Custom build',
+  job: 'Custom AI Agent',
+  tagline: 'Describe the job and we will tell you whether it can be built.',
+  problem:
+    'Most businesses have one repetitive job that no off-the-shelf tool quite fits, because it depends on how that business actually runs.',
+  outcome: 'The work gets scoped properly before anyone promises anything.',
+  features: [
+    'Starts from the job you actually need done, not from a product',
+    'Tells you if something in our directory already does it',
+    'Connects to the systems you already run',
+    'Scoped in the conversation, so there is no long exchange afterwards',
+  ],
+  worksWith: ['Email', 'WhatsApp', 'Google Workspace', 'Microsoft 365', 'Your CRM'],
+  jobKeys: [
+    'custom ai agent development',
+    'build a custom ai agent',
+    'bespoke ai agent for my business',
+    'hire someone to build an ai agent',
+  ],
+  industries: ['Any'],
+  intakeFocus: [
+    'The job itself, described as it happens today',
+    'Who does it now and how long it takes them',
+    'Which systems hold the information involved',
+    'What a mistake would cost',
+    'What success would look like',
+  ],
+  accent: '#e94560',
+  icon: 'Bot',
+}
+
 export function getAgent(slug: string): Agent | undefined {
+  // The custom intake resolves here so the enquiry API accepts it, but it is
+  // absent from AGENTS, so it generates no page and no pairing.
+  if (slug === CUSTOM_INTAKE.slug) return CUSTOM_INTAKE
   return AGENTS.find(a => a.slug === slug)
 }
 

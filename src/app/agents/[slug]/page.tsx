@@ -4,6 +4,7 @@ import type { Metadata } from 'next'
 import { ArrowLeft, Check, Plug, Building2 } from 'lucide-react'
 import { AGENTS, getAgent, jobPhrase } from '@/lib/agents'
 import EnquiryChat from '@/components/agents/EnquiryChat'
+import EnquiryCTA from '@/components/agents/EnquiryCTA'
 
 export const revalidate = 86400
 
@@ -130,7 +131,7 @@ export default async function AgentPage({ params }: PageProps) {
           </div>
 
           {/* Right: the enquiry */}
-          <div className="lg:sticky lg:top-24 lg:self-start">
+          <div id="enquiry" className="scroll-mt-24 lg:sticky lg:top-24 lg:self-start">
             <EnquiryChat
               agentSlug={agent.slug}
               label={jobPhrase(agent)}
@@ -160,6 +161,10 @@ export default async function AgentPage({ params }: PageProps) {
           </div>
         </section>
       </div>
+
+      {/* On a phone the chat is below everything above, so the only
+          visible route to it is this. */}
+      <EnquiryCTA variant="sticky" accent={agent.accent} targetId="enquiry" />
     </main>
   )
 }

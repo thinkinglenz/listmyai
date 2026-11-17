@@ -1,14 +1,15 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { AGENTS, getAgent, jobKeyMap, jobKeySlug, jobPhrase } from './agents.ts'
+import { AGENTS, CUSTOM_INTAKE, getAgent, jobKeyMap, jobKeySlug, jobPhrase } from './agents.ts'
 
 // The three rules in the module header are comments, and comments do not stop
 // anyone. These tests do. A price or a delivery date on a public page sets the
 // ceiling for every negotiation that follows it, so the build should fail
 // rather than let one through.
 
+// The custom intake is public copy too, so the price/date/phone rules cover it.
 const everyString = (): string[] =>
-  AGENTS.flatMap(a => [
+  [...AGENTS, CUSTOM_INTAKE].flatMap(a => [
     a.name, a.job, a.tagline, a.problem, a.outcome,
     ...a.features, ...a.worksWith, ...a.jobKeys, ...a.industries, ...a.intakeFocus,
   ])
@@ -121,4 +122,10 @@ test('the job phrase always follows "an" correctly', () => {
   // Every job starts with "AI", which takes "an". If a job is ever added that
   // does not, the copy that writes "an {phrase}" becomes wrong.
   for (const a of AGENTS) assert.match(jobPhrase(a), /^AI /, `${a.slug} would read "a AI..."`)
+})
+
+test('the custom intake resolves for the enquiry API but is not in the catalogue', () => {
+  assert.equal(getAgent('custom')?.slug, 'custom')
+  assert.equal(AGENTS.some(a => a.slug === 'custom'), false,
+    'the custom intake must not appear as a thirteenth card')
 })

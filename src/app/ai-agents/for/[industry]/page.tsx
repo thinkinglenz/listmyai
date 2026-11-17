@@ -4,6 +4,9 @@ import type { Metadata } from 'next'
 import { ArrowRight } from 'lucide-react'
 import { INDUSTRIES, getIndustry } from '@/lib/industries'
 import { agentsFor } from '@/lib/agent-pages'
+import { CUSTOM_INTAKE } from '@/lib/agents'
+import EnquiryChat from '@/components/agents/EnquiryChat'
+import EnquiryCTA from '@/components/agents/EnquiryCTA'
 
 export const revalidate = 86400
 export const dynamicParams = false
@@ -90,6 +93,30 @@ export default async function IndustryHub({ params }: PageProps) {
           ))}
         </div>
 
+        {/* A hub page listing agents with no way to enquire was a dead end:
+            the visitor had to pick one, load another page and find the form. */}
+        <section id="enquiry" className="mt-16 grid scroll-mt-24 gap-10 rounded-3xl p-6 sm:p-8 lg:grid-cols-[1fr_1fr]"
+          style={{ border: '1px solid #1e2a3a', background: '#0b0f16' }}>
+          <div>
+            <h2 className="text-2xl font-bold text-white">
+              Tell us how your {i.lower} setup actually works
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+              Describe the job in your own words and the questions adapt to what you say.
+              By the end we have what we need, and you have not filled in a form.
+            </p>
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: '#64748b' }}>
+              If something in our directory already does it, we will point you at that instead.
+            </p>
+          </div>
+          <EnquiryChat
+            agentSlug={CUSTOM_INTAKE.slug}
+            label="custom AI agent"
+            accent="#e94560"
+            opener={`You are looking at AI agents for ${i.lower}. What happens today when ${i.audience} get in touch, and which part of it takes the most time?`}
+          />
+        </section>
+
         <section className="mt-16 border-t pt-10" style={{ borderColor: '#1e2a3a' }}>
           <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: '#64748b' }}>Other trades</h2>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -103,6 +130,8 @@ export default async function IndustryHub({ params }: PageProps) {
           </div>
         </section>
       </div>
+
+      <EnquiryCTA variant="sticky" targetId="enquiry" />
     </main>
   )
 }
