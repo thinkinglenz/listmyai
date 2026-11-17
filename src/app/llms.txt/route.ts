@@ -8,6 +8,9 @@
 //
 // Generated from live data rather than hand-written, so the counts cannot drift.
 import { createClient } from '@supabase/supabase-js'
+import { AGENTS } from '@/lib/agents'
+import { INDUSTRIES } from '@/lib/industries'
+import { allPairs } from '@/lib/agent-pages'
 
 const BASE_URL = 'https://listmyai.com'
 
@@ -30,6 +33,15 @@ export async function GET() {
     .order('name')
 
   const total = count ?? 0
+  // Listed by job, not by brand name: a model answering "who builds customer
+  // support agents" matches on the job phrase, and "Relay" means nothing to it.
+  const agentLines = AGENTS
+    .map(a => `- [${a.job}](${BASE_URL}/agents/${a.slug}): ${a.tagline} ${a.outcome}`)
+    .join('\n')
+  const industryLines = INDUSTRIES
+    .map(i => `- [${i.name}](${BASE_URL}/ai-agents/for/${i.slug})`)
+    .join('\n')
+  const pairCount = allPairs().length
   const categoryLines = (categories ?? [])
     // Canonical category URL, matching sitemap.ts: there is no /category/ route.
     .map(c => `- [${c.name}](${BASE_URL}/directory?category=${c.slug})`)
@@ -68,6 +80,23 @@ URL so readers can check it against the source.
 - [Deals and promo codes](${BASE_URL}/deals)
 - [Buying guides](${BASE_URL}/best)
 - [Blog](${BASE_URL}/blog)
+
+## Custom AI agents we build
+
+Separate from the directory. These are agents built to order for a specific
+business, not products listed by third parties. Each page describes one job,
+and the enquiry on it is a conversation that scopes the work.
+
+${agentLines}
+
+Each agent also has a page per trade (${pairCount} in total) covering the
+channels, systems and failure modes specific to that industry:
+
+${industryLines}
+
+Price and delivery timing are deliberately not published: they depend on scope,
+which is established in the enquiry. An assistant asked for either should say
+so rather than estimate.
 
 ## Categories
 

@@ -15,6 +15,10 @@ import { createClient } from '@supabase/supabase-js'
 import { LIVE_PAGES } from '@/lib/seo/best-pages'
 import { publishedEditorialSlugs } from '@/lib/editorials'
 
+import { AGENTS } from '@/lib/agents'
+import { INDUSTRIES } from '@/lib/industries'
+import { allPairs } from '@/lib/agent-pages'
+
 export const BASE_URL = 'https://listmyai.com'
 
 /** URLs per chunk. Google allows 50,000; we use a fifth of that so a file
@@ -291,6 +295,34 @@ export async function coreEntries(): Promise<Entry[]> {
   ]
 }
 
+/**
+ * The agent pages: the catalogue, one page per agent, one hub per industry,
+ * and one page per offered agent-industry pairing.
+ *
+ * Its own chunk for two reasons. It touches no database, so it is the one
+ * sitemap that cannot fail when Supabase is unreachable. And keeping it
+ * separate means Search Console and Bing report coverage for this section on
+ * its own, instead of hiding it inside twenty thousand tool URLs.
+ */
+export function agentEntries(): Entry[] {
+  const now = new Date()
+  return [
+    { loc: `${BASE_URL}/agents`, lastmod: now, changefreq: 'weekly', priority: 0.9 },
+    ...AGENTS.map(a => ({
+      loc: `${BASE_URL}/agents/${a.slug}`,
+      lastmod: now, changefreq: 'weekly' as const, priority: 0.9,
+    })),
+    ...INDUSTRIES.map(i => ({
+      loc: `${BASE_URL}/ai-agents/for/${i.slug}`,
+      lastmod: now, changefreq: 'weekly' as const, priority: 0.8,
+    })),
+    ...allPairs().map(p => ({
+      loc: `${BASE_URL}/ai-agents/${p.slug}`,
+      lastmod: now, changefreq: 'weekly' as const, priority: 0.8,
+    })),
+  ]
+}
+
 /** The chunk filenames the index advertises, derived from the live count so
  *  the index can never point at a chunk that has nothing in it. */
 export function chunkFiles(toolCount: number): string[] {
@@ -300,5 +332,6 @@ export function chunkFiles(toolCount: number): string[] {
     ...Array.from({ length: n }, (_, i) => `tools-${i + 1}.xml`),
     ...Array.from({ length: n }, (_, i) => `alternatives-${i + 1}.xml`),
     'compare.xml',
+    'agents.xml',
   ]
 }
