@@ -5,7 +5,9 @@ import NewlyAddedCards, { type NewTool } from '@/components/NewlyAddedCards'
 import { getCurrentSpotlight, getMinimumNextBid } from '@/lib/spotlight'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar } from 'lucide-react'
+import { ArrowRight, Zap, Star, TrendingUp, CheckCircle2, Sparkles, SlidersHorizontal, BarChart2, List, Flame, BookOpen, Calendar, Bot } from 'lucide-react'
+import { AGENTS } from '@/lib/agents'
+import AgentCard from '@/components/agents/AgentCard'
 import SearchBar from '@/components/search/SearchBar'
 import CategoryGrid from '@/components/listing/CategoryGrid'
 import ToolCard from '@/components/listing/ToolCard'
@@ -303,6 +305,24 @@ export default async function HomePage() {
             <SearchBar large placeholder="Search AI tools, categories, use cases…" />
           </div>
 
+          {/* The second thing the site sells, and previously the only thing it
+              did not mention. A directory answers "what exists"; this answers
+              "nothing here fits me", which is the more valuable visitor. */}
+          <div className="mt-6 flex justify-center lg:justify-start">
+            <Link href="/agents"
+              className="group inline-flex items-center gap-3 rounded-2xl px-4 py-3 transition hover:bg-white/[0.06]"
+              style={{border:'1px solid rgba(233,69,96,0.3)',background:'rgba(233,69,96,0.07)'}}>
+              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{background:'rgba(233,69,96,0.18)'}}>
+                <Bot className="h-4 w-4" style={{color:"#e94560"}} />
+              </span>
+              <span className="text-left">
+                <span className="block text-sm font-bold text-white">Need an AI agent built for your business?</span>
+                <span className="block text-xs" style={{color:'#94a3b8'}}>12 agents, shaped to how you actually work</span>
+              </span>
+              <ArrowRight className="h-4 w-4 flex-shrink-0 transition-transform group-hover:translate-x-0.5" style={{color:'#e94560'}} />
+            </Link>
+          </div>
+
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
             <span className="text-xs" style={{color:'#475569'}}>Popular:</span>
             {['Image Generation','Code Assistant','Writing','Automation','Chatbot'].map(s => (
@@ -394,6 +414,38 @@ export default async function HomePage() {
                 </div>
               )
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Agents ──
+          Placed above the category grid deliberately. The directory is the
+          reason people arrive; this is the reason the site earns anything, so
+          it sits where it will actually be seen rather than below ten
+          screens of listings. Six of the twelve show here — the rest are one
+          click away, and a wall of twelve competes with the categories. */}
+      <section className="border-b" style={{ borderColor: '#1e2a3a', background: '#0b0f16' }}>
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-[0.14em]" style={{ color: '#e94560' }}>
+                <Bot className="h-3.5 w-3.5" /> Built for you
+              </span>
+              <h2 className="mt-2 text-2xl font-bold text-white">AI agents for your business</h2>
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed" style={{ color: '#64748b' }}>
+                When nothing in the directory fits how you actually work, we build the
+                agent that does. Pick a job and describe it — the enquiry does the scoping.
+              </p>
+            </div>
+            <Link href="/agents"
+              className="inline-flex items-center gap-1.5 text-sm font-semibold transition hover:gap-2.5"
+              style={{ color: '#e94560' }}>
+              All {AGENTS.length} agents <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {AGENTS.slice(0, 6).map(a => <AgentCard key={a.slug} agent={a} />)}
           </div>
         </div>
       </section>
