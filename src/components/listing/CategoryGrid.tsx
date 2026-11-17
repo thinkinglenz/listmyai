@@ -42,7 +42,10 @@ interface Props { categories: Category[]; className?: string }
 export default function CategoryGrid({ categories, className }: Props) {
   return (
     <div className={cn('grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6', className)}>
-      {categories.slice(0, 12).map(cat => <CategoryCard key={cat.slug} cat={cat} />)}
+      {/* The caller decides how many to show. This used to cut to 12 as well,
+          so a page asking for more silently got 12 and the difference was
+          invisible from the calling side. */}
+      {categories.map(cat => <CategoryCard key={cat.slug} cat={cat} />)}
     </div>
   )
 }

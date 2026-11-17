@@ -179,6 +179,12 @@ export default function SpotlightBox(props: Props) {
               // Step down the chain rather than showing a broken image.
               onError={() => setSrcIndex(i => Math.min(i + 1, sources.length - 1))}
               loading="eager"
+              // This is the largest element in the hero, so it is what Google
+              // measures as LCP. `eager` only stops it being deferred;
+              // fetchPriority asks the browser to fetch it ahead of the other
+              // images competing for the same connections.
+              fetchPriority="high"
+              decoding="async"
             />
           </div>
         </div>

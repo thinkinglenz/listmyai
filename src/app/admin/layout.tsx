@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, List, Shield, Users, FileWarning,
   Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3, Send, BookOpen, MessageSquare, FileText,
+  Tags,
 } from 'lucide-react'
 
 // ─── Admin password + Email OTP gate ────────────────────────────────────────
@@ -201,6 +202,7 @@ const NAV_ITEMS = [
   { href: '/admin/blog', label: 'Blog', icon: BookOpen, badgeKey: 'blog_comments' as const },
   { href: '/admin/editorials', label: 'Editorials', icon: FileText },
   { href: '/admin/scraper', label: 'Scraper', icon: Bot },
+  { href: '/admin/reclassify', label: 'Recategorise', icon: Tags },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

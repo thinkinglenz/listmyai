@@ -3,7 +3,7 @@
 // Filenames are core.xml, tools-N.xml, alternatives-N.xml and compare.xml,
 // exactly as the index advertises them.
 import {
-  CHUNK, compareEntries, coreEntries, countActiveTools, fetchAllTools, fetchTools,
+  CHUNK, agentEntries, compareEntries, coreEntries, countActiveTools, fetchAllTools, fetchTools,
   renderUrlset, toolEntries, XML_HEADERS, type Entry,
 } from '@/lib/seo/sitemap-data'
 
@@ -13,6 +13,8 @@ const SLICE = /^(tools|alternatives)-(\d+)\.xml$/
 
 async function entriesFor(file: string): Promise<Entry[] | null> {
   if (file === 'core.xml') return coreEntries()
+  // Before the database-backed chunks: this one needs no database at all.
+  if (file === 'agents.xml') return agentEntries()
   if (file === 'compare.xml') return compareEntries(await fetchAllTools())
 
   const m = SLICE.exec(file)

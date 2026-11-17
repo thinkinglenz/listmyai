@@ -11,6 +11,8 @@ const DIR_LINKS = [
   { href: '/compare',    label: 'Compare Tools' },
   { href: '/deals',      label: 'Deals & Promotions' },
   { href: '/categories', label: 'Categories' },
+  { href: '/trending',   label: 'Trending AI Tools' },
+  { href: '/blog',       label: 'Blog' },
   { href: '/submit',     label: 'Submit Your AI' },
 ]
 
