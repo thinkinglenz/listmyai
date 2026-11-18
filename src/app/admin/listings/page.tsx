@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone, Pencil } from 'lucide-react'
+import { Search, Filter, Check, X, Trash2, Eye, ChevronDown, ChevronLeft, ChevronRight, Database, EyeOff, RotateCcw, Plus, Loader2, ExternalLink, Share2, Copy, CheckCheck, Image as ImageIcon, Download, Megaphone, Pencil, Mail } from 'lucide-react'
+import ContactOwnerDialog, { type ContactTarget } from '@/components/admin/ContactOwnerDialog'
 import Link from 'next/link'
 import { COMMENT_DM_ON, instagramCaption, instagramImagePath } from '@/lib/social/copy'
 
@@ -588,6 +589,10 @@ function SortableTh({ label, field, sort, asc, onSort }: {
 }
 
 export default function AdminListingsPage() {
+  // null when closed. Holding the whole target, not just an id, means the
+  // dialog never has to re-find the row and cannot drift onto a different one
+  // if the table refreshes underneath it.
+  const [contactTarget, setContactTarget] = useState<ContactTarget | null>(null)
   const [tools, setTools] = useState<Tool[]>([])
   const [loading, setLoading] = useState(true)
   const [apiError, setApiError] = useState('')
@@ -1049,6 +1054,20 @@ export default function AdminListingsPage() {
                               className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-blue-500/10 hover:text-blue-400">
                               <Pencil className="h-3.5 w-3.5" />
                             </Link>
+                            {/* Only for a claimed listing with a reachable
+                                account. An unclaimed tool has nobody to
+                                write to, and a dead button that explains
+                                itself on click is worse than no button. */}
+                            {tool.claimed && tool.claimed_by_email && (
+                              <button type="button" title={`Message ${tool.claimed_by_email}`}
+                                onClick={() => setContactTarget({
+                                  id: tool.id, name: tool.name, slug: tool.slug ?? null,
+                                  website: tool.website ?? null, ownerEmail: tool.claimed_by_email ?? null,
+                                })}
+                                className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 transition hover:bg-pink-500/10 hover:text-pink-400">
+                                <Mail className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             {/* Share buttons */}
                             {tool.status === 'active' && tool.slug && (
                               <>
@@ -1243,6 +1262,8 @@ export default function AdminListingsPage() {
           <span className="font-semibold text-amber-400">⚠️ {pendingCount} pending</span> — hover any row to reveal the ✓ approve / ✗ reject buttons.
         </div>
       )}
+
+      <ContactOwnerDialog target={contactTarget} onClose={() => setContactTarget(null)} />
     </div>
   )
 }

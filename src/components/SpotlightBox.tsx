@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles, ArrowRight, Clock } from 'lucide-react'
+import { imageOutcome } from '@/lib/image-outcome'
 
 interface Props {
   toolName: string
@@ -98,11 +99,11 @@ export default function SpotlightBox(props: Props) {
 
   // The image is in the server-rendered HTML, so the browser starts loading it
   // before React hydrates. If it fails in that window the error event is gone
-  // by the time onError is attached, and the fallback never runs. A finished
-  // image with no intrinsic width is one that failed.
+  // by the time onError is attached, and the fallback never runs. Shared with
+  // the listing page's preview, which had the same bug and showed a spinner
+  // for ever on any repeat visit.
   useEffect(() => {
-    const el = imgRef.current
-    if (el?.complete && el.naturalWidth === 0) {
+    if (imageOutcome(imgRef.current) === 'failed') {
       setSrcIndex(i => Math.min(i + 1, sources.length - 1))
     }
   }, [srcIndex, sources.length])

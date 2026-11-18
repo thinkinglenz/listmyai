@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Globe } from 'lucide-react'
+import { imageOutcome } from '@/lib/image-outcome'
 
 interface Props {
   website: string
@@ -19,12 +20,29 @@ interface Props {
 export default function WebsitePreview({ website, toolName, slug, outboundUrl, coverUrl }: Props) {
   const [imgError, setImgError] = useState(false)
   const [imgLoaded, setImgLoaded] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
 
   // Same resolver the homepage spotlight uses: an admin cover, then the site's
   // own og:image, then a screenshot. Screenshots alone left this panel empty
   // for every site that blocks capture bots, even when the tool published a
   // perfectly good share image.
   const previewSrc = coverUrl ? coverUrl : `/api/tools/preview/${slug}`
+
+  // Declared AFTER previewSrc on purpose: the dependency array is evaluated
+  // during render, so referencing it above its own declaration is a temporal
+  // dead zone error, not merely untidy.
+  //
+  // The image is in the server-rendered HTML, so it starts loading before
+  // React attaches onLoad/onError. On a repeat visit it comes from cache and
+  // settles inside that window, so neither handler fires and the spinner stays
+  // up for ever — which is exactly the "it only works the first time" report.
+  // Ask the element directly instead of waiting for an event that already
+  // happened.
+  useEffect(() => {
+    const outcome = imageOutcome(imgRef.current)
+    if (outcome === 'loaded') setImgLoaded(true)
+    else if (outcome === 'failed') setImgError(true)
+  }, [previewSrc])
 
   return (
     <a href={outboundUrl} target="_blank" rel="noopener noreferrer"
@@ -45,6 +63,7 @@ export default function WebsitePreview({ website, toolName, slug, outboundUrl, c
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={imgRef}
               src={previewSrc}
               alt={`${toolName} website screenshot`}
               className={`w-full h-auto transition ${imgLoaded ? '' : 'absolute opacity-0'}`}

@@ -230,3 +230,57 @@ export function adminClaimNotificationEmail(
     ${P(`Review the tool details above before approving. You can also reject this claim if needed.`)}
   `)
 }
+
+/**
+ * A direct message from the team to whoever claimed a listing.
+ *
+ * Deliberately not built on BASE: that shell carries an Unsubscribe link,
+ * which belongs on marketing. This is operational mail about the recipient's
+ * own listing — offering to unsubscribe from it would be both wrong and a way
+ * to lose the only channel we have to them.
+ *
+ * The admin's words are escaped and shown as typed. Turning them into HTML
+ * would let a stray angle bracket break the layout, and nothing here needs
+ * formatting.
+ */
+export function ownerContactEmail(opts: {
+  toolName: string
+  slug: string | null
+  website: string | null
+  message: string
+  replyTo: string
+}): string {
+  const listingUrl = opts.slug ? `https://listmyai.com/tools/${opts.slug}` : 'https://listmyai.com'
+  const body = escapeEmailHtml(opts.message).replace(/\n/g, '<br>')
+
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0d1117;font-family:Inter,Arial,sans-serif;color:#e2e8f0">
+  <div style="max-width:560px;margin:40px auto;background:#161b27;border-radius:16px;border:1px solid #1e2a3a;overflow:hidden">
+    <div style="background:#e94560;padding:24px 32px">
+      <span style="font-size:20px;font-weight:900;color:#fff;letter-spacing:-0.5px">ListmyAI</span>
+    </div>
+    <div style="padding:32px">
+      ${H1(`About your listing: ${escapeEmailHtml(opts.toolName)}`)}
+      <div style="margin:16px 0;font-size:14px;line-height:1.7;color:#cbd5e1">${body}</div>
+      ${BTN(listingUrl, 'View your listing')}
+      ${P(`You are receiving this because this listing is claimed under your account.${
+        opts.replyTo ? ' Replying to this email reaches us directly.' : ''
+      }`)}
+      ${P('— The ListmyAI team')}
+    </div>
+    <div style="padding:16px 32px;border-top:1px solid #1e2a3a;font-size:12px;color:#64748b">
+      ListmyAI — The AI Tools Directory
+    </div>
+  </div>
+</body>
+</html>`
+}
+
+/** Minimal escaping so a typed message cannot break out into markup. */
+function escapeEmailHtml(s: string): string {
+  return s.replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string))
+}
