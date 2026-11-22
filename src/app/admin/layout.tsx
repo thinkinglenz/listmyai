@@ -6,8 +6,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, List, Shield, Users, FileWarning,
   Bot, LogOut, Menu, ChevronRight, Zap, Lock, Eye, EyeOff, CreditCard, BarChart3, Send, BookOpen, MessageSquare, FileText,
-  Tags,
-} from 'lucide-react'
+  Tags, MessageSquareText } from 'lucide-react'
 
 // ─── Admin password + Email OTP gate ────────────────────────────────────────
 // Both factors are verified by /api/admin/otp on the server; the password is
@@ -193,6 +192,10 @@ const NAV_ITEMS = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/admin/listings', label: 'Listings', icon: List, badgeKey: 'listings' as const },
   { href: '/admin/claims', label: 'Claim Requests', icon: Shield, badgeKey: 'claims' as const },
+  // High in the list on purpose: this is the only place an abandoned
+  // enquiry is visible, and an abandoned enquiry is the earliest signal
+  // that something in the funnel is wrong.
+  { href: '/admin/enquiries', label: 'Agent Enquiries', icon: MessageSquareText },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { href: '/admin/dmca', label: 'DMCA Queue', icon: FileWarning, badgeKey: 'dmca' as const },

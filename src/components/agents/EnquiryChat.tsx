@@ -33,7 +33,18 @@ export default function EnquiryChat({
   // browser has it, and the server treats a null as "no opinion" rather than
   // as an instant submission.
   const mountedAt = useRef<number | null>(null)
-  useEffect(() => { mountedAt.current = Date.now() }, [])
+  // One id for the whole conversation, made once when the form mounts. It is
+  // what lets the server keep a single row per visitor instead of one per
+  // message — and so what makes an abandoned conversation visible as one
+  // person who stopped, rather than three unrelated fragments.
+  const conversationId = useRef<string | null>(null)
+  useEffect(() => {
+    mountedAt.current = Date.now()
+    conversationId.current = (globalThis.crypto?.randomUUID?.()
+      // Older browsers have no randomUUID. A timestamp plus randomness is
+      // plenty here: it only has to be unique, not unguessable.
+      ?? `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`)
+  }, [])
   const scrollAnchor = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -60,6 +71,8 @@ export default function EnquiryChat({
           messages: next,
           honeypot,
           elapsedMs: mountedAt.current === null ? null : Date.now() - mountedAt.current,
+          conversationId: conversationId.current,
+          pagePath: typeof window !== 'undefined' ? window.location.pathname : null,
         }),
       })
       const data = await res.json().catch(() => null)

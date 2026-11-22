@@ -3,6 +3,7 @@ import { getAgent } from '@/lib/agents'
 import { isBotAgent } from '@/lib/is-bot'
 import { checkEnquiry, refusalMessage, MAX_TURNS, type Refusal } from '@/lib/enquiry-guard'
 import { sendEmail } from '@/lib/email'
+import { recordEnquiry, recordDelivery } from '@/lib/enquiry-store'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -76,6 +77,8 @@ export async function POST(req: NextRequest) {
     messages?: Turn[]
     honeypot?: string
     elapsedMs?: number
+    conversationId?: string
+    pagePath?: string
   }
   try {
     body = await req.json()
@@ -86,6 +89,10 @@ export async function POST(req: NextRequest) {
   const agent = getAgent(String(body.agentSlug ?? ''))
   if (!agent) return NextResponse.json({ error: 'Unknown agent.' }, { status: 404 })
 
+  // Made by the browser when the form mounted. Without it every turn would
+  // be a new row and an abandoned conversation would look like five separate
+  // one-line enquiries instead of one person who gave up.
+  const conversationId = String(body.conversationId ?? '').slice(0, 64).trim()
   const messages = Array.isArray(body.messages) ? body.messages : []
   // The turn count is derived here, never taken from the client. A forged
   // "turnsSoFar: 0" would otherwise reopen an unbounded conversation, which is
@@ -178,11 +185,31 @@ export async function POST(req: NextRequest) {
   const complete = raw.includes(DONE_TOKEN)
   const reply = raw.replace(DONE_TOKEN, '').trim()
 
+  // Saved on EVERY turn, not only on completion. An enquiry that stops at
+  // question three is the most useful record there is — it is the only way to
+  // see that people are arriving and giving up.
+  if (conversationId) {
+    void recordEnquiry({
+      conversationId,
+      agentSlug: agent.slug,
+      messages: [...messages, { role: 'model', content: reply }],
+      complete,
+      summary: complete ? reply : null,
+      ip: clientIp(req),
+      userAgent: req.headers.get('user-agent'),
+      pagePath: typeof body.pagePath === 'string' ? body.pagePath.slice(0, 300) : null,
+    }).catch(err => console.error('[agent-enquiry] record failed', err))
+  }
+
   if (complete) {
     // Fire and forget: a failed notification must not lose the visitor's
     // enquiry or show them an error after they have done the work.
-    void deliver(agent.name, agent.job, messages, reply).catch(err =>
-      console.error('[agent-enquiry] delivery failed', err))
+    void deliver(agent.name, agent.job, messages, reply)
+      .then(() => { if (conversationId) void recordDelivery(conversationId, true) })
+      .catch(err => {
+        console.error('[agent-enquiry] delivery failed', err)
+        if (conversationId) void recordDelivery(conversationId, false, String(err?.message ?? err))
+      })
   }
 
   return NextResponse.json({
