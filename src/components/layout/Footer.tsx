@@ -12,6 +12,7 @@ const DIR_LINKS = [
   { href: '/deals',      label: 'Deals & Promotions' },
   { href: '/categories', label: 'Categories' },
   { href: '/trending',   label: 'Trending AI Tools' },
+  { href: '/agents',     label: 'Custom AI Agents' },
   { href: '/blog',       label: 'Blog' },
   { href: '/submit',     label: 'Submit Your AI' },
 ]

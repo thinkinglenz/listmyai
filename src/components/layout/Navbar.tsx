@@ -21,6 +21,12 @@ const SESSION_KEY = 'lmai_admin_auth'
  */
 const NAV_LINKS = [
   { href: '/directory',   label: 'Browse AI Tools' },
+  // The only thing on this site that is sold rather than listed, and until
+  // now it was reachable from the home page alone. Every visitor who landed
+  // on a listing or a guide — which is nearly all of them, since that is what
+  // ranks — had no route to it at all. This nav was trimmed before the agent
+  // store existed and nobody added it back.
+  { href: '/agents',      label: 'AI Agents' },
   { href: '/compare',     label: 'Compare' },
   { href: '/deals',       label: 'Deals' },
   { href: '/categories',  label: 'Categories' },

@@ -940,6 +940,23 @@ export default async function ToolPage({ params }: PageProps) {
               </span>
             </Link>
 
+            {/* Sits directly under "alternatives" on purpose. Someone reading
+                a listing and still looking at alternatives is the one visitor
+                most likely to need something built, and this is the moment
+                they are thinking it. A nav link cannot catch that; this can. */}
+            <Link href="/agents"
+              className="block rounded-2xl border p-5 transition hover:border-red-500/40"
+              style={{borderColor:'rgba(233,69,96,0.25)',background:'rgba(233,69,96,0.06)'}}>
+              <h3 className="text-sm font-bold text-white">Nothing here quite fits?</h3>
+              <p className="mt-1 text-xs text-slate-400">
+                We build AI agents around how your business actually works — support,
+                lead qualification, booking, invoices and more.
+              </p>
+              <span className="mt-2 inline-block text-xs font-semibold" style={{color:'#e94560'}}>
+                Connect to get your custom agent built →
+              </span>
+            </Link>
+
             {/* API */}
             {tool.has_api && (
               <div className="rounded-2xl border p-4 sm:p-5" style={{borderColor:'rgba(6,182,212,0.2)',background:'rgba(6,182,212,0.04)'}}>
