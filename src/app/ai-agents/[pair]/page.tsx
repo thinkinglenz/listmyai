@@ -7,7 +7,7 @@ import EnquiryChat from '@/components/agents/EnquiryChat'
 import EnquiryCTA from '@/components/agents/EnquiryCTA'
 import {
   allPairs, getPair, pairTitle, pairDescription, pairIntro, pairStakes,
-  pairIntegrations, agentsFor, industriesFor,
+  pairIntegrations, pairRegion, agentsFor, industriesFor,
 } from '@/lib/agent-pages'
 
 export const revalidate = 86400
@@ -82,6 +82,9 @@ export default async function PairPage({ params }: PageProps) {
             </p>
             <p className="mt-4 text-base leading-relaxed" style={{ color: '#cbd5e1' }}>
               {pairIntro(p)}
+            </p>
+            <p className="mt-3 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+              {pairRegion(p)}
             </p>
 
             <div className="mt-8 rounded-2xl p-5" style={{ border: '1px solid #1e2a3a', background: '#161b27' }}>

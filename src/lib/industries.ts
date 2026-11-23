@@ -115,7 +115,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a restaurant',
     audience: 'guests',
     channels: ['Phone', 'Instagram DMs', 'Website', 'Walk-in'],
-    systems: ['Booking system', 'POS', 'Google Business Profile', 'Instagram'],
+    systems: ['Toast', 'Square', 'OpenTable', 'Google Business Profile', 'Instagram'],
     pains: [
       'the phone rings during service, when nobody can answer it properly',
       'allergy and group-booking questions need a careful, consistent answer',
@@ -147,7 +147,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a freight company',
     audience: 'shippers',
     channels: ['Email', 'Phone', 'WhatsApp', 'EDI'],
-    systems: ['TMS', 'Excel', 'Email', 'Customer portals'],
+    systems: ['TMS', 'QuickBooks Online', 'Excel', 'Customer portals'],
     pains: [
       'rate requests and status chasers arrive in the same inbox as invoices',
       'delivery notes and invoices are retyped by hand from PDFs and photos',
@@ -163,7 +163,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a contractor',
     audience: 'clients',
     channels: ['Phone', 'WhatsApp', 'Email', 'Website form'],
-    systems: ['Excel', 'WhatsApp', 'Accounting software', 'Email'],
+    systems: ['Jobber', 'ServiceTitan', 'QuickBooks Online', 'Excel', 'Email'],
     pains: [
       'enquiries arrive while the team is on site and cannot answer',
       'supplier invoices pile up as photographs taken on a phone',
@@ -211,7 +211,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a retailer',
     audience: 'customers',
     channels: ['In-store', 'Phone', 'Website', 'WhatsApp'],
-    systems: ['POS', 'Inventory software', 'Excel', 'Google Business Profile'],
+    systems: ['Square', 'Shopify POS', 'QuickBooks Online', 'Google Business Profile'],
     pains: [
       'stock decisions are made from memory rather than from what actually sold',
       'the fast movers run out exactly when demand peaks',
@@ -227,7 +227,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a professional firm',
     audience: 'clients',
     channels: ['Email', 'Phone', 'Client portal', 'Referral'],
-    systems: ['Xero', 'QuickBooks', 'Practice software', 'Google Workspace'],
+    systems: ['QuickBooks Online', 'Xero', 'Practice software', 'Google Workspace'],
     pains: [
       'client documents arrive as attachments and are retyped by hand',
       'engagement letters and contracts are reviewed under time pressure',
@@ -243,7 +243,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a studio',
     audience: 'members',
     channels: ['Instagram DMs', 'WhatsApp', 'Phone', 'Website'],
-    systems: ['Booking software', 'Instagram', 'Payment provider', 'Email'],
+    systems: ['Mindbody', 'Square', 'Instagram', 'Stripe'],
     pains: [
       'class and membership questions arrive constantly through social DMs',
       'no-shows leave classes half full with a waiting list unused',
@@ -259,7 +259,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a workshop',
     audience: 'customers',
     channels: ['Phone', 'WhatsApp', 'Walk-in', 'Website form'],
-    systems: ['Workshop software', 'Excel', 'Parts suppliers', 'Google Business Profile'],
+    systems: ['Shopmonkey', 'QuickBooks Online', 'Google Business Profile', 'SMS'],
     pains: [
       'the phone rings while technicians are under a vehicle',
       'quote requests need details the customer never provides first time',
@@ -323,7 +323,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a salon',
     audience: 'clients',
     channels: ['Instagram DMs', 'WhatsApp', 'Phone', 'Walk-in'],
-    systems: ['Booking software', 'Instagram', 'Payment provider', 'WhatsApp'],
+    systems: ['Square Appointments', 'Vagaro', 'Instagram', 'WhatsApp'],
     pains: [
       'booking requests arrive by DM while every stylist is with a client',
       'no-shows leave chairs empty at the busiest times of the week',
@@ -355,7 +355,7 @@ export const INDUSTRIES: Industry[] = [
     one: 'a pharmacy',
     audience: 'customers',
     channels: ['Phone', 'Walk-in', 'WhatsApp', 'Website'],
-    systems: ['Dispensing software', 'Inventory software', 'Supplier portals', 'POS'],
+    systems: ['Dispensing software', 'QuickBooks Online', 'Supplier portals', 'POS'],
     pains: [
       'stock questions and prescription queries tie up the counter',
       'fast-moving lines run out between supplier deliveries',

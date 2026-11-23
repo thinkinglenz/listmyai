@@ -4,7 +4,7 @@ import { AGENTS, jobPhrase } from './agents.ts'
 import { INDUSTRIES } from './industries.ts'
 import {
   PAIRINGS, allPairs, getPair, pairSlug, agentsFor, industriesFor,
-  pairTitle, pairDescription, pairIntro, pairStakes, pairIntegrations,
+  pairTitle, pairDescription, pairIntro, pairStakes, pairIntegrations, pairRegion,
 } from './agent-pages.ts'
 
 test('every pairing names a real agent and a real industry', () => {
@@ -191,4 +191,70 @@ test('every pair title contains the searchable job phrase in full', () => {
     assert.ok(pairTitle(p).toLowerCase().includes(p.agent.job.toLowerCase()),
       `${p.slug}: the job phrase is not intact in the title`)
   }
+})
+
+// Google removed country targeting for generic domains in 2022, so the only
+// geo signal available is the copy itself. These lock it in.
+test('every page names the market and real software for that trade', () => {
+  for (const p of allPairs()) {
+    const region = pairRegion(p)
+    assert.match(region, /United States and Canada/, `${p.slug}: no market named`)
+    // The first system of that trade must actually appear, or the sentence is
+    // a generic claim rather than a signal.
+    assert.ok(region.includes(p.industry.systems[0]),
+      `${p.slug}: "${p.industry.systems[0]}" missing from the region line`)
+  }
+})
+
+test('the region line is not identical across pages', () => {
+  const lines = new Set(allPairs().map(pairRegion))
+  // One per industry is expected; one for everything would be boilerplate.
+  assert.ok(lines.size >= 15, `only ${lines.size} distinct region lines`)
+})
+
+test('the new agents cover the vocabulary people actually search', () => {
+  const keys = new Set(jobKeyMapAll())
+  for (const phrase of [
+    'ai order management agent',
+    'ai dispatch agent',
+    'ai quoting agent',
+    'ai invoice chasing agent',
+    'ai customer reactivation agent',
+    'ai patient intake agent',
+    'ai client onboarding agent',
+    'ai social media dm agent',
+  ]) {
+    assert.ok(keys.has(phrase), `no page targets "${phrase}"`)
+  }
+})
+
+function jobKeyMapAll(): string[] {
+  return AGENTS.flatMap(a => a.jobKeys)
+}
+
+// The stakes sentence used to pick a pain by hashing the agent slug, which
+// put "contract terms are signed without anyone reading page nine" on the
+// dispatch page for contractors. Picking at random is what makes a generated
+// page read as generated.
+test('the stakes line picks a pain that relates to the agent', () => {
+  const dispatch = getPair('dispatch-for-construction')
+  assert.ok(dispatch)
+  const text = pairStakes(dispatch)
+  assert.equal(text.includes('page nine'), false,
+    'the dispatch page is leading on the contracts pain again')
+
+  const clause = getPair('clause-for-construction')
+  assert.ok(clause)
+  assert.ok(pairStakes(clause).includes('page nine'),
+    'the contracts agent is the one that should lead on the contract pain')
+})
+
+test('two agents in one trade do not all land on the same pain', () => {
+  const industry = 'construction'
+  const lines = agentsFor(industry)
+    .map(a => getPair(`${a.slug}-for-${industry}`))
+    .filter(Boolean)
+    .map(p => pairStakes(p!))
+  assert.ok(new Set(lines).size > 1,
+    'every agent for this trade produced an identical stakes line')
 })

@@ -25,6 +25,14 @@ export const PAIRINGS: Record<string, string[]> = {
   restock: ['retail', 'ecommerce', 'restaurants', 'automotive', 'logistics', 'pharmacy', 'manufacturing', 'salons', 'clinics'],
   screen: ['agencies', 'retail', 'logistics', 'restaurants', 'clinics', 'construction', 'education', 'fitness', 'saas', 'professional-services', 'travel-agencies', 'salons', 'events'],
   brief: ['ecommerce', 'agencies', 'saas', 'retail', 'restaurants', 'logistics', 'fitness', 'professional-services', 'travel-agencies', 'education', 'clinics', 'manufacturing'],
+  orderflow: ['ecommerce', 'retail', 'restaurants', 'pharmacy', 'manufacturing', 'logistics', 'salons'],
+  dispatch: ['construction', 'automotive', 'logistics', 'manufacturing', 'events', 'retail'],
+  quote: ['construction', 'manufacturing', 'logistics', 'events', 'agencies', 'professional-services', 'automotive', 'insurance', 'legal', 'travel-agencies'],
+  collect: ['professional-services', 'agencies', 'construction', 'logistics', 'manufacturing', 'legal', 'clinics', 'education', 'events', 'automotive', 'insurance'],
+  revive: ['ecommerce', 'retail', 'fitness', 'salons', 'clinics', 'automotive', 'travel-agencies', 'restaurants', 'education', 'pharmacy'],
+  social: ['salons', 'restaurants', 'fitness', 'ecommerce', 'retail', 'clinics', 'events', 'travel-agencies', 'real-estate', 'education'],
+  onboard: ['agencies', 'professional-services', 'legal', 'insurance', 'education', 'clinics', 'saas', 'events'],
+  intake: ['clinics', 'pharmacy', 'salons', 'legal', 'insurance', 'fitness'],
 }
 
 export interface Pair { agent: Agent; industry: Industry; slug: string }
@@ -108,23 +116,73 @@ export function pairIntro(p: Pair): string {
  * agent, so the pages for one industry emphasise different things.
  */
 export function pairStakes(p: Pair): string {
-  const pain = p.industry.pains[stableIndex(p.agent.slug, p.industry.pains.length)]
-  // Names the job, not the brand. This paragraph is body copy a search engine
-  // reads, and "For Relay the pressure point is" spends the sentence on a word
-  // with no demand behind it. It still varies per agent, so the pages for one
-  // trade do not collapse into each other.
+  const pain = mostRelevantPain(p)
   return `At ${p.industry.one}, ${p.industry.stakes}. For an ${jobPhrase(p.agent)} the pressure point is where ${pain} — the repetitive part, which is worth handing over rather than hiring around.`
 }
 
 /**
- * A small deterministic hash, so the same pairing always picks the same pain.
- * Not security-sensitive; it only has to be stable across builds, or the copy
- * would shuffle on every deploy and look unstable to a crawler.
+ * Which of a trade's pains this particular agent is actually about.
+ *
+ * This used to pick one by hashing the agent slug, which is stable but
+ * meaningless — and it showed: the dispatch page for contractors led on
+ * "contract terms are signed without anyone reading page nine", a sentence
+ * about a different agent entirely. Picking at random is the thing that makes
+ * a generated page read as generated.
+ *
+ * Scoring on shared words between the agent's own copy and each pain is crude,
+ * but it is the difference between a relevant sentence and a wrong one, and it
+ * falls back to the first pain rather than inventing anything.
  */
-function stableIndex(key: string, length: number): number {
-  let h = 0
-  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0
-  return length > 0 ? h % length : 0
+function mostRelevantPain(p: Pair): string {
+  const agentWords = new Set(
+    tokenise(`${p.agent.job} ${p.agent.tagline} ${p.agent.outcome} ${p.agent.features.join(' ')}`),
+  )
+  let best = p.industry.pains[0]
+  let bestScore = -1
+  // Forward order, strict >, so an exact tie keeps the earliest pain and the
+  // copy never shuffles between builds.
+  for (const pain of p.industry.pains) {
+    let score = 0
+    for (const w of new Set(tokenise(pain))) if (agentWords.has(w)) score++
+    if (score > bestScore) { bestScore = score; best = pain }
+  }
+  return best
+}
+
+// Words common enough to match everything carry no signal.
+const STOPWORDS = new Set([
+  'the', 'and', 'for', 'that', 'with', 'from', 'are', 'not', 'but', 'they',
+  'their', 'your', 'you', 'who', 'what', 'when', 'which', 'has', 'have', 'had',
+  'into', 'out', 'off', 'all', 'any', 'one', 'two', 'its', 'it', 'is', 'of',
+  'to', 'in', 'on', 'at', 'as', 'by', 'or', 'a', 'an', 'be', 'so', 'up',
+  'every', 'most', 'same', 'than', 'then', 'them', 'this', 'these', 'those',
+  'can', 'will', 'does', 'do', 'get', 'gets', 'keep', 'keeps', 'take', 'takes',
+  // Connectives, added after they produced a wrong match: the dispatch
+  // agent's "kept informed without anyone running the board" scored against
+  // the contracts pain's "signed without anyone reading page nine" purely on
+  // "without" and "anyone", and beat the pain that was actually about it.
+  // Words this common appear in every sentence, so they are noise by
+  // definition — matching on them is matching on nothing.
+  'without', 'anyone', 'someone', 'nobody', 'everyone', 'while', 'before',
+  'after', 'still', 'already', 'actually', 'often', 'usually', 'something',
+  'anything', 'nothing', 'there', 'here', 'never', 'always', 'another',
+])
+
+function tokenise(text: string): string[] {
+  return text.toLowerCase().match(/[a-z]{3,}/g)?.filter(w => !STOPWORDS.has(w)).map(singular) ?? []
+}
+
+/**
+ * Crudest possible singular: drop a trailing "s".
+ *
+ * Needed because the match is exact-word, and the copy naturally disagrees on
+ * number — the trade's pain says "supplier invoices pile up" while the agent
+ * is an "AI Invoice Extraction Agent". Without this they never match, and the
+ * invoice agent leads on some unrelated pain instead. "ss" is left alone so
+ * "business" does not become "busines".
+ */
+function singular(w: string): string {
+  return w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w
 }
 
 /**
@@ -142,6 +200,25 @@ export function pairIntegrations(p: Pair): string[] {
     out.push(item)
   }
   return out
+}
+
+/**
+ * The North America line.
+ *
+ * Google removed country targeting for generic domains in 2022, so there is
+ * no setting that aims this site at the US and Canada. The only signals left
+ * are in the words: naming the countries, and naming the software those
+ * businesses actually run — Toast, Jobber, ServiceTitan, QuickBooks Online,
+ * Square. A page that lists the right tools reads as written for that market
+ * because it was.
+ *
+ * One sentence, in the body, on a page that is already about one trade. The
+ * version of this that does not work is a separate near-identical page per
+ * country, which is duplication wearing a flag.
+ */
+export function pairRegion(p: Pair): string {
+  const stack = p.industry.systems.slice(0, 3).join(', ')
+  return `Most ${p.industry.lower} we build this for are in the United States and Canada, running ${stack}. It connects to what you already use rather than asking you to move.`
 }
 
 function humanList(items: string[]): string {

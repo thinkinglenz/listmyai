@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, Headphones, Filter, CalendarCheck, Inbox, FileText, Repeat, Send, Star, Scale, Package, UserSearch, BarChart3, Bot } from 'lucide-react'
+import { ArrowRight, Headphones, Filter, CalendarCheck, Inbox, FileText, Repeat, Send, Star, Scale, Package, UserSearch, BarChart3, Bot, Truck, Calculator, Receipt, RotateCcw, MessageCircle, ClipboardCheck, ClipboardList } from 'lucide-react'
 import type { Agent } from '@/lib/agents'
 
 // Icons are named in the catalogue as strings so the data stays serialisable
@@ -8,6 +8,7 @@ import type { Agent } from '@/lib/agents'
 const ICONS: Record<string, React.ElementType> = {
   Headphones, Filter, CalendarCheck, Inbox, FileText, Repeat,
   Send, Star, Scale, Package, UserSearch, BarChart3,
+  Truck, Calculator, Receipt, RotateCcw, MessageCircle, ClipboardCheck, ClipboardList,
 }
 
 export default function AgentCard({ agent }: { agent: Agent }) {
