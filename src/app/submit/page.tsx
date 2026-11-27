@@ -716,7 +716,9 @@ export default function SubmitPage() {
 
               {/* Terms */}
               <div className="rounded-lg p-3 text-xs text-slate-500" style={{background:'rgba(255,255,255,0.03)'}}>
-                By submitting, you confirm this is an AI tool you are authorised to represent, and you agree to our{' '}
+                By submitting, you confirm this is an AI tool you are authorised to represent, that it meets our{' '}
+                <a href="/listing-policy" className="hover:underline" style={{color:'#e94560'}}>Listing Policy</a>,
+                and you agree to our{' '}
                 <a href="/terms" className="hover:underline" style={{color:'#e94560'}}>Terms of Use</a> and{' '}
                 <a href="/disclaimer" className="hover:underline" style={{color:'#e94560'}}>Disclaimer</a>.
                 All submissions go through our review and approval process before being published.

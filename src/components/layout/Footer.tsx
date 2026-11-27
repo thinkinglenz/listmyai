@@ -33,6 +33,7 @@ const GUIDE_LINKS = [
 ]
 
 const LEGAL_LINKS = [
+  { href: '/listing-policy', label: 'Listing Policy' },
   { href: '/terms',          label: 'Terms of Use' },
   { href: '/privacy-policy', label: 'Privacy Policy' },
   { href: '/refund-policy',  label: 'Refund Policy' },

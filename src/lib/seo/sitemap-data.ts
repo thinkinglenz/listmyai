@@ -279,6 +279,9 @@ export async function coreEntries(): Promise<Entry[]> {
     stat('/courses', 'weekly', 0.5),
     stat('/terms', 'yearly', 0.2),
     stat('/privacy-policy', 'yearly', 0.2),
+    // Linked from /submit and /contact, and the answer to most inbound
+    // listing questions, so it is worth more than the boilerplate pages.
+    stat('/listing-policy', 'monthly', 0.4),
     stat('/disclaimer', 'yearly', 0.2),
     stat('/dmca', 'yearly', 0.2),
     stat('/refund-policy', 'yearly', 0.2),

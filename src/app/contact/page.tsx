@@ -47,7 +47,11 @@ export default async function ContactPage({
               </p>
               <p className="mt-1 text-xs leading-relaxed text-slate-400">
                 Submit it directly instead of emailing — it reaches our review queue faster.
-                Free for the first six months.
+                Free for the first six months. Check the{' '}
+                <Link href="/listing-policy" className="underline decoration-dotted underline-offset-2 hover:text-white">
+                  listing policy
+                </Link>{' '}
+                first if you are not sure your tool qualifies.
               </p>
             </div>
             <Link href="/submit"
